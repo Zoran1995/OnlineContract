@@ -227,3 +227,50 @@ body {
     outline: none;
     box-shadow: 0 8px 20px rgba(16,24,40,0.12);
 }
+
+/* Fancy working hours block styling */
+.working-hours {
+    margin-top: 8px;
+    padding: 38px 14px 12px 14px; /* top padding for centered icon */
+    background: linear-gradient(135deg, #fafafa 0%, #f5f5ff 100%);
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    color: #374151;
+    font-size: 13px;
+    position: relative;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+    text-align: center;
+}
+.working-hours::before {
+    content: "\e192"; /* material icon: schedule */
+    font-family: 'Material Icons';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 8px;
+    font-size: 26px; /* bigger icon */
+    color: #f59e0b; /* amber */
+}
+.working-hours .wh-line { display: block; margin: 2px 0; }
+
+/* Notification controls (buttons inside the bell panel) pastel styles to match toast palette */
+.notification-panel .btn.notif-info {
+    background: #e6f8ec !important;
+    color: #114e2b !important;
+    border: 1px solid #2f8f43 !important;
+}
+.notification-panel .btn.notif-info:hover { box-shadow: 0 6px 18px rgba(47,143,67,0.12) !important; }
+
+.notification-panel .btn.notif-warning {
+    background: #fff6e8 !important;
+    color: #7a4100 !important;
+    border: 1px solid #d97706 !important;
+}
+.notification-panel .btn.notif-warning:hover { box-shadow: 0 6px 18px rgba(217,119,6,0.12) !important; }
+
+.notification-panel .btn.notif-error {
+    background: #ffecec !important;
+    color: #7f1d1d !important;
+    border: 1px solid #b91c1c !important;
+}
+.notification-panel .btn.notif-error:hover { box-shadow: 0 6px 18px rgba(185,28,28,0.12) !important; }

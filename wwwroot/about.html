@@ -48,8 +48,8 @@
     <!-- Call-to-actions separated from hero copy to avoid overlap -->
     <section class="text-center mb-8">
       <div class="flex flex-wrap justify-center gap-6">
-        <a href="#catalog" class="btn btn-primary text-lg px-6 py-2">Browse Collections</a>
-        <a href="/address" class="btn btn-outline text-lg px-6 py-2">Store & Contact</a>
+  <a href="/products" class="btn btn-primary text-lg px-6 py-2">Browse Collections</a>
+        <a href="#contact" class="btn btn-outline text-lg px-6 py-2">Contact & Stores</a>
       </div>
     </section>
 
@@ -133,8 +133,17 @@
         </div>
       </div>
       <div class="mt-6 text-center">
-        <a href="/address" class="btn btn-primary">Visit Our Store or Contact Us</a>
+        <div class="inline-flex items-center gap-2 text-sm text-gray-700">
+          <span class="material-icons text-rose-600">local_offer</span>
+          <span class="font-semibold">Visit Our Stores or Contact Us</span>
+        </div>
       </div>
+    </section>
+
+    <!-- Stores (dynamic) -->
+    <section id="contact" class="bg-base-100 rounded-xl shadow p-6 mt-8">
+      <h2 class="text-3xl font-extrabold mb-4">Our Stores</h2>
+  <div id="storesList" class="grid md:grid-cols-2 gap-6 items-stretch"></div>
     </section>
   </main>
 
@@ -158,5 +167,41 @@
     });
   </script>
   <script src="/js/shared.js"></script>
+  <script>
+    // Render stores from API into about page
+    document.addEventListener('DOMContentLoaded', async () => {
+      const host = location.origin;
+      try {
+        const res = await fetch(host + '/api/stores');
+        const data = await res.json();
+        const items = data.items || [];
+        const list = document.getElementById('storesList');
+        list.innerHTML = '';
+        items.forEach(s => {
+          const card = document.createElement('div');
+          // Further elongated fixed height and centered content for equal panels
+          card.className = 'p-6 rounded-lg bg-base-200 h-96 flex flex-col justify-center items-center text-center w-full';
+          // Prepare working hours lines (split by ';' and trim)
+          const hours = (s.hours || '')
+            .split(';')
+            .map(h => h.trim())
+            .filter(h => h.length > 0);
+
+          card.innerHTML = `
+            <div class="flex items-center justify-center mb-2">
+              <span class="material-icons text-rose-600 mr-2">storefront</span>
+              <h3 class="text-xl font-bold">${s.name}</h3>
+            </div>
+            <p class="text-sm text-gray-700 flex items-center justify-center gap-2"><span class="material-icons text-rose-600">location_on</span><span>${s.address}</span></p>
+            <p class="text-xs text-gray-600 mt-1 flex items-center justify-center gap-2"><span class="material-icons text-sky-600">call</span><span>${s.phone}</span></p>
+            ${hours.length ? `<div class="working-hours w-full h-40 text-center flex flex-col items-center justify-center">${hours.map(h => `<span class='wh-line'>${h}</span>`).join('')}</div>` : ''}
+          `;
+          list.appendChild(card);
+        });
+      } catch (err) {
+        console.error('Failed to load stores', err);
+      }
+    });
+  </script>
 </body>
 </html>

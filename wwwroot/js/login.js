@@ -47,7 +47,7 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
     });
 
     if (!res.ok) throw new Error('Login failed');
-    const data = await res.json();
+  const data = await res.json();
 
     if (!data || data.success !== true) {
       // Server reports failure (e.g. invalid code/password)
@@ -59,6 +59,9 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
 // success
 localStorage.setItem('isLoggedIn', 'true');
 localStorage.setItem('userId', data.userId || 2);
+if (typeof data.roleId !== 'undefined') {
+  localStorage.setItem('roleId', String(data.roleId));
+}
 
 sessionStorage.setItem('pendingToast', JSON.stringify({
   type: 'info',
@@ -126,12 +129,14 @@ document.getElementById('registerForm')?.addEventListener('submit', async (e) =>
       return;
     }
 
-
-sessionStorage.setItem('pendingToast', JSON.stringify({
-  type: 'info',
-  message: 'User successfully created account'
-}));
-
+  // Auto-login on successful registration
+  localStorage.setItem('isLoggedIn', 'true');
+  localStorage.setItem('userId', (data.userId ?? '').toString());
+  localStorage.setItem('roleId', '0');
+    sessionStorage.setItem('pendingToast', JSON.stringify({
+      type: 'info',
+      message: 'Account created and you are now logged in.'
+    }));
     location.href = '/home';
   } catch (err) {
     showToast('error', 'Registration failed');

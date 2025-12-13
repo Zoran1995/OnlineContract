@@ -18,7 +18,8 @@ var rewriteOptions = new RewriteOptions()
 	    .AddRewrite("(?i)^home$", "home.html", skipRemainingRules: true)
 	    .AddRewrite("(?i)^eventlog$", "eventlog.html", skipRemainingRules: true)
 	    .AddRewrite("(?i)^about$", "about.html", skipRemainingRules: true)
-	    .AddRewrite("(?i)^address$", "address.html", skipRemainingRules: true);
+        .AddRewrite("(?i)^address$", "address.html", skipRemainingRules: true)
+        .AddRewrite("(?i)^products$", "products.html", skipRemainingRules: true);
 app.UseRewriter(rewriteOptions);
 
 // Serve static files from wwwroot
@@ -56,8 +57,8 @@ app.MapPost("/api/login", async (AppDbContext db, LoginDto dto) =>
             return Results.Json(new { success = false, message = "Invalid password." });
         }
 
-        await LoggerHelper.LogEventAsync(db, EventType.Information, "Login successful", $"User {user.Code} logged in.", user.Id);
-        return Results.Json(new { success = true, userId = user.Id });
+    await LoggerHelper.LogEventAsync(db, EventType.Information, "Login successful", $"User {user.Code} logged in.", user.Id);
+    return Results.Json(new { success = true, userId = user.Id, roleId = user.RoleId });
     }
     catch (Exception ex)
     {
@@ -115,7 +116,8 @@ app.MapPost("/api/register", async (AppDbContext db, RegisterDto dto) =>
             LastLoginDt = DateTime.UtcNow,
             City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City?.Trim(),
             StreetAddress = string.IsNullOrWhiteSpace(dto.StreetAddress) ? null : dto.StreetAddress?.Trim(),
-            PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode?.Trim()
+            PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode?.Trim(),
+            RoleId = 0
         };
 
         db.AxUsers.Add(newUser);
@@ -169,7 +171,11 @@ app.MapGet("/api/event-log", async (AppDbContext db, int userId, int type, DateT
         var query = db.EventLogs.AsQueryable();
 
         if (type > 0)
-            query = query.Where(e => e.EventTypeId == type);
+        {
+            // Map legacy UI filter values (1=Info, 2=Warning, 3=Error) to new enum ids (2,3,4)
+            var mappedType = type == 1 ? 2 : type == 2 ? 3 : type == 3 ? 4 : type;
+            query = query.Where(e => e.EventTypeId == mappedType);
+        }
 
         if (from.HasValue)
             query = query.Where(e => e.InputDt >= from.Value);
@@ -197,7 +203,7 @@ app.MapGet("/api/event-log", async (AppDbContext db, int userId, int type, DateT
             .Take(pageSize)
             .Select(e => new {
                 id = e.EventLogId,
-                type = e.EventTypeId == 1 ? "Information" : e.EventTypeId == 2 ? "Warning" : "Error",
+                type = e.EventTypeId == 2 ? "Information" : e.EventTypeId == 3 ? "Warning" : "Error",
                 date = e.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
                 description = e.Description,
                 user = e.Code,
@@ -224,7 +230,7 @@ app.MapGet("/api/event-log/export", async (AppDbContext db, int userId) =>
                           from u in users.DefaultIfEmpty()
                           select new {
                               e.EventLogId,
-                              TypeName = e.EventTypeId == 1 ? "Information" : e.EventTypeId == 2 ? "Warning" : "Error",
+                              TypeName = e.EventTypeId == 2 ? "Information" : e.EventTypeId == 3 ? "Warning" : "Error",
                               e.InputDt,
                               e.Description,
                               UserFullName = u != null ? (u.FirstName + " " + u.LastName).Trim() : ($"User {e.UserId}"),
@@ -244,6 +250,31 @@ app.MapGet("/api/event-log/export", async (AppDbContext db, int userId) =>
     {
         await LoggerHelper.LogEventAsync(db, EventType.Error, "Export failed", ex.ToString(), userId);
         return Results.StatusCode(500);
+    }
+});
+
+// STORES ENDPOINT
+app.MapGet("/api/stores", async (AppDbContext db) =>
+{
+    try
+    {
+        var items = await db.Stores
+            .OrderBy(s => s.Name)
+            .Select(s => new {
+                id = s.StoreId,
+                name = s.Name,
+                address = s.Address,
+                phone = s.Phone_Number,
+                email = s.Email,
+                hours = s.Working_Hours
+            })
+            .ToListAsync();
+        return Results.Json(new { items });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Stores endpoint failed", ex.ToString(), 0);
+        return Results.Json(new { items = Array.Empty<object>() });
     }
 });
 

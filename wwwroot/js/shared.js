@@ -147,27 +147,30 @@ function ensureNotificationUI() {
     dismissBtn.onclick = dismissAll;
     controls.appendChild(dismissBtn);
 
-    const infoBtn = document.createElement('button');
-    infoBtn.className = 'btn btn-xs btn-success';
-    infoBtn.textContent = 'Information';
+  const infoBtn = document.createElement('button');
+  infoBtn.className = 'btn btn-xs notif-info';
+  infoBtn.setAttribute('aria-label', 'Filter information notifications');
+  infoBtn.textContent = 'Information';
     infoBtn.onclick = function() {
       window._notificationFilterType = 'info';
       updateNotificationBell();
     };
     controls.appendChild(infoBtn);
 
-    const warnBtn = document.createElement('button');
-    warnBtn.className = 'btn btn-xs btn-warning';
-    warnBtn.textContent = 'Warning';
+  const warnBtn = document.createElement('button');
+  warnBtn.className = 'btn btn-xs notif-warning';
+  warnBtn.setAttribute('aria-label', 'Filter warning notifications');
+  warnBtn.textContent = 'Warning';
     warnBtn.onclick = function() {
       window._notificationFilterType = 'warning';
       updateNotificationBell();
     };
     controls.appendChild(warnBtn);
 
-    const errorBtn = document.createElement('button');
-    errorBtn.className = 'btn btn-xs btn-error';
-    errorBtn.textContent = 'Error';
+  const errorBtn = document.createElement('button');
+  errorBtn.className = 'btn btn-xs notif-error';
+  errorBtn.setAttribute('aria-label', 'Filter error notifications');
+  errorBtn.textContent = 'Error';
     errorBtn.onclick = function() {
       window._notificationFilterType = 'error';
       updateNotificationBell();
@@ -200,7 +203,10 @@ function ensureNotificationUI() {
   // Navbar auth controls: show Log Out when logged in; redirect to /login on logout
   try {
     const updateNavbarAuth = () => {
-      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+  const roleId = parseInt(localStorage.getItem('roleId') || '0', 10);
+  // Privileged roles: Manager=8, Administrator=7 (per ax_user.role_id)
+  const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
       const signIn = document.getElementById('navSignIn');
       const logIn = document.getElementById('navLogIn');
       const logOut = document.getElementById('navLogOut');
@@ -211,11 +217,11 @@ function ensureNotificationUI() {
       // Hide EventLog nav link unless logged in (applies across pages)
       const eventLogLinks = Array.from(document.querySelectorAll('.navbar a'))
         .filter(a => (a.getAttribute('href') || '').toLowerCase().includes('/eventlog'));
-      eventLogLinks.forEach(a => a.classList.toggle('hidden', !isLoggedIn));
+  eventLogLinks.forEach(a => a.classList.toggle('hidden', !isPrivileged));
 
       // Hide export button unless logged in (EventLog page)
-      const exportBtn = document.getElementById('exportBtn');
-      if (exportBtn) exportBtn.classList.toggle('hidden', !isLoggedIn);
+  const exportBtn = document.getElementById('exportBtn');
+  if (exportBtn) exportBtn.classList.toggle('hidden', !isPrivileged);
     };
     updateNavbarAuth();
 
@@ -252,6 +258,7 @@ function ensureNotificationUI() {
           localStorage.removeItem('isLoggedIn');
           localStorage.removeItem('userId');
           localStorage.removeItem('lastActivityTs');
+          localStorage.removeItem('roleId');
         } catch {}
         updateNavbarAuth();
         // redirect to login page

@@ -37,7 +37,7 @@
   </div>
 
   <!-- Filters -->
-  <section class="container mx-auto p-4">
+  <section id="eventlogContent" class="container mx-auto p-4">
     <div class="bg-base-100 rounded-xl shadow p-4">
       <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
         <div>
@@ -69,7 +69,7 @@
   </section>
 
   <!-- Grid -->
-  <section class="container mx-auto p-4">
+  <section id="eventlogGrid" class="container mx-auto p-4">
     <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
       <table id="logTable" class="table table-zebra w-full">
         <thead>
@@ -113,5 +113,37 @@
 
   <script src="/js/shared.js"></script>
   <script src="/js/eventlog.js"></script>
+  <script>
+    // Gate the EventLog page: show an inline error if user is not privileged
+    (function(){
+      try {
+        const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+        const roleId = parseInt(localStorage.getItem('roleId') || '0', 10);
+        const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
+        if (!isPrivileged) {
+          // Hide main content sections and show an error placeholder
+          const content = document.getElementById('eventlogContent');
+          if (content) content.classList.add('hidden');
+          const grid = document.getElementById('eventlogGrid');
+          if (grid) grid.classList.add('hidden');
+          const overlay = document.getElementById('loadingOverlay');
+          if (overlay) overlay.classList.add('hidden');
+          // Replace body main content with an inline error panel under the navbar
+          const container = document.createElement('section');
+          container.className = 'container mx-auto p-6';
+          container.innerHTML = `
+            <div class="bg-base-100 rounded-xl shadow p-8 text-center">
+              <div class="flex items-center justify-center gap-2 mb-3">
+                <span class="material-icons text-rose-600">block</span>
+                <h2 class="text-2xl font-bold">Access Denied</h2>
+              </div>
+              <p class="text-gray-700">You are not allowed to see this page.</p>
+            </div>
+          `;
+          document.body.appendChild(container);
+        }
+      } catch {}
+    })();
+  </script>
 </body>
 </html>

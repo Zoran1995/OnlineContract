@@ -41,17 +41,20 @@ namespace OnlineContract.Models
         [MaxLength(150)]
         public string? Email { get; set; }
 
-    [Column("city")]
-    [MaxLength(100)]
-    public string? City { get; set; }
+        [Column("role_id")]
+        public int RoleId { get; set; } = 0;
 
-    [Column("street_address")]
-    [MaxLength(200)]
-    public string? StreetAddress { get; set; }
+        [Column("city")]
+        [MaxLength(100)]
+        public string? City { get; set; }
 
-    [Column("postal_code")]
-    [MaxLength(20)]
-    public string? PostalCode { get; set; }
+        [Column("street_address")]
+        [MaxLength(200)]
+        public string? StreetAddress { get; set; }
+
+        [Column("postal_code")]
+        [MaxLength(20)]
+        public string? PostalCode { get; set; }
 
         [Column("last_login_dt")]
         public DateTime? LastLoginDt { get; set; }

@@ -181,6 +181,28 @@
 
 .notification-item:last-child { border-bottom: none; }
 
+/* Notification controls (buttons inside the bell panel) pastel styles to match toast palette */
+.notification-panel .btn.notif-info {
+  background: #e6f8ec !important;
+  color: #114e2b !important;
+  border: 1px solid #2f8f43 !important;
+}
+.notification-panel .btn.notif-info:hover { box-shadow: 0 6px 18px rgba(47,143,67,0.12) !important; }
+
+.notification-panel .btn.notif-warning {
+  background: #fff6e8 !important;
+  color: #7a4100 !important;
+  border: 1px solid #d97706 !important;
+}
+.notification-panel .btn.notif-warning:hover { box-shadow: 0 6px 18px rgba(217,119,6,0.12) !important; }
+
+.notification-panel .btn.notif-error {
+  background: #ffecec !important;
+  color: #7f1d1d !important;
+  border: 1px solid #b91c1c !important;
+}
+.notification-panel .btn.notif-error:hover { box-shadow: 0 6px 18px rgba(185,28,28,0.12) !important; }
+
 /* Spinner (inline) */
 .spinner {
   display: inline-block;

@@ -2,7 +2,7 @@
 <html lang="en" data-theme="pastel">
 <head>
   <meta charset="utf-8" />
-  <title>KidzStyle · Contact</title>
+  <title>KidzStyle · Stores & Contact</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
@@ -37,44 +37,45 @@
   <!-- Content -->
   <main class="container mx-auto p-6">
     <section class="bg-base-100 rounded-xl shadow p-8">
-      <div class="flex items-center gap-3 mb-3">
-  <span class="material-icons text-violet-600">location_on</span>
-  <h1 class="text-4xl font-extrabold tracking-tight">Contact KidzStyle</h1>
+      <div class="flex items-center justify-center gap-3 mb-4">
+        <span class="material-icons text-violet-600">location_on</span>
+        <h1 class="text-4xl font-extrabold tracking-tight">Stores & Contact</h1>
       </div>
-      <div class="grid md:grid-cols-2 gap-8 items-start">
-        <div>
-          <h2 class="text-2xl font-bold mb-3">Address</h2>
-          <div class="bg-violet-50 border border-violet-200 rounded-lg p-4">
-            <p class="text-lg font-medium">245 Liberty Avenue, Suite 12</p>
-            <p class="text-lg">Austin, TX 78701, USA</p>
+
+      <p class="text-base leading-relaxed text-gray-700 mb-8 text-center max-w-3xl mx-auto">
+        Visit our Serbian stores for in‑person shopping or pickup. We carry adorable and comfy clothing for babies, kids,
+        and teens. Friendly staff, clear policies, and convenient working hours.
+      </p>
+
+      <!-- Contact info cards (dynamic: first two stores) -->
+      <div class="grid md:grid-cols-2 gap-6 mb-8 justify-items-center">
+        <div class="p-4 rounded-lg bg-base-200 w-full max-w-md text-center">
+          <div class="flex items-center justify-center mb-2">
+            <span class="material-icons text-sky-600 mr-2">call</span>
+            <h3 class="text-xl font-bold">Phone</h3>
           </div>
-          <div class="mt-6">
-            <h3 class="text-xl font-semibold mb-2">Description</h3>
-            <p class="text-base leading-relaxed text-gray-700">
-              Visit our cozy storefront for in-person shopping or pickup. We’re close to parks and family-friendly cafes.
-              Browse baby, kids, and teens collections with soft, durable fabrics and vibrant colors. Friendly staff is ready to help.
-            </p>
-            <div class="mt-4 flex flex-wrap gap-2">
-              <span class="badge badge-success">Kids Friendly</span>
-              <span class="badge badge-info">Gift Wrap</span>
-              <span class="badge badge-warning">Easy Returns</span>
-              <span class="badge badge-secondary">Organic Cotton</span>
-            </div>
-          </div>
+          <ul id="topPhones" class="text-sm text-gray-700 space-y-1">
+            <li><a id="topPhone1" href="#" class="link"></a></li>
+            <li><a id="topPhone2" href="#" class="link"></a></li>
+          </ul>
         </div>
-        <div>
-          <div class="rounded-xl overflow-hidden shadow">
-            <img src="/resources/photos/HomePage.jpg" alt="KidzStyle Storefront" class="w-full aspect-video object-cover" loading="lazy" />
+        <div class="p-4 rounded-lg bg-base-200 w-full max-w-md text-center">
+          <div class="flex items-center justify-center mb-2">
+            <span class="material-icons text-emerald-600 mr-2">mail</span>
+            <h3 class="text-xl font-bold">Email</h3>
           </div>
-          <div class="mt-4 grid grid-cols-2 gap-4">
-            <img src="/resources/photos/Item1.jpg" alt="Kids Collection" class="rounded-lg shadow w-full aspect-video object-cover" loading="lazy" />
-            <img src="/resources/photos/Item2.jpg" alt="Teens Collection" class="rounded-lg shadow w-full aspect-video object-cover" loading="lazy" />
-          </div>
+          <ul id="topEmails" class="text-sm text-gray-700 space-y-1">
+            <li><a id="topEmail1" href="#" class="link"></a></li>
+            <li><a id="topEmail2" href="#" class="link"></a></li>
+          </ul>
         </div>
       </div>
-      <div class="mt-8 flex flex-wrap gap-4">
-  <a href="https://maps.google.com/?q=245+Liberty+Avenue,+Austin+TX+78701" target="_blank" rel="noopener" class="btn btn-primary">Open in Google Maps</a>
-        <a href="/about" class="btn btn-outline">Back to About</a>
+
+  <!-- Stores list rendered from API -->
+  <div id="storesGrid" class="grid md:grid-cols-2 gap-8 justify-items-center items-start"></div>
+
+      <div class="mt-10 flex justify-center">
+        <a href="/about" class="btn btn-primary btn-lg btn-wide">Back to About</a>
       </div>
     </section>
   </main>
@@ -99,5 +100,76 @@
     });
   </script>
   <script src="/js/shared.js"></script>
+  <script>
+    // Populate address page from /api/stores
+    document.addEventListener('DOMContentLoaded', async () => {
+      const grid = document.getElementById('storesGrid');
+      const photos = ['/resources/photos/Store1.jpg','/resources/photos/Store2.jpg','/resources/photos/Store3.jpg'];
+      const extraPhotos = [
+        ['/resources/photos/Store1Item1.jpg','/resources/photos/Store1Item2.jpg'],
+        ['/resources/photos/Store2Item1.jpg','/resources/photos/Store2Item2.jpg'],
+        ['/resources/photos/Store3Item1.jpg','/resources/photos/Store3Item2.jpg']
+      ];
+      try {
+        const res = await fetch('/api/stores');
+  const { items } = await res.json();
+  // Populate top Phone and Email from first two stores
+  const s1 = items[0];
+  const s2 = items[1];
+  const phone1 = s1?.phone?.trim();
+  const phone2 = s2?.phone?.trim();
+  const email1 = s1?.email?.trim();
+  const email2 = s2?.email?.trim();
+  const tp1 = document.getElementById('topPhone1');
+  const tp2 = document.getElementById('topPhone2');
+  const te1 = document.getElementById('topEmail1');
+  const te2 = document.getElementById('topEmail2');
+  if (tp1 && phone1) { tp1.textContent = phone1; tp1.href = `tel:${phone1.replace(/\s+/g,'')}`; } else if (tp1) { tp1.textContent = '—'; tp1.removeAttribute('href'); }
+  if (tp2 && phone2) { tp2.textContent = phone2; tp2.href = `tel:${phone2.replace(/\s+/g,'')}`; } else if (tp2) { tp2.textContent = '—'; tp2.removeAttribute('href'); }
+  if (te1 && email1) { te1.textContent = email1; te1.href = `mailto:${email1}`; } else if (te1) { te1.textContent = '—'; te1.removeAttribute('href'); }
+  if (te2 && email2) { te2.textContent = email2; te2.href = `mailto:${email2}`; } else if (te2) { te2.textContent = '—'; te2.removeAttribute('href'); }
+        grid.innerHTML = '';
+        items.forEach((s, idx) => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'grid md:grid-cols-2 gap-6 w-full max-w-3xl';
+          const left = document.createElement('div');
+          const hours = (s.hours || '')
+            .split(';')
+            .map(h => h.trim())
+            .filter(h => h.length > 0);
+          left.innerHTML = `
+            <div class=\"card bg-base-200 shadow-sm h-96 flex flex-col justify-center items-center text-center\">
+              <div class=\"card-body w-full\">
+                <h2 class=\"card-title justify-center text-2xl mb-2\">${s.name}</h2>
+                <div class=\"bg-violet-50 border border-violet-200 rounded-lg p-4\">
+                  <p class=\"text-base font-medium flex items-center gap-2\"><span class='material-icons text-rose-600'>location_on</span><span>${s.address}</span></p>
+                </div>
+                <div class=\"mt-4 text-sm text-gray-700 flex items-center justify-center gap-2\"><span class='material-icons text-sky-600'>call</span><span>${s.phone}</span></div>
+                ${hours.length ? `
+                  <div class=\"working-hours w-full h-40 text-center flex flex-col items-center justify-center mt-2\">
+                    ${hours.map(h => `<span class=\"wh-line\">${h}</span>`).join('')}
+                  </div>
+                ` : ''}
+                <div class=\"mt-4 flex flex-wrap gap-2 justify-center\">
+                  <a href=\"https://maps.google.com/?q=${encodeURIComponent(s.address)}\" target=\"_blank\" rel=\"noopener\" class=\"btn btn-primary btn-sm\">Open in Google Maps</a>
+                </div>
+              </div>
+            </div>`;
+          const right = document.createElement('div');
+          const ep = extraPhotos[idx % extraPhotos.length];
+          right.innerHTML = `
+            <div class=\"grid grid-cols-1 gap-4 w-full h-96 place-content-center\">
+              ${ep?.[0] ? `<div class=\"rounded-xl overflow-hidden shadow\"><img src=\"${ep[0]}\" alt=\"Store item 1\" class=\"w-full aspect-video object-cover\" loading=\"lazy\" /></div>` : ''}
+              ${ep?.[1] ? `<div class=\"rounded-xl overflow-hidden shadow\"><img src=\"${ep[1]}\" alt=\"Store item 2\" class=\"w-full aspect-video object-cover\" loading=\"lazy\" /></div>` : ''}
+            </div>`;
+          wrapper.appendChild(left);
+          wrapper.appendChild(right);
+          grid.appendChild(wrapper);
+        });
+      } catch (err) {
+        console.error('Failed to load stores', err);
+      }
+    });
+  </script>
 </body>
 </html>

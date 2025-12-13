@@ -43,70 +43,15 @@
           <h1 class="text-5xl font-extrabold tracking-tight text-violet-900 mb-3">Discover Adorable Kids Clothing</h1>
           <p class="text-lg md:text-xl text-violet-800 mb-6">Comfy, colorful styles for babies, kids, and teens.</p>
           <div class="flex flex-wrap justify-center gap-4">
-            <a href="#catalog" class="btn btn-primary text-lg px-6">Browse Catalog</a>
-            <a href="#contact" class="btn btn-outline text-lg px-6">Contact Us</a>
+            <a href="/products" class="btn btn-primary text-lg px-6">Browse Catalog</a>
+            <a href="/about" class="btn btn-outline text-lg px-6">Contact Us</a>
           </div>
         </div>
       </div>
   <img src="/resources/photos/CoverImage.jpg" alt="Kids Fashion Cover" class="w-full h-64 md:h-80 object-cover" loading="lazy" />
     </section>
 
-    <!-- Filters Panel (Quick Search for Clothing) -->
-    <section class="bg-base-100 rounded-xl shadow p-6 mb-8">
-      <h2 class="text-2xl font-bold mb-4">Quick Search</h2>
-      <div class="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div>
-          <label class="label"><span class="label-text">Category</span></label>
-          <select class="select select-bordered w-full">
-            <option>Baby &amp; Toddler</option>
-            <option>Kids</option>
-            <option>Teens</option>
-            <option>Accessories</option>
-          </select>
-        </div>
-        <div>
-          <label class="label"><span class="label-text">Size</span></label>
-          <select class="select select-bordered w-full">
-            <option>0–24M</option>
-            <option>2T–4T</option>
-            <option>5–8</option>
-            <option>9–12</option>
-            <option>13–16</option>
-          </select>
-        </div>
-        <div>
-          <label class="label"><span class="label-text">Fabric</span></label>
-          <select class="select select-bordered w-full">
-            <option>Cotton</option>
-            <option>Organic Cotton</option>
-            <option>Poly-Cotton</option>
-            <option>Fleece</option>
-          </select>
-        </div>
-        <div>
-          <label class="label"><span class="label-text">Color</span></label>
-          <select class="select select-bordered w-full">
-            <option>Neutrals</option>
-            <option>Pastels</option>
-            <option>Brights</option>
-            <option>Patterns</option>
-          </select>
-        </div>
-        <div>
-          <label class="label"><span class="label-text">Price</span></label>
-          <input type="range" min="5" max="100" value="20" class="range range-primary" />
-          <div class="text-xs text-gray-600 mt-1">Set your budget</div>
-        </div>
-        <div>
-          <label class="label"><span class="label-text">Sort</span></label>
-          <select class="select select-bordered w-full">
-            <option>Price (Low → High)</option>
-            <option>Popularity</option>
-            <option>Newest</option>
-          </select>
-        </div>
-      </div>
-    </section>
+    
 
   <!-- Product Cards (Grid Layout) -->
   <section id="catalog" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -114,6 +59,10 @@
       <div class="bg-base-100 rounded-xl shadow overflow-hidden">
   <img src="/resources/photos/HomePage.jpg" alt="Kids Clothing — New Arrivals" class="w-full aspect-video object-cover" loading="lazy" />
         <div class="p-5">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="material-icons text-rose-600">local_fire_department</span>
+            <span class="text-xs uppercase tracking-wide text-rose-700">Editor’s Pick</span>
+          </div>
           <div class="flex items-center gap-2 mb-2">
             <h3 class="text-xl font-bold">New Arrivals</h3>
             <span class="badge badge-info">Kids</span>
@@ -133,6 +82,10 @@
       <div class="bg-base-100 rounded-xl shadow overflow-hidden">
   <img src="/resources/photos/Item1.jpg" alt="Baby & Toddler" class="w-full aspect-video object-cover" loading="lazy" />
         <div class="p-5">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="material-icons text-sky-600">emoji_events</span>
+            <span class="text-xs uppercase tracking-wide text-sky-700">Top Recommendation</span>
+          </div>
           <div class="flex items-center gap-2 mb-2">
             <h3 class="text-xl font-bold">Baby & Toddler</h3>
             <span class="badge badge-warning">Soft</span>
@@ -152,6 +105,10 @@
       <div class="bg-base-100 rounded-xl shadow overflow-hidden">
   <img src="/resources/photos/Item2.jpg" alt="Kids & Teens" class="w-full aspect-video object-cover" loading="lazy" />
         <div class="p-5">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="material-icons text-emerald-600">thumb_up</span>
+            <span class="text-xs uppercase tracking-wide text-emerald-700">We Recommend</span>
+          </div>
           <div class="flex items-center gap-2 mb-2">
             <h3 class="text-xl font-bold">Kids & Teens</h3>
             <span class="badge badge-ghost">Trendy</span>
@@ -170,22 +127,14 @@
 
     <!-- Trust Signals -->
     <section class="bg-base-100 rounded-xl shadow p-6 mb-8">
-      <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+      <div class="grid md:grid-cols-3 lg:grid-cols-3 gap-6 text-sm justify-items-center">
         <div class="flex items-center gap-2"><span class="material-icons text-emerald-600">verified</span> <span>No hidden fees</span></div>
         <div class="flex items-center gap-2"><span class="material-icons text-emerald-600">cancel</span> <span>Free cancellation up to 24h</span></div>
         <div class="flex items-center gap-2"><span class="material-icons text-emerald-600">shield</span> <span>Insurance included options</span></div>
-        <div class="flex items-center gap-2"><span class="material-icons text-emerald-600">support_agent</span> <span>24/7 roadside assistance</span></div>
       </div>
     </section>
 
-    <!-- CTA Block -->
-    <section id="quote" class="bg-gradient-to-r from-emerald-200 to-sky-200 rounded-xl shadow p-6 mb-8 text-center">
-      <h3 class="text-2xl font-bold mb-2">Need help choosing? Contact us 24/7</h3>
-      <div class="flex flex-wrap justify-center gap-3">
-        <a href="/address" class="btn btn-primary">Chat with an Agent</a>
-        <a href="tel:+18001234567" class="btn btn-outline">Call Now</a>
-      </div>
-    </section>
+    
 
     <!-- Mini FAQ Section -->
     <section class="bg-base-100 rounded-xl shadow p-6 mb-8">
@@ -214,15 +163,15 @@
       </div>
     </section>
 
-    <!-- Extras: Featured Offers + Promo Banner (simple placeholders) -->
+    <!-- Extras: Value Props + Reviews -->
     <section class="grid md:grid-cols-3 gap-6 mb-8">
       <div class="bg-base-100 rounded-xl shadow p-4 text-center">
-        <h4 class="font-bold mb-2">Weekend Special</h4>
-        <span class="badge badge-warning">20% Off SUVs</span>
+        <h4 class="font-bold mb-2">Premium Quality</h4>
+        <span class="badge badge-success">Durable & comfy</span>
       </div>
       <div class="bg-base-100 rounded-xl shadow p-4 text-center">
-        <h4 class="font-bold mb-2">Featured Deal</h4>
-        <span class="badge badge-success">Special Price</span>
+        <h4 class="font-bold mb-2">Fast Delivery</h4>
+        <span class="badge badge-info">Quick shipping</span>
       </div>
       <div class="bg-base-100 rounded-xl shadow p-4 text-center">
         <h4 class="font-bold mb-2">Customer Reviews</h4>
@@ -236,9 +185,9 @@
         <div class="flex gap-4">
           <a href="#" class="link link-hover">Terms &amp; Conditions</a>
           <a href="#" class="link link-hover">Privacy Policy</a>
-          <a href="/address" class="link link-hover">Contact Us</a>
+          <a href="/about" class="link link-hover">Contact Us</a>
         </div>
-        <div class="flex items-center gap-2 text-gray-600">
+        <div class="flex items-center gap-2 text-gray-600 hidden">
           <span class="material-icons">share</span>
           <span class="material-icons">thumb_up</span>
           <span class="material-icons">favorite</span>

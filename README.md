@@ -4,97 +4,81 @@ This project is an ASP.NET Core web app with a lightweight frontend (Tailwind + 
 
 ## Recent changes (Dec 2025)
 
-- Notifications
-  - Bell is always visible across pages: injected into the navbar when present, otherwise fixed top-right.
-  - Badge shows the count and hides when it’s 0, consistent site-wide.
-  - Toasts appear strictly below the navbar and never block clicks; position recalculates on resize and scroll.
-  - Notification panel stays anchored under the bell; width locks while open to prevent shifting.
-  - Panel controls added: thin “Dismiss all” and type filters (Information/Warning/Error) that filter the list.
-  - Filter resets automatically when the panel closes, showing all messages next time.
-  - Per-item dismiss works correctly with filtering; notifications persist across redirects (localStorage).
+# KidzStyle OnlineContract
 
-- Event Log page (`wwwroot/eventlog.html` + `wwwroot/js/eventlog.js` + `wwwroot/css/eventlog.css`)
-  - Removed duplicate HTML document and redundant navbar/auth scripts; single sticky navbar remains.
-  - Export button includes a download icon; Search and Clear buttons now include icons.
-  - Toasts are positioned below the navbar/bell/export button boundary so they never overlap header controls.
-  - Layout cleaned and consistent with other pages; notification bell lives in the navbar’s right controls.
+This repository hosts a minimal ASP.NET app that serves static pages from `wwwroot` and exposes a few JSON APIs. The frontend is vanilla HTML/CSS/JS with Tailwind and DaisyUI.
 
-- Shared behavior (`wwwroot/js/shared.js`)
-  - Robust bell injection with fallbacks; never hidden, high z-index for visibility.
-  - Toast container uses pointer-events: none and per-toast pointer-events: auto to avoid blocking navbar.
-  - Computes toast top from the maximum bottom of navbar/bell/export (aligns to boundary); recalculates on scroll/resize.
-  - Dismiss-all and per-item dismiss update the bell and persist to localStorage.
+## What’s new
 
-- Validation & auth (summary of prior work)
-  - Client/server email validation added in login/register flows.
-  - Optional address fields added: city, street_address, postal_code (5-digit validation).
-  - Global logout redirects to `/login`; inactivity auto-logout after 30 minutes.
+- Pages and navigation
+  - Static routes: `/login`, `/home`, `/about`, `/address`, `/eventlog`, `/products`.
+  - Address and About pages render store info dynamically from the database via `/api/stores`.
+  - Products page added; Home’s “Browse” links point to `/products`.
+  - UI polish: centered sections, pastel notification styles, unified working-hours block.
+
+- Store data from DB
+  - New model: `Models/Store.cs` mapped to `dbo.stores`.
+  - API: `GET /api/stores` returns id, name, address, phone, email, hours.
+  - Frontend fetches and renders stores; Address shows two item images per store.
+
+- Auth and account
+  - Login: `POST /api/login` returns `{ success, userId, roleId }`.
+  - Register: `POST /api/register` validates username/email uniqueness and creates an account.
+  - Auto-login after registration: the user is signed in immediately and redirected to Home.
+  - Roles added: `YourApp.Domain.Identity.UserRole` (Customer=0, Worker=1, Manager=2, Administrator=3).
+  - `AxUser` has `role_id` column mapped via `RoleId` property.
+
+- Role-based UI
+  - EventLog nav link and Export CSV button are visible only to logged-in Managers or Administrators.
+  - `wwwroot/js/shared.js` reads `roleId` from localStorage to toggle visibility.
+
+- Event log
+  - `GET /api/event-log` paginated feed with optional filters.
+  - `GET /api/event-log/export` returns CSV.
+  - Client error logging endpoint: `POST /api/log-client-error`.
 
 ## How to run
 
-1. Build
-   - Run `dotnet build` from the repository root.
-2. Run
-   - Run `dotnet run` to start the app, then open the reported URL in a browser.
+1. Build the app:
+   - Task: VS Code task "build" or
+   - `dotnet build --configuration Debug c:\Projects\OnlineContract\OnlineContract.csproj`
 
-## Files of interest
+2. Run in watch mode (HTTPS profile):
+   - Task: VS Code task "watch-run-https" (suppresses auto-launch) or
+   - `dotnet watch run --launch-profile https --configuration Debug`
 
-- `wwwroot/js/shared.js`: Bell, badge, toast, panel logic; navbar auth; inactivity logout; filter controls.
-- `wwwroot/eventlog.html`: Single sticky navbar; filters/grid/pagination; export button with icon.
-- `wwwroot/js/eventlog.js`: Event Log interactions; icons for Search/Clear; export handler.
-- `wwwroot/css/eventlog.css`: Page styling; allows JS to control toast top (no `!important` overrides).
-- `wwwroot/home.html`, `wwwroot/login.html`, `wwwroot/about.html`, `wwwroot/address.html`: Pages using shared navbar + bell.
-
-## Images: local photo integration
-
-All pages now reference local JPG photos stored under `wwwroot/resources/photos/` to avoid broken images and external dependencies.
-
-Expected filenames (drop your real photos using these names):
-- hero-scenic.jpg
-- login-illustration.jpg
-- gallery-1.jpg, gallery-2.jpg, gallery-3.jpg
-- car-compact.jpg, car-suv.jpg, car-luxury.jpg
-- city-downtown.jpg, city-park.jpg, city-coffee.jpg
-
-Recommended resolutions:
-- Hero banner: 1600×500–600 (wide)
-- Cards/galleries/vehicles/cities: ~1280×720 or 800×500 (landscape)
-
-Styling notes:
-- Images are rendered with `object-cover` and rounded corners to fit neatly without distortion.
-- There is no placeholder fallback; the app displays only concrete images you provide under `wwwroot/resources/photos/`.
-
-Adding more photos:
-- Place additional JPGs under `wwwroot/resources/photos/` and update the corresponding page to point to them.
-- Prefer appropriately compressed JPGs for performance.
+3. Navigate to pages:
+   - Login: `/login` (supports `?mode=login` or `?mode=signin`)
+   - Home: `/home`
+   - About: `/about`
+   - Address: `/address`
+   - Products: `/products`
+   - EventLog: `/eventlog` (requires role Manager or Administrator)
 
 ## Notes
 
-- If the navbar markup changes, the bell auto-relocates to `.navbar` or falls back to fixed top-right.
-- Toast spacing from the top boundary can be tuned; currently aligned to the exact lower edge (+1px).
+- Tailwind/DaisyUI are loaded via CDN.
+- Material Icons via Google Fonts.
+- LocalStorage keys used by the UI:
+  - `isLoggedIn`, `userId`, `roleId`, `lastActivityTs`.
+- After registration, the app sets `isLoggedIn=true`, `userId` to the new ID, `roleId=0` (Customer) by default.
+- The Address page’s top Phone/Email cards read values from the first two stores returned by `/api/stores`.
+- Working hours format is split by `;` and rendered as multiple lines.
 
-# OnlineContract Application
+## Folder overview
 
-This project is an ASP.NET Core application with a modern frontend (HTML/CSS/JS) designed to handle user authentication, event logging, and error tracking.
+- `Controllers/LogOn.cs` — minimal API endpoints and rewrites.
+- `Data/AppDbContext.cs` — EF Core context and mappings.
+- `Models/AxUser.cs` — user model with `role_id`.
+- `Models/Store.cs` — store model.
+- `Helpers/GlobalEnums.cs` — `EventType` and `UserRole` enums.
+- `wwwroot/` — static frontend assets and pages.
 
-## Features Implemented
+## Removed or changed
 
-### 🔐 Authentication
-- Custom login endpoint with secure password hashing.
-- User ID stored in `localStorage` after successful login.
-- Failed login attempts are logged as **Warning** events.
-
-### 📑 Event Logging
-- Centralized logging of all errors and warnings into the `event_log` table.
-- Each log entry includes: EventType, DateTime, Description, User, and full StackTrace.
-- Global error handler middleware ensures unhandled exceptions are logged.
-
-### 📊 Event Log Grid
-- Displays event logs with filtering by **EventType** and date range.
-- New **StackTrace** column added for detailed debugging.
-- Client-side validation: prevents invalid date ranges (`from > to`).
-- Pagination with selectable page size (10, 20, 50, 100).
-- Export to CSV with properly aligned headers and ISO DateTime format.
+- Old Home promo texts (“Weekend Special”, “Featured Deal”, “20% Off SUVs”) removed/replaced with value props.
+- Home footer reaction icons hidden.
+- About/Address hardcoded contact info removed; both now fetch from DB.
 
 ### ⚠️ Toast Notifications
 - Client-side validation errors and warnings are shown as **toast bubbles**:
