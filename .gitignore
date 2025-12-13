@@ -1,0 +1,27 @@
+# Build outputs
+bin/
+obj/
+
+# User-specific settings
+*.user
+*.suo
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# Environment files
+*.env
+
+# NuGet
+*.nupkg
+packages/
+
+# Local tooling
+/.vs/
+
+# Publish output
+wwwroot/dist/

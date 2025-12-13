@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="pastel">
+<head>
+  <meta charset="utf-8" />
+  <title>KidzStyle · Account</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <link rel="icon" href="/resources/icons/key-heart.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/login.css" />
+</head>
+<body class="bg-base-200 text-base-content">
+
+  <!-- Navbar -->
+  <div class="navbar bg-base-100 shadow sticky top-0 z-50">
+    <div class="flex-1">
+      <a href="/home" class="btn btn-ghost normal-case text-xl">
+        <span class="material-icons mr-2">home</span> Home
+      </a>
+      <a href="/about" class="btn btn-ghost">
+        <span class="material-icons mr-2">info</span> About
+      </a>
+      <a href="/address" class="btn btn-ghost">
+        <span class="material-icons mr-2">location_on</span> Address
+      </a>
+      <a href="/eventlog" class="btn btn-ghost">
+        <span class="material-icons mr-2">bug_report</span> EventLog
+      </a>
+    </div>
+    <div class="flex-none items-center gap-3">
+      <button id="navLogIn" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</button>
+      <button id="navSignIn" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</button>
+      <button id="navLogOut" class="btn btn-outline hidden"><span class="material-icons mr-2">exit_to_app</span> Log Out</button>
+    </div>
+  </div>
+
+  <!-- Log In form -->
+  <main class="container mx-auto p-6">
+      <!-- Header / Hero for Auth -->
+      <section class="rounded-xl shadow overflow-hidden mb-8">
+        <div class="bg-gradient-to-r from-sky-200 via-teal-200 to-emerald-200 px-8 py-10 text-center">
+          <h1 class="text-4xl font-extrabold tracking-tight text-violet-900 mb-2">Access Your Account</h1>
+          <p class="text-lg md:text-xl text-violet-800">Log in or create an account to shop kids clothing faster.</p>
+        </div>
+  <img src="/resources/photos/CoverImage.jpg" alt="Kids Fashion Cover" class="w-full h-56 md:h-72 object-cover" loading="lazy" />
+      </section>
+  <div id="loginFormContainer" class="max-w-3xl mx-auto bg-base-100 shadow rounded-xl p-6 hidden">
+      <h2 class="text-2xl font-bold mb-4">Log In</h2>
+        <div class="grid md:grid-cols-2 gap-6 mb-4">
+          <div class="rounded-lg overflow-hidden shadow hidden md:block">
+            <img src="/resources/photos/HomePage.jpg" alt="KidzStyle Illustration" class="w-full h-full object-cover" loading="lazy" />
+          </div>
+          <div>
+      <form id="loginForm" class="space-y-4">
+        <div class="form-control">
+          <label class="label"><span class="label-text">User code</span></label>
+          <input id="code" type="text" class="input input-bordered" required />
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Password</span></label>
+          <input id="password" type="password" class="input input-bordered" required />
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="loginBtn" type="submit" class="btn btn-primary">Log In</button>
+          <button id="loginClearBtn" type="button" class="btn btn-outline">Clear</button>
+          <span id="loginLoading" class="hidden"><span class="spinner"></span> Logging in...</span>
+        </div>
+      </form>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <span class="badge badge-success">Fast access</span>
+              <span class="badge badge-info">Secure</span>
+              <span class="badge badge-warning">Support 24/7</span>
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <!-- Sign In form -->
+  <div id="registerFormContainer" class="max-w-3xl mx-auto bg-base-100 shadow rounded-xl p-6 hidden">
+    <h2 class="text-2xl font-bold mb-4 text-center">Create Account</h2>
+
+    <!-- Three images row -->
+  <div class="grid md:grid-cols-3 gap-4 mb-6">
+      <div class="rounded-lg overflow-hidden shadow">
+  <img src="/resources/photos/HomePage.jpg" alt="New Arrivals" class="w-full h-full object-cover" loading="lazy" />
+      </div>
+      <div class="rounded-lg overflow-hidden shadow hidden md:block">
+  <img src="/resources/photos/Item1.jpg" alt="Baby & Toddler" class="w-full h-full object-cover" loading="lazy" />
+      </div>
+      <div class="rounded-lg overflow-hidden shadow hidden md:block">
+  <img src="/resources/photos/Item2.jpg" alt="Kids & Teens" class="w-full h-full object-cover" loading="lazy" />
+      </div>
+    </div>
+
+    <!-- Tabbed widget under the images -->
+    <div class="tabs tabs-boxed w-full">
+      <a class="tab tab-active" id="tabPersonal" role="tab" aria-selected="true">Profile</a>
+      <a class="tab" id="tabAddress" role="tab" aria-selected="false">Address</a>
+    </div>
+
+    <form id="registerForm" class="mt-4">
+      <!-- Tab panels -->
+      <div id="panelPersonal" role="tabpanel" aria-labelledby="tabPersonal" class="block">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="form-control w-full">
+            <label class="label"><span class="label-text">First Name</span></label>
+            <input id="firstName" type="text" class="input input-bordered w-full" required />
+          </div>
+          <div class="form-control w-full">
+            <label class="label"><span class="label-text">Last Name</span></label>
+            <input id="lastName" type="text" class="input input-bordered w-full" required />
+          </div>
+          <div class="form-control w-full md:col-span-2">
+            <label class="label"><span class="label-text">Email</span></label>
+            <input id="email" type="email" class="input input-bordered w-full" required />
+          </div>
+          <div class="form-control w-full md:col-span-2">
+            <label class="label"><span class="label-text">Phone Number</span></label>
+            <div class="flex items-center gap-3 w-full">
+              <input type="text" value="+381" class="input input-bordered w-20 bg-gray-100" readonly />
+              <input id="phone" type="text" class="input input-bordered w-full" pattern="[0-9]+" required />
+            </div>
+          </div>
+          <div class="form-control w-full md:col-span-2">
+            <label class="label"><span class="label-text">Username</span></label>
+            <input id="username" type="text" class="input input-bordered w-full" required />
+          </div>
+          <div class="form-control w-full">
+            <label class="label"><span class="label-text">Password</span></label>
+            <input id="regPassword" type="password" class="input input-bordered w-full" required />
+          </div>
+        </div>
+      </div>
+
+      <div id="panelAddress" role="tabpanel" aria-labelledby="tabAddress" class="hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="form-control w-full">
+            <label class="label"><span class="label-text">City (optional)</span></label>
+            <input id="city" type="text" class="input input-bordered w-full" />
+          </div>
+          <div class="form-control w-full md:col-span-2">
+            <label class="label"><span class="label-text">Street Address (optional)</span></label>
+            <input id="streetAddress" type="text" class="input input-bordered w-full" />
+          </div>
+          <div class="form-control w-full">
+            <label class="label"><span class="label-text">Postal Code (optional)</span></label>
+            <input id="postalCode" type="text" class="input input-bordered w-full" inputmode="numeric" pattern="[0-9]{5}" minlength="5" maxlength="5" />
+            <label class="label">
+              <span class="label-text-alt">Exactly 5 digits</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions-row full-span flex justify-center gap-3 mt-6">
+        <button id="registerBtn" type="submit" class="btn btn-primary">Create Account</button>
+        <span id="registerLoading" class="hidden"><span class="spinner"></span> Creating...</span>
+      </div>
+    </form>
+
+    <div class="mt-4 flex flex-wrap gap-2 justify-center">
+      <span class="badge badge-success">Welcome</span>
+      <span class="badge badge-info">Fast Sign Up</span>
+      <span class="badge badge-warning">Secure</span>
+    </div>
+  </div>
+  </main>
+
+  <!-- Notification UI injected by /js/shared.js -->
+
+  <!-- External JS -->
+  <script src="/js/shared.js"></script>
+  <script src="/js/login.js"></script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="pastel">
+<head>
+  <meta charset="utf-8" />
+  <title>KidzStyle · Contact</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <link rel="icon" href="/resources/icons/map-store.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/home.css" />
+</head>
+<body class="bg-base-200 text-base-content">
+
+  <!-- Navbar -->
+  <div class="navbar bg-base-100 shadow sticky top-0 z-50">
+    <div class="flex-1">
+      <a href="/home" class="btn btn-ghost normal-case text-xl">
+        <span class="material-icons mr-2">home</span> Home
+      </a>
+      <a href="/about" class="btn btn-ghost">
+        <span class="material-icons mr-2">info</span> About
+      </a>
+      <a href="/address" class="btn btn-ghost btn-active">
+        <span class="material-icons mr-2">location_on</span> Address
+      </a>
+      <a href="/eventlog" class="btn btn-ghost">
+        <span class="material-icons mr-2">bug_report</span> EventLog
+      </a>
+    </div>
+    <div class="flex-none items-center gap-3">
+  <a id="navSignIn" href="/login" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</a>
+  <a id="navLogIn" href="/login" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</a>
+  <button id="navLogOut" class="btn btn-outline hidden"><span class="material-icons mr-2">exit_to_app</span> Log Out</button>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <main class="container mx-auto p-6">
+    <section class="bg-base-100 rounded-xl shadow p-8">
+      <div class="flex items-center gap-3 mb-3">
+  <span class="material-icons text-violet-600">location_on</span>
+  <h1 class="text-4xl font-extrabold tracking-tight">Contact KidzStyle</h1>
+      </div>
+      <div class="grid md:grid-cols-2 gap-8 items-start">
+        <div>
+          <h2 class="text-2xl font-bold mb-3">Address</h2>
+          <div class="bg-violet-50 border border-violet-200 rounded-lg p-4">
+            <p class="text-lg font-medium">245 Liberty Avenue, Suite 12</p>
+            <p class="text-lg">Austin, TX 78701, USA</p>
+          </div>
+          <div class="mt-6">
+            <h3 class="text-xl font-semibold mb-2">Description</h3>
+            <p class="text-base leading-relaxed text-gray-700">
+              Visit our cozy storefront for in-person shopping or pickup. We’re close to parks and family-friendly cafes.
+              Browse baby, kids, and teens collections with soft, durable fabrics and vibrant colors. Friendly staff is ready to help.
+            </p>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <span class="badge badge-success">Kids Friendly</span>
+              <span class="badge badge-info">Gift Wrap</span>
+              <span class="badge badge-warning">Easy Returns</span>
+              <span class="badge badge-secondary">Organic Cotton</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="rounded-xl overflow-hidden shadow">
+            <img src="/resources/photos/HomePage.jpg" alt="KidzStyle Storefront" class="w-full aspect-video object-cover" loading="lazy" />
+          </div>
+          <div class="mt-4 grid grid-cols-2 gap-4">
+            <img src="/resources/photos/Item1.jpg" alt="Kids Collection" class="rounded-lg shadow w-full aspect-video object-cover" loading="lazy" />
+            <img src="/resources/photos/Item2.jpg" alt="Teens Collection" class="rounded-lg shadow w-full aspect-video object-cover" loading="lazy" />
+          </div>
+        </div>
+      </div>
+      <div class="mt-8 flex flex-wrap gap-4">
+  <a href="https://maps.google.com/?q=245+Liberty+Avenue,+Austin+TX+78701" target="_blank" rel="noopener" class="btn btn-primary">Open in Google Maps</a>
+        <a href="/about" class="btn btn-outline">Back to About</a>
+      </div>
+    </section>
+  </main>
+
+  <!-- Notification UI injected by /js/shared.js -->
+
+  <script>
+    // Navbar toggle based on login state
+    function updateNavbarAuth() {
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+      document.getElementById('navSignIn').classList.toggle('hidden', isLoggedIn);
+      document.getElementById('navLogIn').classList.toggle('hidden', isLoggedIn);
+      document.getElementById('navLogOut').classList.toggle('hidden', !isLoggedIn);
+    }
+    updateNavbarAuth();
+
+    document.getElementById('navLogOut')?.addEventListener('click', () => {
+      localStorage.removeItem('isLoggedIn');
+      localStorage.removeItem('userId');
+      updateNavbarAuth();
+      location.href = '/login';
+    });
+  </script>
+  <script src="/js/shared.js"></script>
+</body>
+</html>
