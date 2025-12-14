@@ -10,5 +10,6 @@ namespace OnlineContract.Models
         public string? Working_Hours { get; set; }
         public DateTime Created_At { get; set; }
         public DateTime Updated_At { get; set; }
+        public int Last_Modified_User_Id { get; set; }
     }
 }

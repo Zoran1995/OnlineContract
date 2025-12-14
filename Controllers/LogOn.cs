@@ -4,6 +4,7 @@ using OnlineContract.Data;
 using OnlineContract.Helpers;
 using OnlineContract.Models;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add DbContext
@@ -19,7 +20,8 @@ var rewriteOptions = new RewriteOptions()
 	    .AddRewrite("(?i)^eventlog$", "eventlog.html", skipRemainingRules: true)
 	    .AddRewrite("(?i)^about$", "about.html", skipRemainingRules: true)
         .AddRewrite("(?i)^address$", "address.html", skipRemainingRules: true)
-        .AddRewrite("(?i)^products$", "products.html", skipRemainingRules: true);
+    .AddRewrite("(?i)^products$", "products.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^changestore$", "changestore.html", skipRemainingRules: true);
 app.UseRewriter(rewriteOptions);
 
 // Serve static files from wwwroot
@@ -117,7 +119,7 @@ app.MapPost("/api/register", async (AppDbContext db, RegisterDto dto) =>
             City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City?.Trim(),
             StreetAddress = string.IsNullOrWhiteSpace(dto.StreetAddress) ? null : dto.StreetAddress?.Trim(),
             PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode?.Trim(),
-            RoleId = 0
+            RoleId = (int)UserRole.Customer
         };
 
         db.AxUsers.Add(newUser);
@@ -125,7 +127,7 @@ app.MapPost("/api/register", async (AppDbContext db, RegisterDto dto) =>
 
         await LoggerHelper.LogEventAsync(db, EventType.Information, "New Account successfully created", $"User {username} created.", newUser.Id);
 
-        return Results.Json(new { success = true, userId = newUser.Id });
+    return Results.Json(new { success = true, userId = newUser.Id, roleId = newUser.RoleId });
     }
     catch (Exception ex)
     {
@@ -172,7 +174,6 @@ app.MapGet("/api/event-log", async (AppDbContext db, int userId, int type, DateT
 
         if (type > 0)
         {
-            // Map legacy UI filter values (1=Info, 2=Warning, 3=Error) to new enum ids (2,3,4)
             var mappedType = type == 1 ? 2 : type == 2 ? 3 : type == 3 ? 4 : type;
             query = query.Where(e => e.EventTypeId == mappedType);
         }
@@ -254,12 +255,12 @@ app.MapGet("/api/event-log/export", async (AppDbContext db, int userId) =>
 });
 
 // STORES ENDPOINT
-app.MapGet("/api/stores", async (AppDbContext db) =>
+app.MapGet("/api/stores", async (AppDbContext db, int? userId) =>
 {
     try
     {
         var items = await db.Stores
-            .OrderBy(s => s.Name)
+            .OrderBy(s => s.StoreId)
             .Select(s => new {
                 id = s.StoreId,
                 name = s.Name,
@@ -269,12 +270,67 @@ app.MapGet("/api/stores", async (AppDbContext db) =>
                 hours = s.Working_Hours
             })
             .ToListAsync();
+
         return Results.Json(new { items });
     }
     catch (Exception ex)
     {
-        await LoggerHelper.LogEventAsync(db, EventType.Error, "Stores endpoint failed", ex.ToString(), 0);
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Stores endpoint failed", ex.ToString(), userId ?? 2);
         return Results.Json(new { items = Array.Empty<object>() });
+    }
+});
+
+
+// UPDATE STORE ENDPOINT
+app.MapPut("/api/stores/{id}", async (AppDbContext db, int id, StoreUpdateDto dto, int? userId) =>
+{
+    try
+    {
+        var store = await db.Stores.FirstOrDefaultAsync(s => s.StoreId == id);
+        if (store == null)
+        {
+            return Results.NotFound(new { message = "Store not found." });
+        }
+
+        // Basic field normalization
+        var name    = dto.Name?.Trim();
+        var address = dto.Address?.Trim();
+        var phone   = dto.Phone_Number?.Trim();
+        var email   = dto.Email?.Trim();
+        var hours   = dto.Working_Hours?.Trim();
+
+        if (name    is not null) store.Name          = name;
+        if (address is not null) store.Address       = address;
+        if (phone   is not null) store.Phone_Number  = phone;
+        if (email   is not null) store.Email         = email;
+        if (hours   is not null) store.Working_Hours = hours;
+
+        // Track last modifier (ax_user.id), default to system (2) when missing
+        store.Last_Modified_User_Id = (userId ?? 2);
+
+        await db.SaveChangesAsync();
+
+        await LoggerHelper.LogEventAsync(
+            db,
+            EventType.Information,
+            "Store details updated",
+            $"StoreId={store.StoreId}, Name={store.Name}",
+            userId ?? 2
+        );
+
+        return Results.Ok(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(
+            db,
+            EventType.Error,
+            "Update store failed",
+            ex.ToString(),
+            userId ?? 2
+        );
+
+        return Results.StatusCode(500);
     }
 });
 

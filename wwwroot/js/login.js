@@ -59,9 +59,14 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
 // success
 localStorage.setItem('isLoggedIn', 'true');
 localStorage.setItem('userId', data.userId || 2);
+// Persist ax_user.code from the login form so navbar can immediately render it
+localStorage.setItem('code', code);
 if (typeof data.roleId !== 'undefined') {
   localStorage.setItem('roleId', String(data.roleId));
 }
+
+// Proactively update navbar label immediately if available
+try { if (typeof updateNavbarAuth === 'function') updateNavbarAuth(); } catch {}
 
 sessionStorage.setItem('pendingToast', JSON.stringify({
   type: 'info',
@@ -132,7 +137,12 @@ document.getElementById('registerForm')?.addEventListener('submit', async (e) =>
   // Auto-login on successful registration
   localStorage.setItem('isLoggedIn', 'true');
   localStorage.setItem('userId', (data.userId ?? '').toString());
-  localStorage.setItem('roleId', '0');
+  if (typeof data.roleId !== 'undefined' && data.roleId !== null) {
+    localStorage.setItem('roleId', String(data.roleId));
+  }
+  // Store a usable code label; use provided username as a placeholder
+  try { localStorage.setItem('code', username || ''); } catch {}
+  try { if (typeof updateNavbarAuth === 'function') updateNavbarAuth(); } catch {}
     sessionStorage.setItem('pendingToast', JSON.stringify({
       type: 'info',
       message: 'Account created and you are now logged in.'

@@ -23,7 +23,7 @@ namespace OnlineContract.Data
             // Map Store entity to dbo.stores with snake_case columns
             modelBuilder.Entity<Store>(entity =>
             {
-                entity.ToTable("stores", "dbo");
+                entity.ToTable("stores", "dbo", tb => tb.HasTrigger("TR_dbo_stores"));
                 entity.HasKey(e => e.StoreId).HasName("PK_stores");
                 entity.Property(e => e.StoreId).HasColumnName("store_id");
                 entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100);
@@ -33,6 +33,7 @@ namespace OnlineContract.Data
                 entity.Property(e => e.Working_Hours).HasColumnName("working_hours").HasMaxLength(255);
                 entity.Property(e => e.Created_At).HasColumnName("created_at");
                 entity.Property(e => e.Updated_At).HasColumnName("updated_at");
+                entity.Property(e => e.Last_Modified_User_Id).HasColumnName("last_modified_user_id");
             });
         }
     }
