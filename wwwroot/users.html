@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="pastel">
+<head>
+  <meta charset="utf-8" />
+  <title>KidzStyle · Users & Teams</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+</head>
+<body class="bg-base-200 text-base-content">
+  <div class="navbar bg-base-100 shadow sticky top-0 z-50">
+    <div class="flex-1">
+      <a href="/home" class="btn btn-ghost normal-case text-xl"><span class="material-icons mr-2">home</span> Home</a>
+      <a href="/about" class="btn btn-ghost"><span class="material-icons mr-2">info</span> About</a>
+      <a href="/address" class="btn btn-ghost"><span class="material-icons mr-2">location_on</span> Address</a>
+      <a href="/eventlog" class="btn btn-ghost"><span class="material-icons mr-2">bug_report</span> EventLog</a>
+    </div>
+    <div class="flex-none items-center gap-3">
+      <button id="navSignIn" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</button>
+      <button id="navLogIn" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</button>
+    </div>
+  </div>
+
+  <main class="container mx-auto p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="text-2xl font-bold">Users & Teams</h1>
+      <div class="flex items-center gap-2">
+        <button id="btnOpen" class="btn btn-outline" disabled><span class="material-icons mr-2">open_in_new</span>Open</button>
+        <button id="btnNewUser" class="btn btn-primary"><span class="material-icons mr-2">person_add</span>New User</button>
+        <button id="btnNewTeam" class="btn btn-secondary"><span class="material-icons mr-2">group_add</span>New Team</button>
+        <div class="dropdown dropdown-end">
+          <button tabindex="0" class="btn"><span class="material-icons">more_vert</span></button>
+          <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-40">
+            <li><a href="#" id="btnDeactivate"><span class="material-icons mr-2">block</span>Deactivate</a></li>
+            <li><a href="#" id="btnDelete"><span class="material-icons mr-2">delete</span>Delete</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-[1fr,1fr,auto,auto] gap-3 mb-4 items-end">
+      <div>
+        <label class="label"><span class="label-text">Name</span></label>
+        <input id="fltName" type="text" class="input input-bordered w-full" placeholder="Search by name/code" />
+      </div>
+      <div>
+        <label class="label"><span class="label-text">Team</span></label>
+        <input id="fltTeam" type="text" class="input input-bordered w-full" placeholder="Search by team code" />
+      </div>
+      <button id="btnSearch" class="btn btn-outline"><span class="material-icons mr-2">search</span>Search</button>
+      <button id="btnClear" class="btn"><span class="material-icons mr-2">backspace</span>Clear</button>
+    </div>
+
+    <div class="overflow-x-auto bg-base-100 rounded-xl shadow">
+      <table class="table w-full" id="usersTable">
+        <thead>
+          <tr>
+            <th>Id</th>
+            <th>Name</th>
+            <th>Code</th>
+            <th>Role</th>
+            <th>Team</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="usersBody"></tbody>
+      </table>
+    </div>
+
+    <div class="flex items-center justify-between mt-3">
+      <div class="flex items-center gap-2">
+        <span>Page:</span>
+        <div class="join">
+          <button id="pgPrev" class="btn join-item">«</button>
+          <input id="pgIndex" class="input input-bordered join-item w-16 text-center" value="1" />
+          <button id="pgNext" class="btn join-item">»</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span>Per page:</span>
+        <select id="pgSize" class="select select-bordered w-24">
+          <option>10</option>
+          <option>25</option>
+          <option>50</option>
+        </select>
+        <span id="pgInfo" class="opacity-70"></span>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modals -->
+  <dialog id="userModal" class="modal">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg mb-2" id="userModalTitle">New User</h3>
+      <form id="userForm" class="space-y-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="form-control">
+            <label class="label"><span class="label-text">Code</span></label>
+            <input id="uCode" type="text" class="input input-bordered w-full" required />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Role</span></label>
+            <select id="uRole" class="select select-bordered w-full">
+              <option value="8">Administrator</option>
+              <option value="7">Manager</option>
+              <option value="6">Worker</option>
+              <option value="5">Customer</option>
+            </select>
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">First Name</span></label>
+            <input id="uFirst" type="text" class="input input-bordered w-full" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Last Name</span></label>
+            <input id="uLast" type="text" class="input input-bordered w-full" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Email</span></label>
+            <input id="uEmail" type="email" class="input input-bordered w-full" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Phone</span></label>
+            <input id="uPhone" type="text" class="input input-bordered w-full" />
+          </div>
+          <div class="form-control md:col-span-2">
+            <label class="label"><span class="label-text">Team (Owner Code)</span></label>
+            <input id="uTeamCode" type="text" class="input input-bordered w-full" placeholder="Optional group code" />
+          </div>
+          <div class="form-control md:col-span-2">
+            <label class="label"><span class="label-text">Password</span></label>
+            <input id="uPassword" type="password" class="input input-bordered w-full" />
+          </div>
+        </div>
+      </form>
+      <div class="modal-action">
+        <button id="userCancel" class="btn">Cancel</button>
+        <button id="userSave" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="teamModal" class="modal">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg mb-2">New Team</h3>
+      <form id="teamForm" class="space-y-3">
+        <div class="form-control">
+          <label class="label"><span class="label-text">Team Code</span></label>
+          <input id="tCode" type="text" class="input input-bordered w-full" required />
+        </div>
+      </form>
+      <div class="modal-action">
+        <button id="teamCancel" class="btn">Cancel</button>
+        <button id="teamSave" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <link rel="stylesheet" href="/css/home.css" />
+  <script src="/js/shared.js"></script>
+  <script src="/js/users.js"></script>
+</body>
+</html>

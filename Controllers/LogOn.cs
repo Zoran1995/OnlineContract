@@ -21,7 +21,8 @@ var rewriteOptions = new RewriteOptions()
 	    .AddRewrite("(?i)^about$", "about.html", skipRemainingRules: true)
         .AddRewrite("(?i)^address$", "address.html", skipRemainingRules: true)
     .AddRewrite("(?i)^products$", "products.html", skipRemainingRules: true)
-    .AddRewrite("(?i)^changestore$", "changestore.html", skipRemainingRules: true);
+    .AddRewrite("(?i)^changestore$", "changestore.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^users$", "users.html", skipRemainingRules: true);
 app.UseRewriter(rewriteOptions);
 
 // Serve static files from wwwroot
@@ -109,7 +110,7 @@ app.MapPost("/api/register", async (AppDbContext db, RegisterDto dto) =>
             FirstName = dto.FirstName ?? "",
             LastName = dto.LastName ?? "",
             Email = dto.Email ?? "",
-            Phone = "+381" + dto.Phone ?? "",
+            Phone = "+381" + (dto.Phone ?? ""),
             Code = username,
             Password = PasswordHelper.HashPassword(dto.Password),
             IsGroup = false,
@@ -166,6 +167,198 @@ app.MapPost("/api/log-client-error", async (AppDbContext db, ClientErrorDto dto)
 app.MapGet("/api/login", () =>
 {
     return Results.Json(new { status = "Login endpoint is alive." });
+});
+
+// USERS & TEAMS ENDPOINTS
+app.MapGet("/api/users", async (AppDbContext db, string? name, string? team, int page, int pageSize, int? userId) =>
+{
+    try
+    {
+        var q = db.AxUsers.AsQueryable();
+        // Exclude deleted by default
+        q = q.Where(u => !u.IsDeleted);
+        // Exclude placeholder "None" user
+        q = q.Where(u => (u.Code ?? "").ToLower() != "none");
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var n = name.Trim().ToLower();
+            q = q.Where(u =>
+                (u.FirstName ?? "").ToLower().Contains(n) ||
+                (u.LastName ?? "").ToLower().Contains(n) ||
+                (u.Code ?? "").ToLower().Contains(n));
+        }
+
+        // Team filter by group code (owner group's code)
+        if (!string.IsNullOrWhiteSpace(team))
+        {
+            var t = team.Trim().ToLower();
+            q = from u in q
+                join g in db.AxUsers.Where(x => x.IsGroup && !x.IsDeleted) on u.OwnerId equals g.Id into groups
+                from g in groups.DefaultIfEmpty()
+                where (g != null && (g.Code ?? "").ToLower().Contains(t))
+                select u;
+        }
+
+        var baseQuery = (
+            from u in q
+            join g in db.AxUsers.Where(x => x.IsGroup && !x.IsDeleted) on u.OwnerId equals g.Id into groups
+            from g in groups.DefaultIfEmpty()
+            select new {
+                id = u.Id,
+                code = u.Code,
+                firstName = u.FirstName,
+                lastName = u.LastName,
+                roleId = u.RoleId,
+                isActive = u.IsActive,
+                isDeleted = u.IsDeleted,
+                isGroup = u.IsGroup,
+                ownerId = u.OwnerId,
+                team = g != null ? g.Code : null
+            });
+
+        var totalCount = await baseQuery.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        var items = await baseQuery
+            .OrderBy(x => x.id)
+            .Skip(Math.Max(0, (page - 1) * pageSize))
+            .Take(pageSize)
+            .ToListAsync();
+
+        return Results.Json(new { items, totalCount, totalPages });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Users fetch failed", ex.ToString(), userId ?? 2);
+        return Results.Json(new { items = Array.Empty<object>() });
+    }
+});
+app.MapPost("/api/users", async (AppDbContext db, UserCreateDto dto, int? userId) =>
+{
+    try
+    {
+        var code = (dto.Code ?? "").Trim();
+        if (string.IsNullOrEmpty(code)) return Results.Json(new { success = false, message = "Code is required." });
+        var exists = await db.AxUsers.AnyAsync(u => u.Code == code);
+        if (exists) return Results.Json(new { success = false, message = "Code already exists." });
+
+        var u = new AxUser
+        {
+            Code = code,
+            FirstName = dto.FirstName ?? "",
+            LastName = dto.LastName ?? "",
+            Email = dto.Email ?? "",
+            Phone = dto.Phone ?? "",
+            RoleId = dto.RoleId,
+            IsGroup = dto.IsGroup,
+            OwnerId = dto.OwnerId,
+            City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City?.Trim(),
+            StreetAddress = string.IsNullOrWhiteSpace(dto.StreetAddress) ? null : dto.StreetAddress?.Trim(),
+            PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode?.Trim(),
+            IsActive = true,
+            IsDeleted = false,
+            CreatedDt = DateTime.UtcNow,
+            PasswordDt = DateTime.UtcNow,
+            LastLoginDt = null,
+            Stamp = 0,
+            Password = dto.IsGroup ? "" : PasswordHelper.HashPassword(dto.Password ?? "")
+        };
+
+        db.AxUsers.Add(u);
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, dto.IsGroup ? "Team created" : "User created", $"Code={u.Code}", userId ?? 2);
+        return Results.Json(new { success = true, id = u.Id });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Create user failed", ex.ToString(), userId ?? 2);
+        return Results.Json(new { success = false, message = "Create failed." });
+    }
+});
+
+app.MapPut("/api/users/{id}", async (AppDbContext db, int id, UserUpdateDto dto, int? userId) =>
+{
+    try
+    {
+        var u = await db.AxUsers.FirstOrDefaultAsync(x => x.Id == id);
+        if (u == null) return Results.NotFound(new { message = "User not found." });
+
+        if (dto.FirstName != null) u.FirstName = dto.FirstName.Trim();
+        if (dto.LastName != null) u.LastName = dto.LastName.Trim();
+        if (dto.Email != null) u.Email = dto.Email.Trim();
+        if (dto.Phone != null) u.Phone = dto.Phone.Trim();
+        if (dto.RoleId.HasValue) u.RoleId = dto.RoleId.Value;
+        if (dto.IsActive.HasValue) u.IsActive = dto.IsActive.Value;
+        if (dto.OwnerId.HasValue) u.OwnerId = dto.OwnerId.Value;
+        if (dto.City != null) u.City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City.Trim();
+        if (dto.StreetAddress != null) u.StreetAddress = string.IsNullOrWhiteSpace(dto.StreetAddress) ? null : dto.StreetAddress.Trim();
+        if (dto.PostalCode != null) u.PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode.Trim();
+        if (!u.IsGroup && dto.Password != null) { u.Password = PasswordHelper.HashPassword(dto.Password); u.PasswordDt = DateTime.UtcNow; }
+
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "User updated", $"Id={u.Id}", userId ?? 2);
+        return Results.Json(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Update user failed", ex.ToString(), userId ?? 2);
+        return Results.Json(new { success = false });
+    }
+});
+
+app.MapPost("/api/users/{id}/deactivate", async (AppDbContext db, int id, int? userId) =>
+{
+    try
+    {
+        var u = await db.AxUsers.FirstOrDefaultAsync(x => x.Id == id);
+        if (u == null) return Results.NotFound(new { message = "User not found." });
+        u.IsActive = false;
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "User deactivated", $"Id={u.Id}", userId ?? 2);
+        return Results.Ok(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Deactivate user failed", ex.ToString(), userId ?? 2);
+        return Results.StatusCode(500);
+    }
+});
+
+app.MapPost("/api/users/{id}/activate", async (AppDbContext db, int id, int? userId) =>
+{
+    try
+    {
+        var u = await db.AxUsers.FirstOrDefaultAsync(x => x.Id == id);
+        if (u == null) return Results.NotFound(new { message = "User not found." });
+        u.IsActive = true;
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "User activated", $"Id={u.Id}", userId ?? 2);
+        return Results.Ok(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Activate user failed", ex.ToString(), userId ?? 2);
+        return Results.StatusCode(500);
+    }
+});
+
+app.MapPost("/api/users/{id}/delete", async (AppDbContext db, int id, int? userId) =>
+{
+    try
+    {
+        var u = await db.AxUsers.FirstOrDefaultAsync(x => x.Id == id);
+        if (u == null) return Results.NotFound(new { message = "User not found." });
+        u.IsDeleted = true;
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "User deleted", $"Id={u.Id}", userId ?? 2);
+        return Results.Ok(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Delete user failed", ex.ToString(), userId ?? 2);
+        return Results.StatusCode(500);
+    }
 });
 
 // EVENT LOG ENDPOINT

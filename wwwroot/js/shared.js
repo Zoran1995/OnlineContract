@@ -72,7 +72,7 @@ function ensureNotificationUI() {
     if (!document.getElementById('notificationCount')) {
       const badge = document.createElement('span');
       badge.id = 'notificationCount';
-      badge.className = 'badge hidden'; // hidden when count is 0
+      badge.className = 'badge badge-error hidden'; // hidden when count is 0; red badge
       badge.textContent = '0';
         // Keep the badge inside the bell and small enough so it never peeks out of the viewport
         badge.style.position = 'absolute';
@@ -459,7 +459,7 @@ function ensureNotificationUI() {
             menu.className = 'dropdown-content menu p-2 shadow bg-base-100 rounded-box w-56';
             menu.innerHTML = `
               <li><a href="#" id="ddChangeStore"><span class="material-icons mr-2">edit</span>Change Store Details</a></li>
-              <li><a href="#" id="ddCreateUser"><span class="material-icons mr-2">person_add</span>Create New User</a></li>
+              <li><a href="/users" id="ddUsersTeams"><span class="material-icons mr-2">group</span>Users & Teams</a></li>
               <li><a href="/eventlog" id="ddEventLog"><span class="material-icons mr-2">list</span>All Events</a></li>
             `;
             // Insert wrapper at the far left (as first interactive element)
@@ -482,13 +482,12 @@ function ensureNotificationUI() {
                 openAdminChangeStoreModal();
               });
             }
-            // Bind Create New User: open login page in Sign In mode
-            const ddCreate = menu.querySelector('#ddCreateUser');
-            if (ddCreate && !ddCreate._oc_bound) {
-              ddCreate._oc_bound = true;
-              ddCreate.addEventListener('click', (e) => {
-                e.preventDefault();
-                window.location.href = '/login?mode=signin';
+            // Users & Teams opens dedicated page
+            const ddUsersTeams = menu.querySelector('#ddUsersTeams');
+            if (ddUsersTeams && !ddUsersTeams._oc_bound) {
+              ddUsersTeams._oc_bound = true;
+              ddUsersTeams.addEventListener('click', (e) => {
+                // default navigation behavior
               });
             }
           }
