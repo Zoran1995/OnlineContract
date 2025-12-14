@@ -101,6 +101,18 @@
       <!-- Tab panels -->
       <div id="panelPersonal" role="tabpanel" aria-labelledby="tabPersonal" class="block">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Role selector (visible only when logged-in Admin or Manager). First field. -->
+          <div class="form-control w-full md:col-span-2 hidden" id="roleSelectorRow">
+            <label class="label justify-center"><span class="label-text">Assign Role</span></label>
+            <select id="roleSelector" class="select select-bordered w-full max-w-md mx-auto">
+              <!-- Sorted by id descending: 8,7,6,5 -->
+              <option value="8">Administrator</option>
+              <option value="7">Manager</option>
+              <option value="6">Worker</option>
+              <option value="5">Customer</option>
+            </select>
+            <label class="label justify-center"><span class="label-text-alt">Managers cannot assign Administrator.</span></label>
+          </div>
           <div class="form-control w-full">
             <label class="label justify-center"><span class="label-text">First Name</span></label>
             <input id="firstName" type="text" class="input input-bordered w-full" required />

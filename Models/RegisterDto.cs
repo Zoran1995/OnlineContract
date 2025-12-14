@@ -10,4 +10,6 @@ public class RegisterDto
     public string? City { get; set; }
     public string? StreetAddress { get; set; }
     public string? PostalCode { get; set; }
+    // Optional desired role; default is Customer when null
+    public int? RoleId { get; set; }
 }

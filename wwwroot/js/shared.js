@@ -117,8 +117,27 @@ function ensureNotificationUI() {
         userDd.appendChild(menu);
         rightContainer.appendChild(userDd);
       }
-      // Append the bell after the user dropdown so it sits on the far right
-      rightContainer.appendChild(bell);
+      // Ensure export button is centered between user label and bell
+      const exportBtnExisting = document.getElementById('exportBtn');
+      if (exportBtnExisting && exportBtnExisting.parentElement !== rightContainer) {
+        // Move export button into navbar right container
+        rightContainer.appendChild(exportBtnExisting);
+      }
+      // Place elements: user dropdown -> export button -> bell (far right)
+      if (exportBtnExisting) {
+        if (userDd && userDd.parentElement === rightContainer) {
+          rightContainer.insertBefore(exportBtnExisting, userDd.nextSibling);
+        }
+        // Append bell after export button
+        if (exportBtnExisting.parentElement === rightContainer) {
+          rightContainer.insertBefore(bell, exportBtnExisting.nextSibling);
+        } else {
+          rightContainer.appendChild(bell);
+        }
+      } else {
+        // Fallback when export button is absent: keep bell after user dropdown
+        rightContainer.appendChild(bell);
+      }
       // when inside navbar use relative positioning so it participates in the layout
       bell.classList.remove('fixed');
       bell.style.position = 'relative';
@@ -154,10 +173,24 @@ function ensureNotificationUI() {
       if (rightContainer && !rightContainer.contains(bell)) {
         // Keep bell on far right: insert after user dropdown if present
         const userDd = document.getElementById('userDropdown');
+        const exportBtn = document.getElementById('exportBtn');
+        if (exportBtn && exportBtn.parentElement !== rightContainer) {
+          rightContainer.appendChild(exportBtn);
+        }
         if (userDd && userDd.parentElement === rightContainer) {
-          rightContainer.insertBefore(bell, userDd.nextSibling);
+          if (exportBtn && exportBtn.parentElement === rightContainer) {
+            // user -> export -> bell
+            rightContainer.insertBefore(exportBtn, userDd.nextSibling);
+            rightContainer.insertBefore(bell, exportBtn.nextSibling);
+          } else {
+            rightContainer.insertBefore(bell, userDd.nextSibling);
+          }
         } else {
-          rightContainer.appendChild(bell);
+          if (exportBtn && exportBtn.parentElement === rightContainer) {
+            rightContainer.insertBefore(bell, exportBtn.nextSibling);
+          } else {
+            rightContainer.appendChild(bell);
+          }
         }
         bell.classList.remove('fixed');
         bell.style.position = 'relative';
@@ -426,12 +459,15 @@ function ensureNotificationUI() {
             menu.className = 'dropdown-content menu p-2 shadow bg-base-100 rounded-box w-56';
             menu.innerHTML = `
               <li><a href="#" id="ddChangeStore"><span class="material-icons mr-2">edit</span>Change Store Details</a></li>
+              <li><a href="#" id="ddCreateUser"><span class="material-icons mr-2">person_add</span>Create New User</a></li>
               <li><a href="/eventlog" id="ddEventLog"><span class="material-icons mr-2">list</span>All Events</a></li>
             `;
-            // Insert wrapper before original link and remove original
+            // Insert wrapper at the far left (as first interactive element)
             const parent = eventLogLink.parentElement;
-            parent.insertBefore(wrapper, eventLogLink);
+            // Remove original link to avoid duplication
             parent.removeChild(eventLogLink);
+            // Prepend wrapper so it anchors left when visible
+            if (parent.firstChild) parent.insertBefore(wrapper, parent.firstChild); else parent.appendChild(wrapper);
             wrapper.appendChild(activator);
             wrapper.appendChild(menu);
 
@@ -446,8 +482,17 @@ function ensureNotificationUI() {
                 openAdminChangeStoreModal();
               });
             }
+            // Bind Create New User: open login page in Sign In mode
+            const ddCreate = menu.querySelector('#ddCreateUser');
+            if (ddCreate && !ddCreate._oc_bound) {
+              ddCreate._oc_bound = true;
+              ddCreate.addEventListener('click', (e) => {
+                e.preventDefault();
+                window.location.href = '/login?mode=signin';
+              });
+            }
           }
-          // Toggle dropdown visibility based on privilege
+          // Toggle dropdown visibility based on privilege (hidden removes it from layout)
           const dd = document.getElementById('eventlogDropdown');
           if (dd) dd.classList.toggle('hidden', !isPrivileged);
         }
@@ -893,10 +938,26 @@ function ensureAdminChangeStoreModal() {
                 <input type="checkbox" id="mhClosed" class="checkbox checkbox-sm" />
               </label>
             </div>
-            <div class="flex gap-3 w-full">
-              <input type="time" id="mhStart" class="input input-bordered input-sm w-full" step="1800" min="00:00" max="23:30" />
+            <div class="flex gap-3 w-full items-center">
+              <div class="flex items-center gap-2">
+                <select id="mhStartHour" class="select select-bordered select-sm">
+                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                </select>
+                <select id="mhStartMin" class="select select-bordered select-sm">
+                  <option value="00">00</option>
+                  <option value="30">30</option>
+                </select>
+              </div>
               <span class="self-center text-sm text-base-content/70">to</span>
-              <input type="time" id="mhEnd" class="input input-bordered input-sm w-full" step="1800" min="00:00" max="23:30" />
+              <div class="flex items-center gap-2">
+                <select id="mhEndHour" class="select select-bordered select-sm">
+                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                </select>
+                <select id="mhEndMin" class="select select-bordered select-sm">
+                  <option value="00">00</option>
+                  <option value="30">30</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -908,10 +969,26 @@ function ensureAdminChangeStoreModal() {
                 <input type="checkbox" id="shClosed" class="checkbox checkbox-sm" />
               </label>
             </div>
-            <div class="flex gap-3 w-full">
-              <input type="time" id="shStart" class="input input-bordered input-sm w-full" step="1800" min="00:00" max="23:30" />
+            <div class="flex gap-3 w-full items-center">
+              <div class="flex items-center gap-2">
+                <select id="shStartHour" class="select select-bordered select-sm">
+                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                </select>
+                <select id="shStartMin" class="select select-bordered select-sm">
+                  <option value="00">00</option>
+                  <option value="30">30</option>
+                </select>
+              </div>
               <span class="self-center text-sm text-base-content/70">to</span>
-              <input type="time" id="shEnd" class="input input-bordered input-sm w-full" step="1800" min="00:00" max="23:30" />
+              <div class="flex items-center gap-2">
+                <select id="shEndHour" class="select select-bordered select-sm">
+                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                </select>
+                <select id="shEndMin" class="select select-bordered select-sm">
+                  <option value="00">00</option>
+                  <option value="30">30</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -923,10 +1000,26 @@ function ensureAdminChangeStoreModal() {
                 <input type="checkbox" id="suClosed" class="checkbox checkbox-sm" />
               </label>
             </div>
-            <div class="flex gap-3 w-full">
-              <input type="time" id="suStart" class="input input-bordered input-sm w-full" step="1800" min="00:00" max="23:30" />
+            <div class="flex gap-3 w-full items-center">
+              <div class="flex items-center gap-2">
+                <select id="suStartHour" class="select select-bordered select-sm">
+                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                </select>
+                <select id="suStartMin" class="select select-bordered select-sm">
+                  <option value="00">00</option>
+                  <option value="30">30</option>
+                </select>
+              </div>
               <span class="self-center text-sm text-base-content/70">to</span>
-              <input type="time" id="suEnd" class="input input-bordered input-sm w-full" step="1800" min="00:00" max="23:30" />
+              <div class="flex items-center gap-2">
+                <select id="suEndHour" class="select select-bordered select-sm">
+                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                </select>
+                <select id="suEndMin" class="select select-bordered select-sm">
+                  <option value="00">00</option>
+                  <option value="30">30</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -1035,19 +1128,22 @@ function closeAdminChangeStoreModal() {
 // --- Working hours editor helpers ---
 function updateHoursEditorDisabled() {
   const pairs = [
-    { c: 'mhClosed', s: 'mhStart', e: 'mhEnd' },
-    { c: 'shClosed', s: 'shStart', e: 'shEnd' },
-    { c: 'suClosed', s: 'suStart', e: 'suEnd' }
+    { c: 'mhClosed', s: ['mhStartHour','mhStartMin'], e: ['mhEndHour','mhEndMin'] },
+    { c: 'shClosed', s: ['shStartHour','shStartMin'], e: ['shEndHour','shEndMin'] },
+    { c: 'suClosed', s: ['suStartHour','suStartMin'], e: ['suEndHour','suEndMin'] }
   ];
   pairs.forEach(({ c, s, e }) => {
     const cb = document.getElementById(c);
-    const si = document.getElementById(s);
-    const ei = document.getElementById(e);
-    if (!cb || !si || !ei) return;
+    const sH = document.getElementById(s[0]);
+    const sM = document.getElementById(s[1]);
+    const eH = document.getElementById(e[0]);
+    const eM = document.getElementById(e[1]);
+    if (!cb || !sH || !sM || !eH || !eM) return;
     const closed = !!cb.checked;
-    si.disabled = closed;
-    ei.disabled = closed;
-    if (closed) { si.value = ''; ei.value = ''; }
+    [sH, sM, eH, eM].forEach(x => x.disabled = closed);
+    if (closed) {
+      sH.value = '00'; sM.value = '00'; eH.value = '00'; eM.value = '00';
+    }
   });
 }
 
@@ -1059,13 +1155,13 @@ function bindHoursEditor() {
     el._oc_bound = true;
     el.addEventListener('change', () => updateHoursEditorDisabled());
   });
-  // Bind time inputs to normalize to 30-minute steps (00 or 30) and fix ranges
-  const timeIds = ['mhStart','mhEnd','shStart','shEnd','suStart','suEnd'];
-  timeIds.forEach(id => {
+  // Bind selects to fix ranges whenever hour/min changes
+  const selIds = ['mhStartHour','mhStartMin','mhEndHour','mhEndMin','shStartHour','shStartMin','shEndHour','shEndMin','suStartHour','suStartMin','suEndHour','suEndMin'];
+  selIds.forEach(id => {
     const el = document.getElementById(id);
     if (!el || el._oc_norm_bound) return;
     el._oc_norm_bound = true;
-    const handler = () => { try { el.value = normalizeToHalfHour(el.value); fixPairRanges(); } catch {} };
+    const handler = () => { try { fixPairRanges(); } catch {} };
     ['change','blur'].forEach(evt => el.addEventListener(evt, handler));
   });
   // Also enforce ranges initially
@@ -1116,26 +1212,26 @@ function prevHalfHour(val) {
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
 }
 
-function ensureValidRange(startId, endId) {
-  const sEl = document.getElementById(startId);
-  const eEl = document.getElementById(endId);
-  if (!sEl || !eEl) return;
-  const s = normalizeToHalfHour(sEl.value || '');
-  const e = normalizeToHalfHour(eEl.value || '');
-  if (!s || !e) { sEl.value = s; eEl.value = e; return; }
+function ensureValidRange(startPrefix, endPrefix) {
+  const sH = document.getElementById(`${startPrefix}Hour`);
+  const sM = document.getElementById(`${startPrefix}Min`);
+  const eH = document.getElementById(`${endPrefix}Hour`);
+  const eM = document.getElementById(`${endPrefix}Min`);
+  if (!sH || !sM || !eH || !eM) return;
+  const s = `${sH.value}:${sM.value}`;
+  const e = `${eH.value}:${eM.value}`;
   const sm = timeToMinutes(s), em = timeToMinutes(e);
-  if (sm == null || em == null) { sEl.value = s; eEl.value = e; return; }
+  if (sm == null || em == null) return;
   if (em <= sm) {
     const cand = nextHalfHour(s);
     if (cand) {
-      eEl.value = cand;
+      const [ch, cm] = cand.split(':');
+      eH.value = ch; eM.value = cm;
     } else {
-      // If s is already at 23:30, fallback to 23:00–23:30
-      sEl.value = '23:00';
-      eEl.value = '23:30';
+      // If start is at 23:30, fallback to 23:00–23:30
+      sH.value = '23'; sM.value = '00';
+      eH.value = '23'; eM.value = '30';
     }
-  } else {
-    sEl.value = s; eEl.value = e;
   }
 }
 
@@ -1146,18 +1242,25 @@ function fixPairRanges() {
 }
 function setHoursEditorFromString(str) {
   const mhClosed = document.getElementById('mhClosed');
-  const mhStart = document.getElementById('mhStart');
-  const mhEnd = document.getElementById('mhEnd');
+  const mhStartHour = document.getElementById('mhStartHour');
+  const mhStartMin = document.getElementById('mhStartMin');
+  const mhEndHour = document.getElementById('mhEndHour');
+  const mhEndMin = document.getElementById('mhEndMin');
   const shClosed = document.getElementById('shClosed');
-  const shStart = document.getElementById('shStart');
-  const shEnd = document.getElementById('shEnd');
+  const shStartHour = document.getElementById('shStartHour');
+  const shStartMin = document.getElementById('shStartMin');
+  const shEndHour = document.getElementById('shEndHour');
+  const shEndMin = document.getElementById('shEndMin');
   const suClosed = document.getElementById('suClosed');
-  const suStart = document.getElementById('suStart');
-  const suEnd = document.getElementById('suEnd');
+  const suStartHour = document.getElementById('suStartHour');
+  const suStartMin = document.getElementById('suStartMin');
+  const suEndHour = document.getElementById('suEndHour');
+  const suEndMin = document.getElementById('suEndMin');
 
   const clear = () => {
     [mhClosed, shClosed, suClosed].forEach(cb => { if (cb) cb.checked = false; });
-    [mhStart, mhEnd, shStart, shEnd, suStart, suEnd].forEach(i => { if (i) i.value = ''; });
+    [mhStartHour, mhStartMin, mhEndHour, mhEndMin, shStartHour, shStartMin, shEndHour, shEndMin, suStartHour, suStartMin, suEndHour, suEndMin]
+      .forEach(i => { if (i) i.value = '00'; });
   };
   clear();
 
@@ -1167,53 +1270,59 @@ function setHoursEditorFromString(str) {
   const parts = norm.split(';').map(p => p.trim()).filter(Boolean);
   const parseClause = (label) => parts.find(p => p.toLowerCase().startsWith(label.toLowerCase()));
 
-  const applyTimes = (closedEl, startEl, endEl, clause) => {
+  const applyTimes = (closedEl, startHourEl, startMinEl, endHourEl, endMinEl, clause) => {
     if (!clause) return;
     if (/closed/i.test(clause)) { if (closedEl) closedEl.checked = true; return; }
     const m = clause.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
     if (m) {
-      if (startEl) startEl.value = normalizeToHalfHour(m[1].padStart(5, '0'));
-      if (endEl) endEl.value = normalizeToHalfHour(m[2].padStart(5, '0'));
+      const s = normalizeToHalfHour(m[1].padStart(5, '0'));
+      const e = normalizeToHalfHour(m[2].padStart(5, '0'));
+      const [sh, sm] = s.split(':');
+      const [eh, em] = e.split(':');
+      if (startHourEl) startHourEl.value = sh;
+      if (startMinEl) startMinEl.value = sm;
+      if (endHourEl) endHourEl.value = eh;
+      if (endMinEl) endMinEl.value = em;
     }
   };
 
   // Support grouped labels
   const monSun = parseClause('Mon-Sun');
   if (monSun) {
-    applyTimes(mhClosed, mhStart, mhEnd, monSun);
-    applyTimes(shClosed, shStart, shEnd, monSun);
-    applyTimes(suClosed, suStart, suEnd, monSun);
+    applyTimes(mhClosed, mhStartHour, mhStartMin, mhEndHour, mhEndMin, monSun);
+    applyTimes(shClosed, shStartHour, shStartMin, shEndHour, shEndMin, monSun);
+    applyTimes(suClosed, suStartHour, suStartMin, suEndHour, suEndMin, monSun);
     return;
   }
   const monSat = parseClause('Mon-Sat');
   if (monSat) {
-    applyTimes(mhClosed, mhStart, mhEnd, monSat);
-    applyTimes(shClosed, shStart, shEnd, monSat);
+    applyTimes(mhClosed, mhStartHour, mhStartMin, mhEndHour, mhEndMin, monSat);
+    applyTimes(shClosed, shStartHour, shStartMin, shEndHour, shEndMin, monSat);
   }
   const monFri = parseClause('Mon-Fri');
-  applyTimes(mhClosed, mhStart, mhEnd, monFri);
+  applyTimes(mhClosed, mhStartHour, mhStartMin, mhEndHour, mhEndMin, monFri);
   const sat = parseClause('Sat') || parseClause('Sat-Sun');
-  applyTimes(shClosed, shStart, shEnd, sat);
+  applyTimes(shClosed, shStartHour, shStartMin, shEndHour, shEndMin, sat);
   const sun = parseClause('Sun') || parseClause('Sat-Sun');
-  applyTimes(suClosed, suStart, suEnd, sun);
+  applyTimes(suClosed, suStartHour, suStartMin, suEndHour, suEndMin, sun);
   updateHoursEditorDisabled();
 }
 
 function getHoursStringFromEditor() {
   const mh = {
     closed: !!document.getElementById('mhClosed')?.checked,
-    start: normalizeToHalfHour(document.getElementById('mhStart')?.value || ''),
-    end: normalizeToHalfHour(document.getElementById('mhEnd')?.value || '')
+    start: `${document.getElementById('mhStartHour')?.value || '00'}:${document.getElementById('mhStartMin')?.value || '00'}`,
+    end: `${document.getElementById('mhEndHour')?.value || '00'}:${document.getElementById('mhEndMin')?.value || '00'}`
   };
   const sa = {
     closed: !!document.getElementById('shClosed')?.checked,
-    start: normalizeToHalfHour(document.getElementById('shStart')?.value || ''),
-    end: normalizeToHalfHour(document.getElementById('shEnd')?.value || '')
+    start: `${document.getElementById('shStartHour')?.value || '00'}:${document.getElementById('shStartMin')?.value || '00'}`,
+    end: `${document.getElementById('shEndHour')?.value || '00'}:${document.getElementById('shEndMin')?.value || '00'}`
   };
   const su = {
     closed: !!document.getElementById('suClosed')?.checked,
-    start: normalizeToHalfHour(document.getElementById('suStart')?.value || ''),
-    end: normalizeToHalfHour(document.getElementById('suEnd')?.value || '')
+    start: `${document.getElementById('suStartHour')?.value || '00'}:${document.getElementById('suStartMin')?.value || '00'}`,
+    end: `${document.getElementById('suEndHour')?.value || '00'}:${document.getElementById('suEndMin')?.value || '00'}`
   };
 
   const fmt = (t) => t ? t.padStart(5, '0') : '';

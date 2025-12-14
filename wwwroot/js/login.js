@@ -17,6 +17,8 @@ document.getElementById('navSignIn')?.addEventListener('click', (e) => {
     const mode = (params.get('mode') || '').toLowerCase();
     const loginC = document.getElementById('loginFormContainer');
     const regC = document.getElementById('registerFormContainer');
+    const roleRow = document.getElementById('roleSelectorRow');
+    const roleSel = document.getElementById('roleSelector');
     if (!loginC || !regC) return;
     if (mode === 'signin') {
       regC.classList.remove('hidden');
@@ -25,6 +27,20 @@ document.getElementById('navSignIn')?.addEventListener('click', (e) => {
       loginC.classList.remove('hidden');
       regC.classList.add('hidden');
     }
+
+    // Show role selector only for Admin (8) or Manager (7)
+    try {
+      const currentRole = parseInt(localStorage.getItem('roleId') || '0', 10);
+      const isPrivileged = currentRole === 8 || currentRole === 7;
+      if (roleRow) roleRow.classList.toggle('hidden', !isPrivileged);
+      // Managers cannot assign Administrator: remove the Administrator option entirely
+      if (roleSel) {
+        const adminOpt = Array.from(roleSel.options).find(o => o.value === '8');
+        if (currentRole === 7 && adminOpt) {
+          roleSel.removeChild(adminOpt);
+        }
+      }
+    } catch {}
   } catch {}
 })();
 
@@ -100,6 +116,8 @@ document.getElementById('registerForm')?.addEventListener('submit', async (e) =>
   const city = document.getElementById('city')?.value.trim();
   const streetAddress = document.getElementById('streetAddress')?.value.trim();
   const postalCode = document.getElementById('postalCode')?.value.trim();
+  const roleSel = document.getElementById('roleSelector');
+  const desiredRoleId = roleSel && !roleSel.closest('.hidden') ? parseInt(roleSel.value || '5', 10) : null;
 
   const loading = document.getElementById('registerLoading');
   const btn = document.getElementById('registerBtn');
@@ -123,7 +141,7 @@ document.getElementById('registerForm')?.addEventListener('submit', async (e) =>
     const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ firstName, lastName, email, phone, username, password: regPassword, city, streetAddress, postalCode })
+      body: JSON.stringify({ firstName, lastName, email, phone, username, password: regPassword, city, streetAddress, postalCode, roleId: desiredRoleId })
     });
 
     if (!res.ok) throw new Error('Register failed');
@@ -133,21 +151,38 @@ document.getElementById('registerForm')?.addEventListener('submit', async (e) =>
       showToast('error', data?.message || 'Registration failed');
       return;
     }
+    // Decide auto-login behavior based on role selection visibility and chosen role
+    const roleRow = document.getElementById('roleSelectorRow');
+    const roleSel2 = document.getElementById('roleSelector');
+    const dropdownVisible = roleRow && !roleRow.classList.contains('hidden');
+    const chosenRoleId = dropdownVisible && roleSel2 ? parseInt(roleSel2.value || '5', 10) : 5; // default Customer
 
-  // Auto-login on successful registration
-  localStorage.setItem('isLoggedIn', 'true');
-  localStorage.setItem('userId', (data.userId ?? '').toString());
-  if (typeof data.roleId !== 'undefined' && data.roleId !== null) {
-    localStorage.setItem('roleId', String(data.roleId));
-  }
-  // Store a usable code label; use provided username as a placeholder
-  try { localStorage.setItem('code', username || ''); } catch {}
-  try { if (typeof updateNavbarAuth === 'function') updateNavbarAuth(); } catch {}
-    sessionStorage.setItem('pendingToast', JSON.stringify({
-      type: 'info',
-      message: 'Account created and you are now logged in.'
-    }));
-    location.href = '/home';
+    if (!dropdownVisible || chosenRoleId === 5) {
+      // Auto-login only when registering as Customer or when no privileged user is logged in
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('userId', (data.userId ?? '').toString());
+      if (typeof data.roleId !== 'undefined' && data.roleId !== null) {
+        localStorage.setItem('roleId', String(data.roleId));
+      }
+      // Store a usable code label; use provided username as a placeholder
+      try { localStorage.setItem('code', username || ''); } catch {}
+      try { if (typeof updateNavbarAuth === 'function') updateNavbarAuth(); } catch {}
+      sessionStorage.setItem('pendingToast', JSON.stringify({
+        type: 'info',
+        message: 'Account created and you are now logged in.'
+      }));
+      location.href = '/home';
+    } else {
+      // Privileged creator: do not auto-login newly created user
+      sessionStorage.setItem('pendingToast', JSON.stringify({
+        type: 'info',
+        message: 'User account successfully created.'
+      }));
+      // Refresh page to reset form and scroll to top
+      try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch {}
+      location.reload();
+      return;
+    }
   } catch (err) {
     showToast('error', 'Registration failed');
   } finally {

@@ -101,6 +101,9 @@ app.MapPost("/api/register", async (AppDbContext db, RegisterDto dto) =>
             return Results.Json(new { success = false, message = "Email already exists." });
         }
 
+        // Assign role: default Customer when not provided
+        var assignedRole = dto.RoleId ?? (int)UserRole.Customer;
+
         var newUser = new AxUser
         {
             FirstName = dto.FirstName ?? "",
@@ -119,7 +122,7 @@ app.MapPost("/api/register", async (AppDbContext db, RegisterDto dto) =>
             City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City?.Trim(),
             StreetAddress = string.IsNullOrWhiteSpace(dto.StreetAddress) ? null : dto.StreetAddress?.Trim(),
             PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode?.Trim(),
-            RoleId = (int)UserRole.Customer
+            RoleId = assignedRole
         };
 
         db.AxUsers.Add(newUser);
