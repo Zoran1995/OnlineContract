@@ -1,3 +1,4 @@
+
 // Notification storage helpers: keep notifications per-user when logged in, per-browser when guest
 function _oc_getNotificationKey() {
   try {
@@ -33,8 +34,61 @@ function _oc_saveNotifications() {
 // Initialize notifications from the appropriate scope
 _oc_loadNotifications();
 
+// Global client error logger to help diagnose runtime issues
+try {
+  if (!window._oc_error_bound) {
+    window._oc_error_bound = true;
+    window.addEventListener('error', async (e) => {
+      try {
+        const userId = parseInt(localStorage.getItem('userId') || '2', 10) || 2;
+        await fetch('/api/log-client-error', {
+          method: 'POST', headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ userId, description: 'Client JS error', stackTrace: String(e.error || e.message || e.filename) })
+        });
+      } catch {}
+    });
+    window.addEventListener('unhandledrejection', async (e) => {
+      try {
+        const userId = parseInt(localStorage.getItem('userId') || '2', 10) || 2;
+        await fetch('/api/log-client-error', {
+          method: 'POST', headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ userId, description: 'Unhandled promise rejection', stackTrace: String(e.reason) })
+        });
+      } catch {}
+    });
+  }
+} catch {}
+
 // Create notification UI (toast container, bell, panel) if it's not present in the page.
 function ensureNotificationUI() {
+  // Ensure shared styles for notification panel and items exist (colors match toast variants)
+  try {
+    const styleId = 'oc-notif-styles';
+    if (!document.getElementById(styleId)) {
+      const st = document.createElement('style');
+      st.id = styleId;
+      st.textContent = `
+      .notification-panel{background:#fff;border:1px solid rgba(0,0,0,0.08);border-radius:10px;padding:12px;box-shadow:0 4px 24px rgba(0,0,0,0.12);color:#111}
+      #notificationList{display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow:auto}
+      .notif-card{display:flex;align-items:center;gap:12px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:#fff;padding:10px 12px;position:relative}
+      .notif-accent{flex:0 0 28px;width:28px;height:28px;border-radius:50%;display:flex;justify-content:center;align-items:center;color:#fff}
+      .notif-accent .material-icons{font-size:18px;line-height:1}
+      .notif-content{flex:1 1 auto;line-height:1.4;color:#111}
+      .notification-close{margin-left:8px;color:#666;cursor:pointer;border:none;background:transparent;font-size:14px}
+      .notif--info .notif-accent{background:#2563eb}
+      .notif--error .notif-accent{background:#ef4444}
+      .notif--warning .notif-accent{background:#f59e0b}
+      /* Panel filter buttons matching the new colors */
+      .notif-info{background:#2563eb;color:#fff;border-color:#2563eb}
+      .notif-info:hover{filter:brightness(1.05)}
+      .notif-warning{background:#f59e0b;color:#fff;border-color:#f59e0b}
+      .notif-warning:hover{filter:brightness(1.05)}
+      .notif-error{background:#ef4444;color:#fff;border-color:#ef4444}
+      .notif-error:hover{filter:brightness(1.05)}
+      `;
+      document.head.appendChild(st);
+    }
+  } catch {}
   // Defensive cleanup: ensure only one bell and one notification badge exist
   try {
     const bells = document.querySelectorAll('#notificationBell');
@@ -72,17 +126,22 @@ function ensureNotificationUI() {
     if (!document.getElementById('notificationCount')) {
       const badge = document.createElement('span');
       badge.id = 'notificationCount';
-      badge.className = 'badge badge-error hidden'; // hidden when count is 0; red badge
-      badge.textContent = '0';
-        // Keep the badge inside the bell and small enough so it never peeks out of the viewport
-        badge.style.position = 'absolute';
-        badge.style.top = '-6px';
-        badge.style.right = '-6px';
-        badge.style.maxWidth = '24px';
-        badge.style.maxHeight = '24px';
-        // Ensure bell is a positioning context
-        const bellStyle = bell.style || {};
-        bellStyle.position = bellStyle.position || 'relative';
+      badge.className = 'badge badge-error';
+      // Initialize badge with current count and hidden state
+      const initCount = (window.notifications || []).length;
+      badge.textContent = initCount > 0 ? String(initCount) : '';
+      const hide = initCount === 0;
+      badge.classList.toggle('hidden', hide);
+      badge.style.display = hide ? 'none' : '';
+      // Keep the badge inside the bell and small enough so it never peeks out of the viewport
+      badge.style.position = 'absolute';
+      badge.style.top = '-6px';
+      badge.style.right = '-6px';
+      badge.style.maxWidth = '24px';
+      badge.style.maxHeight = '24px';
+      // Ensure bell is a positioning context
+      const bellStyle = bell.style || {};
+      bellStyle.position = bellStyle.position || 'relative';
       bell.appendChild(badge);
     }
 
@@ -235,30 +294,30 @@ function ensureNotificationUI() {
     dismissBtn.onclick = dismissAll;
     controls.appendChild(dismissBtn);
 
-  const infoBtn = document.createElement('button');
-  infoBtn.className = 'btn btn-xs notif-info';
-  infoBtn.setAttribute('aria-label', 'Filter information notifications');
-  infoBtn.textContent = 'Information';
+    const infoBtn = document.createElement('button');
+    infoBtn.className = 'btn btn-xs notif-info';
+    infoBtn.setAttribute('aria-label', 'Filter information notifications');
+    infoBtn.textContent = 'Information';
     infoBtn.onclick = function() {
       window._notificationFilterType = 'info';
       updateNotificationBell();
     };
     controls.appendChild(infoBtn);
 
-  const warnBtn = document.createElement('button');
-  warnBtn.className = 'btn btn-xs notif-warning';
-  warnBtn.setAttribute('aria-label', 'Filter warning notifications');
-  warnBtn.textContent = 'Warning';
+    const warnBtn = document.createElement('button');
+    warnBtn.className = 'btn btn-xs notif-warning';
+    warnBtn.setAttribute('aria-label', 'Filter warning notifications');
+    warnBtn.textContent = 'Warning';
     warnBtn.onclick = function() {
       window._notificationFilterType = 'warning';
       updateNotificationBell();
     };
     controls.appendChild(warnBtn);
 
-  const errorBtn = document.createElement('button');
-  errorBtn.className = 'btn btn-xs notif-error';
-  errorBtn.setAttribute('aria-label', 'Filter error notifications');
-  errorBtn.textContent = 'Error';
+    const errorBtn = document.createElement('button');
+    errorBtn.className = 'btn btn-xs notif-error';
+    errorBtn.setAttribute('aria-label', 'Filter error notifications');
+    errorBtn.textContent = 'Error';
     errorBtn.onclick = function() {
       window._notificationFilterType = 'error';
       updateNotificationBell();
@@ -287,17 +346,56 @@ function ensureNotificationUI() {
 
   // Ensure initial visibility/count state is correct
   if (typeof updateNotificationBell === 'function') updateNotificationBell();
+  // Also sync on DOM ready to avoid stale badge visibility across pages
+  try {
+    window.addEventListener('DOMContentLoaded', () => {
+      if (typeof updateNotificationBell === 'function') {
+        updateNotificationBell();
+      }
+    });
+  } catch {}
 
   // Ensure admin change-store modal HTML exists
   ensureAdminChangeStoreModal();
 
   // Navbar auth controls: show Log Out when logged in; redirect to /login on logout
   try {
-    const updateNavbarAuth = () => {
-  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-  const roleId = parseInt(localStorage.getItem('roleId') || '0', 10);
-  // Privileged roles: Manager=8, Administrator=7 (per ax_user.role_id)
-  const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
+    // Read auth state from the server (cookie-based) and avoid client-controlled flags
+    const syncAuthFromServer = async () => {
+      try {
+        const res = await fetch('/whoami', { method: 'GET', credentials: 'include', headers: { 'Accept':'application/json' } });
+        if (res.status === 401) {
+          return { isAuthenticated: false, code: '', roleId: 0 };
+        }
+        const data = await res.json();
+        const isAuth = !!data?.isAuthenticated;
+        const claims = Array.isArray(data?.claims) ? data.claims : [];
+        const claimVal = (t) => {
+          const c = claims.find(x => String(x.Type).toLowerCase().includes(String(t).toLowerCase()));
+          return c ? String(c.Value) : null;
+        };
+        const uid = claimVal('nameidentifier') || claimVal('ClaimTypes.NameIdentifier');
+        // Prefer server-provided roleId; fallback to parsing claims
+        const role = Number(data?.roleId ?? 0) || parseInt((claimVal('role') || claimVal('ClaimTypes.Role') || '0'), 10) || 0;
+        const code = data?.name || claimVal('name') || claimVal('ClaimTypes.Name') || '';
+        return { isAuthenticated: isAuth, userId: uid ? parseInt(uid, 2) : 2, roleId: role, code };
+      } catch { return { isAuthenticated: false, code: '', roleId: 0 }; }
+    };
+
+    const updateNavbarAuth = (auth) => {
+      const isLoggedIn = !!auth?.isAuthenticated;
+      const roleId = parseInt((auth?.roleId ?? 0), 10) || 0;
+      // Privileged roles: Manager=8, Administrator=7 (per ax_user.role_id)
+      const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
+
+      // Hide nav links to protected pages when not privileged (EventLog + Users)
+      const protectedLinks = Array.from(document.querySelectorAll('.navbar a'))
+        .filter(a => {
+          const href = (a.getAttribute('href') || '').toLowerCase();
+          return href.includes('/eventlog') || href.includes('/users');
+        });
+      protectedLinks.forEach(a => a.classList.toggle('hidden', !isPrivileged));
+
       const signIn = document.getElementById('navSignIn');
       const logIn = document.getElementById('navLogIn');
       const logOut = document.getElementById('navLogOut');
@@ -308,15 +406,15 @@ function ensureNotificationUI() {
       // Hide EventLog nav link unless logged in (applies across pages)
       const eventLogLinks = Array.from(document.querySelectorAll('.navbar a'))
         .filter(a => (a.getAttribute('href') || '').toLowerCase().includes('/eventlog'));
-  eventLogLinks.forEach(a => a.classList.toggle('hidden', !isPrivileged));
+      eventLogLinks.forEach(a => a.classList.toggle('hidden', !isPrivileged));
 
       // Hide export button unless logged in (EventLog page)
-  const exportBtn = document.getElementById('exportBtn');
-  if (exportBtn) exportBtn.classList.toggle('hidden', !isPrivileged);
+      const exportBtn = document.getElementById('exportBtn');
+      if (exportBtn) exportBtn.classList.toggle('hidden', !isPrivileged);
 
       // Ensure Admin dropdown menu exists and is visible only for privileged users
       const rightContainer = document.querySelector('.navbar .flex-none') || document.querySelector('.navbar .flex-none.items-center');
-      // Replace Admin button with a plain label showing the logged-in username
+
       // User label with dropdown for Logout
       let userDd = document.getElementById('userDropdown');
       if (!userDd && rightContainer) {
@@ -332,18 +430,19 @@ function ensureNotificationUI() {
         activator.className = 'btn btn-sm px-3 py-1 rounded select-none cursor-pointer bg-base-200 text-base-content border border-base-300 flex items-center gap-2';
         const menu = document.createElement('ul');
         menu.tabIndex = 0;
-  menu.className = 'dropdown-content menu p-2 shadow bg-base-100 rounded-box w-40';
-  // Open directly below the activator, but align to open toward the left side to keep content visible
-  menu.style.left = 'auto';
-  menu.style.right = '0';
-  menu.style.transform = 'translateX(-100%)';
-  menu.style.top = 'calc(100% + 4px)';
-  menu.style.minWidth = '10rem';
+        menu.className = 'dropdown-content menu p-2 shadow bg-base-100 rounded-box w-40';
+        // Open directly below the activator, but align to open toward the left side to keep content visible
+        menu.style.left = 'auto';
+        menu.style.right = '0';
+        menu.style.transform = 'translateX(-100%)';
+        menu.style.top = 'calc(100% + 4px)';
+        menu.style.minWidth = '10rem';
         menu.innerHTML = `
           <li><a href="#" id="ddLogout"><span class="material-icons mr-2">exit_to_app</span>Log Out</a></li>
         `;
         userDd.appendChild(activator);
         userDd.appendChild(menu);
+
         // Place it to the left of the bell if bell exists
         const bell = document.getElementById('notificationBell');
         if (bell && bell.parentElement === rightContainer) {
@@ -351,6 +450,7 @@ function ensureNotificationUI() {
         } else {
           rightContainer.insertBefore(userDd, rightContainer.firstChild);
         }
+
         // When opening, ensure the dropdown shifts left if it would overflow the right edge
         const positionUserDropdown = () => {
           try {
@@ -374,21 +474,23 @@ function ensureNotificationUI() {
           } catch {}
         };
         // Bind focus/click to adjust position just-in-time
-        if (!activator._oc_bound_pos) {
-          activator._oc_bound_pos = true;
+        const activatorEl = document.getElementById('adminLabel');
+        if (activatorEl && !activatorEl._oc_bound_pos) {
+          activatorEl._oc_bound_pos = true;
           ['click','focus','mouseenter'].forEach(evt => {
-            activator.addEventListener(evt, () => setTimeout(positionUserDropdown, 0));
+            activatorEl.addEventListener(evt, () => setTimeout(positionUserDropdown, 0));
           });
         }
       }
+
       const adminLabel = document.getElementById('adminLabel');
       const userDropdown = document.getElementById('userDropdown');
       if (adminLabel) {
-        // Prefer exact ax_user.code stored in localStorage under 'code'
-        const rawCode = localStorage.getItem('code') || localStorage.getItem('username') || '';
-        const code = (rawCode || '').trim();
+        const code = (auth?.code || '').trim();
         // Show ax_user.code clearly inside button with icon and dropdown hint
-        adminLabel.innerHTML = isLoggedIn && code ? `<span class="material-icons" style="font-size:18px;color:#4b5563;">person<\/span><span class="font-semibold" style="color:#111827;">${code}<\/span><span class="material-icons" style="font-size:18px;color:#6b7280;">expand_more<\/span>` : '';
+        adminLabel.innerHTML = isLoggedIn && code
+          ? `<span class="material-icons" style="font-size:18px;color:#4b5563;">person</span><span class="font-semibold" style="color:#111827;">${code}</span><span class="material-icons" style="font-size:18px;color:#6b7280;">expand_more</span>`
+          : '';
         adminLabel.title = code || '';
         adminLabel.classList.toggle('hidden', !isLoggedIn);
         if (!code) {
@@ -407,20 +509,15 @@ function ensureNotificationUI() {
         adminLabel.style.overflow = 'hidden';
         adminLabel.style.maxWidth = '320px';
       }
+
       const ddLogout = document.getElementById('ddLogout');
       if (ddLogout && !ddLogout._oc_bound) {
         ddLogout._oc_bound = true;
-        ddLogout.addEventListener('click', (e) => {
+        ddLogout.addEventListener('click', async (e) => {
           e.preventDefault();
-          try {
-            // Reuse existing logout behavior
-            const logoutBtn = document.getElementById('navLogOut');
-            if (logoutBtn) {
-              logoutBtn.click();
-              return;
-            }
-          } catch {}
-          // Fallback: clear session and redirect
+          // Always notify server to clear auth cookie first
+          try { await fetch('/api/logout', { method: 'POST', credentials: 'include', headers: { 'Accept':'application/json' } }); } catch {}
+          // Clear client state
           try {
             const currentKey = _oc_getNotificationKey();
             try { localStorage.removeItem(currentKey); } catch {}
@@ -430,13 +527,25 @@ function ensureNotificationUI() {
             localStorage.removeItem('userId');
             localStorage.removeItem('lastActivityTs');
             localStorage.removeItem('roleId');
+            localStorage.removeItem('code');
+            localStorage.removeItem('username');
+            localStorage.removeItem('email');
           } catch {}
-          window.location.href = '/login';
+          // Update navbar view to logged-out
+          try { updateNavbarAuth({ isAuthenticated: false, roleId: 0, code: '' }); } catch {}
+          // Redirect to login page
+          window.location.href = '/login?mode=login';
         });
       }
 
+      // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+      // CALL to hide duplicate "Log Out" after dropdown is ready
+      hideStandaloneLogout();
+      // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
       // Transform EventLog navbar link into a dropdown with Event Log + Change store details
       const navbar = document.querySelector('.navbar');
+      const pathNow = (window.location && window.location.pathname || '').toLowerCase();
       if (navbar) {
         const links = Array.from(navbar.querySelectorAll('a'));
         const eventLogLink = links.find(a => (a.getAttribute('href') || '').toLowerCase().includes('/eventlog'));
@@ -459,7 +568,7 @@ function ensureNotificationUI() {
             menu.className = 'dropdown-content menu p-2 shadow bg-base-100 rounded-box w-56';
             menu.innerHTML = `
               <li><a href="#" id="ddChangeStore"><span class="material-icons mr-2">edit</span>Change Store Details</a></li>
-              <li><a href="/users" id="ddUsersTeams"><span class="material-icons mr-2">group</span>Users & Teams</a></li>
+              <li><a href="/users" id="ddUsersTeams"><span class="material-icons mr-2">group</span>Users &amp; Teams</a></li>
               <li><a href="/eventlog" id="ddEventLog"><span class="material-icons mr-2">list</span>All Events</a></li>
             `;
             // Insert wrapper at the far left (as first interactive element)
@@ -497,26 +606,12 @@ function ensureNotificationUI() {
         }
       }
     };
-    updateNavbarAuth();
 
-    // If code is set slightly after page load (e.g., post-login async),
-    // retry updating the label for a short period until it appears.
-    try {
-      let attempts = 0;
-      const maxAttempts = 40; // ~10 seconds at 250ms
-      const retry = setInterval(() => {
-        attempts++;
-        const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-        const code = (localStorage.getItem('code') || localStorage.getItem('username') || '').trim();
-        const adminLabel = document.getElementById('adminLabel');
-        // If logged in and we now have code but label is still empty, refresh UI
-        if (isLoggedIn && code && adminLabel && adminLabel.textContent.trim() === '') {
-          updateNavbarAuth();
-          clearInterval(retry);
-        }
-        if (attempts >= maxAttempts) clearInterval(retry);
-      }, 250);
-    } catch {}
+    // First, align with server cookie; then update the navbar view without touching localStorage
+    syncAuthFromServer().then((auth) => {
+      updateNavbarAuth(auth);
+      try { gateProtectedPages(auth); } catch {}
+    });
 
     // Global nav actions: ensure Log In / Sign In open the right form immediately
     const navLogIn = document.getElementById('navLogIn');
@@ -541,6 +636,8 @@ function ensureNotificationUI() {
     if (logoutBtn && !logoutBtn._oc_bound) {
       logoutBtn._oc_bound = true;
       logoutBtn.addEventListener('click', () => {
+        // Also notify server to clear auth cookie
+        try { fetch('/api/logout', { method: 'POST', credentials: 'include', headers: { 'Accept':'application/json' } }); } catch {}
         try {
           // Clear current user's notification store on logout
           const currentKey = _oc_getNotificationKey();
@@ -552,10 +649,13 @@ function ensureNotificationUI() {
           localStorage.removeItem('userId');
           localStorage.removeItem('lastActivityTs');
           localStorage.removeItem('roleId');
+          localStorage.removeItem('code');
+          localStorage.removeItem('username');
+          localStorage.removeItem('email');
         } catch {}
-        updateNavbarAuth();
+        try { updateNavbarAuth({ isAuthenticated: false, roleId: 0, code: '' }); } catch {}
         // redirect to login page
-        window.location.href = '/login';
+        window.location.href = '/login?mode=login';
       });
     }
   } catch {}
@@ -617,6 +717,47 @@ function ensureNotificationUI() {
       sessionStorage.removeItem('pendingToast');
     }
   } catch {}
+}
+
+// Gate protected pages and show an inline Access Denied panel instead of redirecting
+function gateProtectedPages(auth){
+  const path = (window.location && window.location.pathname || '').toLowerCase();
+  const protectedAny = [ '/users', '/users.html', '/eventlog', '/eventlog.html', '/changestore', '/changestore.html' ];
+  if (!protectedAny.includes(path)) return;
+
+  const isAuth = !!auth?.isAuthenticated;
+  const roleId = parseInt((auth?.roleId ?? 0), 10) || 0;
+  const isPrivileged = isAuth && (roleId === 7 || roleId === 8);
+
+  // EventLog and Change Store require privileged roles; Users page requires authentication only
+  const requiresPrivilege = (p) =>
+    ['/eventlog','/eventlog.html','/changestore','/changestore.html','/users','/users.html'].includes(p);
+
+  const mustBePrivileged = requiresPrivilege(path);
+
+  const deny = (!isAuth) || (mustBePrivileged && !isPrivileged);
+  if (!deny) return;
+
+  // Hide known main content containers
+  const hideEl = (sel) => { const el = document.querySelector(sel); if (el) el.classList.add('hidden'); };
+  hideEl('main');
+  hideEl('#eventlogContent');
+  hideEl('#eventlogGrid');
+  hideEl('#loadingOverlay');
+
+  // Show inline Access Denied panel
+  const container = document.createElement('section');
+  container.className = 'container mx-auto p-6';
+  container.innerHTML = `
+    <div class="bg-base-100 rounded-xl shadow p-8 text-center">
+      <div class="flex items-center justify-center gap-2 mb-3">
+        <span class="material-icons text-rose-600">block</span>
+        <h2 class="text-2xl font-bold">Access Denied</h2>
+      </div>
+      <p class="text-gray-700">You are not allowed to see this page.</p>
+    </div>
+  `;
+  document.body.appendChild(container);
 }
 
 // Position the toast stack so it starts just below the navbar and never covers
@@ -698,45 +839,95 @@ function adjustBellPosition() {
 }
 
 function showToast(type, message) {
-  // Returns a Promise that resolves when the toast is dismissed and the
-  // notification is stored to the bell (either after timeout or when user
-  // clicks the toast). This allows callers to await the toast lifecycle
-  // (useful for delaying redirects until the user saw the message).
+  // Redesigned, accessible toast with left accent and icon
   return new Promise((resolve) => {
-    const container = document.getElementById('toastContainer');
+    const ensureToastContainer = () => {
+      let el = document.getElementById('toastContainer');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'toastContainer';
+        el.style.position = 'fixed';
+        el.style.top = '16px';
+        el.style.right = '16px';
+        el.style.zIndex = '9999';
+        el.style.display = 'flex';
+        el.style.flexDirection = 'column';
+        el.style.gap = '12px';
+        document.body.appendChild(el);
+      }
+      return el;
+    };
+
+    // Inject minimal styles for toast variants if not present
+    (function ensureToastStyles(){
+      const styleId = 'oc-toast-styles';
+      if (document.getElementById(styleId)) return;
+      const st = document.createElement('style');
+      st.id = styleId;
+      st.textContent = `
+        .oc-toast{display:flex;align-items:center;gap:12px;max-width:640px;padding:12px 16px;border-radius:10px;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,0.08);border:1px solid rgba(0,0,0,0.06)}
+        .oc-toast__accent{flex:0 0 28px;width:28px;height:28px;border-radius:50%;display:flex;justify-content:center;align-items:center;color:#fff}
+        .oc-toast__accent .material-icons{font-size:18px;line-height:1}
+        .oc-toast__content{flex:1 1 auto;line-height:1.4;color:#111}
+        .oc-toast--info .oc-toast__accent{background:#2563eb}
+        .oc-toast--error .oc-toast__accent{background:#ef4444}
+        .oc-toast--warning .oc-toast__accent{background:#f59e0b}
+        #notif-badge.is-hidden{display:none}
+      `;
+      document.head.appendChild(st);
+    })();
+
+    const container = ensureToastContainer();
+    const t = (type || 'info').toLowerCase();
+
     const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
-  // Allow interaction with the toast itself
-  toast.style.pointerEvents = 'auto';
-    // Insert newest toasts at the top so they stack from top->bottom
+    toast.className = `oc-toast oc-toast--${t}`;
+    // Allow interaction with the toast even if the container ignores pointer events
+    toast.style.pointerEvents = 'auto';
+    const isInfo = t === 'info';
+    toast.setAttribute('role', isInfo ? 'status' : 'alert');
+    toast.setAttribute('aria-live', isInfo ? 'polite' : 'assertive');
+
+    const accent = document.createElement('div');
+    accent.className = 'oc-toast__accent';
+    accent.setAttribute('aria-hidden', 'true');
+    accent.innerHTML = ({
+      info: '<span class="material-icons">info</span>',
+      error: '<span class="material-icons">error</span>',
+      warning: '<span class="material-icons">warning</span>'
+    }[t]) || '<span class="material-icons">info</span>';
+
+    const content = document.createElement('div');
+    content.className = 'oc-toast__content';
+    content.textContent = message || '';
+
+    // Dismiss by clicking anywhere on the toast (no visible X)
+    toast.addEventListener('click', () => {
+      if (container.contains(toast)) container.removeChild(toast);
+      storeNotification();
+    });
+
+    toast.appendChild(accent);
+    toast.appendChild(content);
     container.insertBefore(toast, container.firstChild);
 
     let stored = false;
     const storeNotification = () => {
       if (stored) return;
       stored = true;
-      window.notifications.push({ type, message });
+      window.notifications.push({ type: t, message });
       updateNotificationBell();
       resolve();
     };
 
-    // Clicking the visible toast removes it and stores as a notification
-    toast.addEventListener('click', () => {
+    const autoDismissMs = 10000;
+    const timeout = setTimeout(() => {
       if (container.contains(toast)) container.removeChild(toast);
       storeNotification();
-    });
+    }, autoDismissMs);
 
-    // After 10s, remove the visible toast and store it in the bell
-    const t = setTimeout(() => {
-      if (container.contains(toast)) container.removeChild(toast);
-      storeNotification();
-    }, 10000);
-
-    // If the page unloads before the timeout we still want to store the
-    // notification so it appears in the bell on the next page.
     window.addEventListener('beforeunload', () => {
-      clearTimeout(t);
+      clearTimeout(timeout);
       storeNotification();
     });
   });
@@ -747,9 +938,20 @@ function updateNotificationBell() {
   const badge = document.getElementById('notificationCount');
   const bell = document.getElementById('notificationBell');
   if (badge) {
-    badge.textContent = count;
+    badge.textContent = count > 0 ? String(count) : '';
     // Hide badge when count is 0; show otherwise
-    badge.classList.toggle('hidden', count === 0);
+    const hide = count === 0;
+    badge.classList.toggle('hidden', hide);
+    // Force-hide via inline style to defeat any conflicting CSS
+    badge.style.display = hide ? 'none' : '';
+    // Also support optional #notif-badge selector
+    const nb = document.getElementById('notif-badge');
+    if (nb) {
+      nb.textContent = count > 0 ? String(count) : '';
+      nb.classList.toggle('is-hidden', hide);
+      nb.setAttribute('aria-hidden', hide ? 'true' : 'false');
+      nb.style.display = hide ? 'none' : '';
+    }
   }
 
   // Keep the bell visible at all times; badge visibility depends on count (hidden when 0).
@@ -764,40 +966,55 @@ function updateNotificationBell() {
   const filter = window._notificationFilterType || null;
   (window.notifications || [])
     .filter(n => !filter || n.type === filter)
-    .forEach((n, idx) => {
-    const el = document.createElement('div');
-    el.className = `notification-item ${n.type}`;
-    el.textContent = n.message;
+    .forEach((n) => {
+      const el = document.createElement('div');
+      const t = (n.type || 'info').toLowerCase();
+      el.className = `notif-card notif--${t}`;
 
-    // allow removing this specific notification
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'notification-close';
-    closeBtn.setAttribute('aria-label', 'Dismiss notification');
-    closeBtn.textContent = '×';
-    closeBtn.onclick = function (e) {
-      e.stopPropagation();
-      // remove the notification at this index and re-render
+      const accent = document.createElement('div');
+      accent.className = 'notif-accent';
+      accent.setAttribute('aria-hidden', 'true');
+      accent.innerHTML = ({
+        info: '<span class="material-icons">info</span>',
+        error: '<span class="material-icons">error</span>',
+        warning: '<span class="material-icons">warning</span>'
+      }[t]) || '<span class="material-icons">info</span>';
+
+      const content = document.createElement('div');
+      content.className = 'notif-content';
+      content.textContent = n.message || '';
+
+      // allow removing this specific notification
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'notification-close';
+      closeBtn.setAttribute('aria-label', 'Dismiss notification');
+      closeBtn.textContent = '×';
+      closeBtn.onclick = function (e) {
+        e.stopPropagation();
+        // remove the notification at this index and re-render
         const indexToRemove = (window.notifications || []).indexOf(n);
         if (indexToRemove > -1) {
           window.notifications.splice(indexToRemove, 1);
         }
-      updateNotificationBell();
-    };
+        updateNotificationBell();
+      };
 
-    // position close button inside the notification item
-    el.style.position = 'relative';
-    closeBtn.style.position = 'absolute';
-    closeBtn.style.top = '6px';
-    closeBtn.style.right = '8px';
-    closeBtn.style.border = 'none';
-    closeBtn.style.background = 'transparent';
-    closeBtn.style.cursor = 'pointer';
-    closeBtn.style.fontSize = '14px';
-    closeBtn.style.lineHeight = '1';
+      // position close button inside the notification item
+      el.style.position = 'relative';
+      closeBtn.style.position = 'absolute';
+      closeBtn.style.top = '6px';
+      closeBtn.style.right = '8px';
+      closeBtn.style.border = 'none';
+      closeBtn.style.background = 'transparent';
+      closeBtn.style.cursor = 'pointer';
+      closeBtn.style.fontSize = '14px';
+      closeBtn.style.lineHeight = '1';
 
-    el.appendChild(closeBtn);
-    list.appendChild(el);
-  });
+      el.appendChild(accent);
+      el.appendChild(content);
+      el.appendChild(closeBtn);
+      list.appendChild(el);
+    });
 
   // Persist to localStorage using per-user or guest scope
   _oc_saveNotifications();
@@ -812,6 +1029,49 @@ function updateNotificationBell() {
     panel.style.top = `${window._notificationPanelPos.top}px`;
   }
 }
+
+// --- ADD start: hide duplicate "Log Out" buttons when dropdown exists ---
+function hideStandaloneLogout() {
+  try {
+    const hasDropdown = !!document.getElementById('userDropdown');
+    if (!hasDropdown) return;
+
+    // 1) Ako postoji eksplicitni #navLogOut (negde u layoutu), sakrij ga
+    const explicit = document.getElementById('navLogOut');
+    if (explicit) explicit.classList.add('hidden');
+
+    // 2) Ako postoji neki drugi "Log Out" link/dugme (bez ID-ja) u .navbar – sakrij
+    const lone = Array.from(document.querySelectorAll('.navbar a, .navbar button'))
+      .find(el =>
+        el.id !== 'ddLogout' &&
+        el.id !== 'adminLabel' &&
+        el.textContent &&
+        el.textContent.trim().toLowerCase() === 'log out'
+      );
+    if (lone) lone.classList.add('hidden');
+  } catch {}
+}
+// --- ADD end ---
+
+// Global helper to update badge by explicit count
+function updateNotificationBadge(count){
+  const n = Number(count || 0);
+  const nb = document.getElementById('notif-badge');
+  const badge = document.getElementById('notificationCount');
+  if (nb){
+    nb.textContent = n > 0 ? String(n) : '';
+    nb.classList.toggle('is-hidden', n === 0);
+    nb.setAttribute('aria-hidden', n === 0 ? 'true' : 'false');
+  }
+  if (badge){
+    badge.textContent = n > 0 ? String(n) : '';
+    badge.classList.toggle('hidden', n === 0);
+  }
+}
+
+// Export helpers
+window.showToast = showToast;
+window.updateNotificationBadge = updateNotificationBadge;
 
 function dismissAll() {
   window.notifications = [];
@@ -1066,7 +1326,8 @@ function ensureAdminChangeStoreModal() {
         const userId = localStorage.getItem('userId') || 2;
         const res = await fetch(`/api/stores/${id}?userId=${userId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', 'Accept':'application/json' },
           body: JSON.stringify(payload)
         });
         if (res.ok) {
@@ -1239,6 +1500,7 @@ function fixPairRanges() {
   ensureValidRange('shStart','shEnd');
   ensureValidRange('suStart','suEnd');
 }
+
 function setHoursEditorFromString(str) {
   const mhClosed = document.getElementById('mhClosed');
   const mhStartHour = document.getElementById('mhStartHour');
@@ -1427,7 +1689,6 @@ async function preloadStoresIntoModal() {
     showToast('error', 'Failed to load stores.');
   }
 }
-
 
 document.addEventListener('DOMContentLoaded', () => {
   try {

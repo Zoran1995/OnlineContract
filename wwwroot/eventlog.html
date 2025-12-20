@@ -2,7 +2,7 @@
 <html lang="en" data-theme="pastel">
 <head>
   <meta charset="utf-8" />
-  <title>FastRent · Event Logs</title>
+  <title>KidzStyle · Event Logs</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
@@ -56,9 +56,9 @@
           <label class="label"><span class="label-text">Date to</span></label>
           <input id="toDate" type="datetime-local" class="input input-bordered w-full" />
         </div>
-        <div class="flex gap-2">
-          <button id="searchBtn" class="btn btn-primary w-full">Search</button>
-          <button id="clearBtn" class="btn btn-outline w-full" disabled>Clear</button>
+        <div class="w-full flex gap-2 justify-end md:col-start-5">
+          <button id="searchBtn" class="btn btn-primary">Search</button>
+          <button id="clearBtn" class="btn btn-outline" disabled>Clear</button>
         </div>
         <div class="text-sm text-gray-500 col-span-1 md:col-span-5">
           <span id="emptyState" class="hidden">No data found for selected filters.</span>
@@ -95,9 +95,9 @@
         <option value="100">100</option>
       </select>
 
-      <button id="prevPage" class="btn btn-outline">Previous</button>
+      <button id="prevPage" class="btn btn-outline"><span class="material-icons mr-2">chevron_left</span> Previous</button>
       <span id="pageInfo" class="font-semibold"></span>
-      <button id="nextPage" class="btn btn-outline">Next</button>
+      <button id="nextPage" class="btn btn-outline">Next <span class="material-icons ml-2">chevron_right</span></button>
 
       <span id="pageCountInfo" class="page-count-info"></span>
     </div>
@@ -112,37 +112,6 @@
 
   <script src="/js/shared.js"></script>
   <script src="/js/eventlog.js"></script>
-  <script>
-    // Gate the EventLog page: show an inline error if user is not privileged
-    (function(){
-      try {
-        const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-        const roleId = parseInt(localStorage.getItem('roleId') || '0', 10);
-        const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
-        if (!isPrivileged) {
-          // Hide main content sections and show an error placeholder
-          const content = document.getElementById('eventlogContent');
-          if (content) content.classList.add('hidden');
-          const grid = document.getElementById('eventlogGrid');
-          if (grid) grid.classList.add('hidden');
-          const overlay = document.getElementById('loadingOverlay');
-          if (overlay) overlay.classList.add('hidden');
-          // Replace body main content with an inline error panel under the navbar
-          const container = document.createElement('section');
-          container.className = 'container mx-auto p-6';
-          container.innerHTML = `
-            <div class="bg-base-100 rounded-xl shadow p-8 text-center">
-              <div class="flex items-center justify-center gap-2 mb-3">
-                <span class="material-icons text-rose-600">block</span>
-                <h2 class="text-2xl font-bold">Access Denied</h2>
-              </div>
-              <p class="text-gray-700">You are not allowed to see this page.</p>
-            </div>
-          `;
-          document.body.appendChild(container);
-        }
-      } catch {}
-    })();
-  </script>
+  <!-- Authorization gating handled by server and shared.js; no client-side localStorage gating here. -->
 </body>
 </html>

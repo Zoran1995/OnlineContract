@@ -73,5 +73,8 @@ namespace OnlineContract.Models
 
         [Column("password_dt")]
         public DateTime PasswordDt { get; set; }
+
+        [Column("input_user_id")]
+        public int? InputUserId { get; set; }
     }
 }

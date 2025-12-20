@@ -35,7 +35,18 @@ Minimal ASP.NET Core app serving static pages from `wwwroot` with a few JSON API
   - `GET /api/event-log` with filters; `GET /api/event-log/export` CSV.
   - `EventType` values: Information=2, Warning=3, Error=4.
   - EventLog page gated on the client: non‑privileged users see “Access Denied”.
+  - Filters: Search and Clear aligned to the right; pagination buttons include chevron icons.
   - Server logs full exception text, including stack traces, tagged with `userId` (fallback `2`).
+
+- Users & Teams
+  - Page: `/users` with filters and grid.
+  - Filters: Name (text) + Team (dropdown). Team list is populated from `GET /api/groups?page=1&pageSize=1000` and shows all groups (`is_group = 1`).
+  - Grid: Teams column displays the team’s `ax_user.Code` derived from `owner_id`. Uses `groupName` from `GET /api/users` when present, else owner mapping.
+  - Toolbar: `Open`, `New User`, `New Team`, and a three‑dots menu with `Activate/Deactivate` + `Delete`.
+  - Actions: `POST /api/users/{id}/activate`, `POST /api/users/{id}/deactivate`, `POST /api/users/{id}/delete`.
+  - Modal: Team Code is a dropdown (blank default) matching the Team filter; selecting updates hidden `OwnerId` for the payload.
+  - UX: Three‑dots menu opens on first click and closes on second; also closes on outside click and Escape.
+  - Navbar: Export to CSV is hidden on Users & Teams page.
 
 ## Run locally
 
@@ -60,6 +71,7 @@ Minimal ASP.NET Core app serving static pages from `wwwroot` with a few JSON API
 - LocalStorage keys: `isLoggedIn`, `userId`, `roleId`.
 - Registration sets `isLoggedIn=true`, `roleId=0` (Customer) by default.
 - Address page’s top Phone/Email cards use the first two stores from `/api/stores`.
+- Cookie auth: API endpoints return 401 (not redirects) and require authorization. `/api/groups` is restricted to Admin/Manager.
  - EF mapping marks `dbo.stores` as having a trigger to avoid `OUTPUT` clause issues.
  - `Store.Last_Modified_User_Id` is set on PUT using the logged‑in `userId` (fallback `2`).
 
