@@ -1,0 +1,101 @@
+
+<!DOCTYPE html>
+<html lang="en" data-theme="pastel">
+<head>
+    <meta charset="utf-8" />
+    <title>KidzStyle · Contract Details</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+
+    <link rel="stylesheet" href="/css/eventlog.css" />
+    <link rel="stylesheet" href="/css/login.css" />
+
+    <style>
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="bg-base-200 text-base-content">
+
+    <!-- Navbar (single, sticky) -->
+    <div class="navbar bg-base-100 shadow sticky top-0 z-50">
+        <div class="flex-1">
+            <a href="/home" class="btn btn-ghost normal-case text-xl">
+                <span class="material-icons mr-2">home</span> Home
+            </a>
+            <a href="/about" class="btn btn-ghost">
+                <span class="material-icons mr-2">info</span> About
+            </a>
+            <a href="/address" class="btn btn-ghost">
+                <span class="material-icons mr-2">location_on</span> Address
+            </a>
+            <a href="/eventlog" class="btn btn-ghost">
+                <span class="material-icons mr-2">bug_report</span> EventLog
+            </a>
+        </div>
+        <div class="flex-none items-center gap-3">
+            <a id="navSignIn" href="/login" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</a>
+            <a id="navLogIn" href="/login" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</a>
+        </div>
+    </div>
+
+    <main class="container mx-auto p-4">
+        <div class="flex items-center justify-between gap-3 mb-3">
+            <h1 class="text-2xl font-bold">Contract Details</h1>
+        </div>
+
+        <section id="detailsCard" class="bg-base-100 rounded-xl shadow p-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <div class="text-sm text-gray-500">Contract ID</div>
+                    <div id="contractId" class="font-semibold"></div>
+                </div>
+                <div>
+                    <div class="text-sm text-gray-500">Entry Date</div>
+                    <div id="entryDate" class="font-semibold"></div>
+                </div>
+
+                <div>
+                    <div class="text-sm text-gray-500">Customer</div>
+                    <div id="customerFullName" class="font-semibold"></div>
+                </div>
+                <div>
+                    <div class="text-sm text-gray-500">Contract State</div>
+                    <div id="contractState" class="font-semibold"></div>
+                </div>
+
+                <div>
+                    <div class="text-sm text-gray-500">Input User ID</div>
+                    <div id="inputUserId" class="font-semibold"></div>
+                </div>
+                <div>
+                    <div class="text-sm text-gray-500">Last Modified By ID</div>
+                    <div id="lastModifiedById" class="font-semibold"></div>
+                </div>
+
+                <div>
+                    <div class="text-sm text-gray-500">Last Updated</div>
+                    <div id="lastUpdatedDt" class="font-semibold"></div>
+                </div>
+                <div>
+                    <div class="text-sm text-gray-500">Stamp</div>
+                    <div id="stamp" class="font-semibold"></div>
+                </div>
+            </div>
+
+            <div id="detailsEmpty" class="hidden mt-4 text-sm text-gray-500">Contract not found.</div>
+        </section>
+    </main>
+
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-box">Loading...</div>
+    </div>
+
+    <!-- Notification UI injected by /js/shared.js -->
+    <script src="/js/shared.js"></script>
+    <script src="/js/contract-details.js"></script>
+</body>
+</html>

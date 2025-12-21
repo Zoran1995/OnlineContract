@@ -59,6 +59,22 @@ try {
   }
 } catch {}
 
+  // -- Cart helpers (visibility + click) --
+  function _oc_isLoggedIn() {
+    try { return localStorage.getItem('isLoggedIn') === 'true' || !!localStorage.getItem('userId'); } catch { return false; }
+  }
+  function _oc_getRoleId() {
+    try { const raw = localStorage.getItem('roleId'); return raw ? parseInt(raw, 10) : 0; } catch { return 0; }
+  }
+  function _oc_updateCartVisibility() {
+    const cartWrap = document.getElementById('hdrCart');
+    if (!cartWrap) return;
+    const logged = _oc_isLoggedIn();
+    const roleId = _oc_getRoleId();
+    const shouldShow = (!logged) || (logged && roleId === 5); // 5 = Customer
+    cartWrap.classList.toggle('hidden', !shouldShow);
+  }
+
 // Create notification UI (toast container, bell, panel) if it's not present in the page.
 function ensureNotificationUI() {
   // Ensure shared styles for notification panel and items exist (colors match toast variants)
@@ -271,6 +287,91 @@ function ensureNotificationUI() {
       // Make sure bell itself is never hidden
       bell.classList.remove('hidden');
     }
+    
+  // --- CART: create button and place next to bell ---
+  (function ensureCartButtonPlacement(){
+    // If it already exists, just place/refresh it
+    let cartWrap = document.getElementById('hdrCart');
+    if (!cartWrap) {
+      cartWrap = document.createElement('div');
+      cartWrap.id = 'hdrCart';
+      cartWrap.className = 'indicator';
+
+      const cartBtn = document.createElement('button');
+      cartBtn.id = 'btnCart';
+      cartBtn.type = 'button';
+      cartBtn.className = 'btn btn-ghost btn-circle';
+      cartBtn.setAttribute('aria-label', 'Shopping cart');
+      cartBtn.title = 'Shopping cart';
+      cartBtn.innerHTML = '<span class="material-icons">shopping_cart</span>';
+
+      const CART_URL  = '/cart';
+      const LOGIN_URL = '/login?mode=login';
+      const RETURN_URL = location.pathname + location.search;
+
+      
+    cartBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+
+      const CART_URL   = '/cart';
+      const LOGIN_URL  = '/login?mode=login';
+      const RETURN_URL = location.pathname + location.search;
+
+      if (!_oc_isLoggedIn()) {
+        try {
+          sessionStorage.setItem('pendingToast', JSON.stringify({
+          type: 'info',
+          message: 'Please sign in to use your cart'
+        }));
+      } catch {}
+
+    window.location.href = `${LOGIN_URL}&returnUrl=${encodeURIComponent(RETURN_URL)}`;
+    return;
+  }
+
+  if (_oc_getRoleId() === 5) {
+    window.location.href = CART_URL;
+  } else {
+    try { showToast?.('warning', 'Cart is available to Customers only'); } catch {}
+  }
+    });
+
+
+      cartWrap.appendChild(cartBtn);
+    }
+
+    const rightContainer =
+      document.querySelector('.navbar .flex-none') ||
+      document.querySelector('.navbar .flex-none.items-center');
+    const navbarRoot = document.querySelector('.navbar');
+    const bellEl = document.getElementById('notificationBell');
+
+    if (rightContainer) {
+      if (bellEl && bellEl.parentElement === rightContainer) {
+        rightContainer.insertBefore(cartWrap, bellEl.nextSibling);
+      } else {
+        rightContainer.appendChild(cartWrap);
+      }
+      cartWrap.classList.remove('fixed');
+      cartWrap.style.position = 'relative';
+      cartWrap.style.marginLeft = '8px';
+    } else if (navbarRoot) {
+      navbarRoot.appendChild(cartWrap);
+      cartWrap.classList.remove('fixed');
+      cartWrap.style.position = 'relative';
+      cartWrap.style.marginLeft = '8px';
+    } else {
+      cartWrap.classList.add('fixed');
+      cartWrap.style.position = 'fixed';
+      cartWrap.style.top = '16px';
+      cartWrap.style.right = '56px';
+      cartWrap.style.zIndex = '99999';
+      document.body.appendChild(cartWrap);
+    }
+
+    _oc_updateCartVisibility();
+  })();
+
   } catch {}
 
   if (!document.getElementById('notificationPanel')) {
@@ -396,13 +497,15 @@ function ensureNotificationUI() {
       const pathNow = (window.location && window.location.pathname || '').toLowerCase();
       const isEventLogPage = pathNow.includes('/eventlog');
 
-      // Hide nav links to protected pages when not privileged (EventLog + Users)
-      const protectedLinks = Array.from(document.querySelectorAll('.navbar a'))
-        .filter(a => {
-          const href = (a.getAttribute('href') || '').toLowerCase();
-          return href.includes('/eventlog') || href.includes('/users');
-        });
-      protectedLinks.forEach(a => a.classList.toggle('hidden', !isPrivileged));
+      // --- Cart visibility rule: show for guests, or for logged-in Customer (roleId=5) ---
+      try { _oc_updateCartVisibility(); } catch {}
+
+      // Navbar links:
+      // - Users is privileged-only
+      // - EventLog link is used as the Menu anchor; keep it visible for any logged-in user
+      const userLinks = Array.from(document.querySelectorAll('.navbar a'))
+        .filter(a => (a.getAttribute('href') || '').toLowerCase().includes('/users'));
+      userLinks.forEach(a => a.classList.toggle('hidden', !isPrivileged));
 
       const signIn = document.getElementById('navSignIn');
       const logIn = document.getElementById('navLogIn');
@@ -411,10 +514,10 @@ function ensureNotificationUI() {
       if (logIn) logIn.classList.toggle('hidden', isLoggedIn);
       if (logOut) logOut.classList.toggle('hidden', !isLoggedIn);
 
-      // Hide EventLog nav link unless logged in (applies across pages)
+      // Hide the Menu anchor (EventLog link) unless logged in
       const eventLogLinks = Array.from(document.querySelectorAll('.navbar a'))
         .filter(a => (a.getAttribute('href') || '').toLowerCase().includes('/eventlog'));
-      eventLogLinks.forEach(a => a.classList.toggle('hidden', !isPrivileged));
+      eventLogLinks.forEach(a => a.classList.toggle('hidden', !isLoggedIn));
 
       // Export button rules:
       // - EventLog export is privileged-only
@@ -635,7 +738,7 @@ function ensureNotificationUI() {
             if (ddChangeStore) ddChangeStore.classList.toggle('hidden', !isPrivileged);
             if (ddUsersTeams) ddUsersTeams.classList.toggle('hidden', !isPrivileged);
             if (ddEventLog) ddEventLog.classList.toggle('hidden', !isPrivileged);
-            if (ddContracts) ddContracts.classList.toggle('hidden', !isLoggedIn || isCustomer);
+            if (ddContracts) ddContracts.classList.toggle('hidden', !isLoggedIn);
           } catch {}
         }
       }
@@ -772,7 +875,7 @@ function gateProtectedPages(auth){
   const mustBePrivileged = requiresPrivilege(path);
 
   const isContractsPage = path === '/contracts' || path === '/contracts.html';
-  const denyContracts = isContractsPage && (!isAuth || isCustomer);
+  const denyContracts = isContractsPage && (!isAuth);
 
   const deny = denyContracts || (!isAuth) || (mustBePrivileged && !isPrivileged);
   if (!deny) return;

@@ -187,6 +187,14 @@ app.MapGet("/", context =>
     return Task.CompletedTask;
 });
 
+// Contract details page shell
+app.MapGet("/contracts/{id:int}", (HttpContext context, int id) =>
+{
+    // HTML shell is static; data loads via /api/contracts/{id}
+    var filePath = Path.Combine(app.Environment.WebRootPath, "contract-details.html");
+    return Results.File(filePath, "text/html");
+}).RequireAuthorization();
+
 // Fallback
 app.MapFallback(context =>
 {
@@ -754,18 +762,24 @@ app.MapPut("/api/stores/{id}", async (AppDbContext db, int id, StoreUpdateDto dt
 });
 
 // Contracts API (Authorized)
-app.MapGet("/api/contracts", async (AppDbContext db, string? state, string? name, int page, int pageSize) =>
+app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? state, string? name, int page, int pageSize) =>
 {
     try
     {
         var pageIndex = page < 1 ? 1 : page;
         var size = pageSize <= 0 ? 10 : (pageSize > 200 ? 200 : pageSize);
 
+        var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+        int.TryParse(roleClaim, out var roleId);
+        var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        int.TryParse(userIdClaim, out var currentUserId);
+        var isCustomer = roleId == (int)UserRole.Customer;
+
         var q =
             from c in db.Contracts.AsNoTracking()
             join u0 in db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug
             from u in ug.DefaultIfEmpty()
-            where c.Id > 0
+            where c.Id > 0 && (!isCustomer || (c.InputUserId ?? 0) == currentUserId)
             select new
             {
                 c.Id,
@@ -821,20 +835,30 @@ app.MapGet("/api/contracts", async (AppDbContext db, string? state, string? name
     }
 }).RequireAuthorization();
 
-app.MapGet("/api/contracts/{id:int}", async (AppDbContext db, int id) =>
+app.MapGet("/api/contracts/{id:int}", async (AppDbContext db, HttpContext http, int id) =>
 {
     if (id <= 0) return Results.NotFound(new { message = "Contract not found." });
+
+    var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+    int.TryParse(roleClaim, out var roleId);
+    var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+    int.TryParse(userIdClaim, out var currentUserId);
+    var isCustomer = roleId == (int)UserRole.Customer;
 
     var row = await (
         from c in db.Contracts.AsNoTracking()
         join u0 in db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug
         from u in ug.DefaultIfEmpty()
-        where c.Id > 0 && c.Id == id
+        where c.Id > 0 && c.Id == id && (!isCustomer || (c.InputUserId ?? 0) == currentUserId)
         select new
         {
             c.Id,
             c.EntryDate,
+            c.InputUserId,
             c.ContractState,
+            c.LastModifiedById,
+            c.LastUpdatedDt,
+            c.Stamp,
             CustomerFullName = u == null
                 ? ""
                 : ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim(),
@@ -847,20 +871,30 @@ app.MapGet("/api/contracts/{id:int}", async (AppDbContext db, int id) =>
     {
         id = row.Id,
         customerFullName = row.CustomerFullName,
+        inputUserId = row.InputUserId,
         contractState = row.ContractState.ToString(),
-        entryDate = row.EntryDate.ToString("yyyy-MM-dd HH:mm:ss")
+        entryDate = row.EntryDate.ToString("yyyy-MM-dd HH:mm:ss"),
+        lastModifiedById = row.LastModifiedById,
+        lastUpdatedDt = row.LastUpdatedDt?.ToString("yyyy-MM-dd HH:mm:ss"),
+        stamp = row.Stamp
     });
 }).RequireAuthorization();
 
-app.MapGet("/api/contracts/export", async (AppDbContext db, string? state, string? name) =>
+app.MapGet("/api/contracts/export", async (AppDbContext db, HttpContext http, string? state, string? name) =>
 {
     try
     {
+        var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+        int.TryParse(roleClaim, out var roleId);
+        var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        int.TryParse(userIdClaim, out var currentUserId);
+        var isCustomer = roleId == (int)UserRole.Customer;
+
         var q =
             from c in db.Contracts.AsNoTracking()
             join u0 in db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug
             from u in ug.DefaultIfEmpty()
-            where c.Id > 0
+            where c.Id > 0 && (!isCustomer || (c.InputUserId ?? 0) == currentUserId)
             select new
             {
                 c.Id,

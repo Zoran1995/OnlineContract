@@ -52,14 +52,8 @@ clearBtn.addEventListener('click', () => {
   setDefaultDates();
   currentPage = 1;
 
-  tableBody.innerHTML = "";
-  totalPages = 0;
-  pageInfo.textContent = "Page 1 of 0";
-  pageCountInfo.textContent = "Total records: 0";
-  document.getElementById('emptyState').classList.remove('hidden');
-
-  clearBtn.disabled = true;
-  searchBtn.disabled = false;
+  // Behave like Users/Contracts: reset to defaults and run the default search.
+  loadLogs();
 });
 
 pageSizeSelect.addEventListener('change', () => {
@@ -154,7 +148,8 @@ async function loadLogs() {
     pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
     pageCountInfo.textContent = `Total records: ${data.totalCount}`;
 
-    clearBtn.disabled = data.items.length === 0;
+    // Keep Clear enabled (same behavior as Users/Contracts)
+    clearBtn.disabled = false;
     document.getElementById('emptyState').classList.toggle('hidden', data.items.length > 0);
   } catch (err) {
     logClientError("Load logs failed", err.stack || "");

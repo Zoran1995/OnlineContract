@@ -23,6 +23,24 @@
   const prevPage = document.getElementById("prevPage");
   const nextPage = document.getElementById("nextPage");
   const pageSizeSel = document.getElementById("pageSize");
+  const filtersSection = document.getElementById("contractsFilters");
+
+  let authRoleId = 0;
+  let isCustomerView = false;
+
+  async function fetchWhoAmI() {
+    try {
+      const res = await fetch('/whoami', {
+        method: 'GET',
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (res.status === 401) return { isAuthenticated: false, roleId: 0 };
+      return await res.json();
+    } catch {
+      return { isAuthenticated: false, roleId: 0 };
+    }
+  }
 
   function showLoading() {
     document.getElementById("loadingOverlay")?.classList.remove("hidden");
@@ -152,6 +170,19 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
+    // Determine role to decide whether to hide filters (Customer view)
+    fetchWhoAmI().then(auth => {
+      authRoleId = parseInt(String(auth?.roleId ?? 0), 10) || 0;
+      isCustomerView = authRoleId === 5;
+      if (isCustomerView) {
+        // Customers see only their orders; filters and Search/Clear are hidden.
+        if (filtersSection) filtersSection.classList.add('hidden');
+      }
+    }).finally(() => {
+      // Initial load after role is known (API also enforces customer ownership)
+      load();
+    });
+
     btnSearch?.addEventListener("click", (e) => { e.preventDefault(); page = 1; load(); });
     btnClear?.addEventListener("click", (e) => {
       e.preventDefault();
@@ -178,7 +209,7 @@
     });
     btnOpen?.addEventListener("click", () => {
       if (!selectedId) { try { showToast('warning', 'Select a contract first'); } catch {} return; }
-      window.location.href = `/contract.html?id=${selectedId}`;
+      window.location.href = `/contracts/${selectedId}`;
     });
 
     exportBtn?.addEventListener("click", async () => {
@@ -210,7 +241,5 @@
       }
     });
 
-    // Initial load
-    load();
   });
 })();
