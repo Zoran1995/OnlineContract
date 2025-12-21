@@ -14,4 +14,19 @@ namespace OnlineContract.Helpers
         Manager = 7,
         Administrator = 8
     }
+    
+    public enum ContractState
+    {
+        Draft = 9,
+        Accepted = 10,
+        PartiallyAccepted = 11,
+        Rejected = 12,
+        InProgress = 13,
+        Completed = 14,
+        Dispatched = 15,
+        Delivered = 16,
+        Returned = 17,
+        Cancelled = 18,
+        WrittenOff = 19
+    }
 }

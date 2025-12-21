@@ -80,7 +80,7 @@
       const name = (nameEl?.value || '').trim();
       const team = (teamEl?.value || '').trim();
 
-      // pročitaj pageSize iz selecta ako postoji
+      // Read pageSize from the select if it exists
       const sizeEl = document.getElementById('pgSize') || document.getElementById('pageSize');
       if (sizeEl) pageSize = parseInt(sizeEl.value || pageSize, 10) || pageSize;
 
@@ -103,7 +103,11 @@
       const data = await res.json();
       items = Array.isArray(data.items) ? data.items : [];
       totalCount = Number(data.totalCount ?? items.length);
-      totalPages = Number(data.totalPages ?? (Math.ceil(totalCount / pageSize) || 1));
+      {
+        const apiPages = Number(data.totalPages);
+        const computedPages = Math.ceil(totalCount / pageSize) || 1;
+        totalPages = (Number.isFinite(apiPages) && apiPages > 0) ? apiPages : computedPages;
+      }
 
       renderTable();
       renderPagination();

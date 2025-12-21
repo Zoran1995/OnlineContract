@@ -114,7 +114,8 @@ var rewriteOptions = new RewriteOptions()
      .AddRewrite("(?i)^address$", "address.html", skipRemainingRules: true)
      .AddRewrite("(?i)^products$", "products.html", skipRemainingRules: true)
      .AddRewrite("(?i)^changestore$", "changestore.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^users$", "users.html", skipRemainingRules: true);
+     .AddRewrite("(?i)^users$", "users.html", skipRemainingRules: true)
+     .AddRewrite("(?i)^contracts$", "contracts.html", true);
 
 app.UseRewriter(rewriteOptions);
 
@@ -124,7 +125,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 // -------------------------
-// Middleware redosled
+// Middleware order
 // -------------------------
 
 app.UseRouting();
@@ -751,6 +752,177 @@ app.MapPut("/api/stores/{id}", async (AppDbContext db, int id, StoreUpdateDto dt
         return Results.StatusCode(500);
     }
 });
+
+// Contracts API (Authorized)
+app.MapGet("/api/contracts", async (AppDbContext db, string? state, string? name, int page, int pageSize) =>
+{
+    try
+    {
+        var pageIndex = page < 1 ? 1 : page;
+        var size = pageSize <= 0 ? 10 : (pageSize > 200 ? 200 : pageSize);
+
+        var q =
+            from c in db.Contracts.AsNoTracking()
+            join u0 in db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug
+            from u in ug.DefaultIfEmpty()
+            where c.Id > 0
+            select new
+            {
+                c.Id,
+                c.EntryDate,
+                c.ContractState,
+                CustomerFullName = u == null
+                    ? ""
+                    : ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim(),
+                CustomerCode = u == null ? "" : (u.Code ?? "")
+            };
+
+        if (!string.IsNullOrWhiteSpace(state) && Enum.TryParse<OnlineContract.Helpers.ContractState>(state, true, out var st))
+        {
+            q = q.Where(x => x.ContractState == st);
+        }
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var n = name.Trim().ToLower();
+            q = q.Where(x =>
+                (x.CustomerFullName ?? "").ToLower().Contains(n) ||
+                (x.CustomerCode ?? "").ToLower().Contains(n));
+        }
+
+        var totalCount = await q.CountAsync();
+
+        var pageRows = await q
+            .OrderByDescending(x => x.EntryDate)
+            .ThenBy(x => x.Id)
+            .Skip(Math.Max(0, (pageIndex - 1) * size))
+            .Take(size)
+            .ToListAsync();
+
+        var items = pageRows.Select(x => new
+        {
+            id = x.Id,
+            customerFullName = x.CustomerFullName,
+            contractState = x.ContractState.ToString(),
+            entryDate = x.EntryDate.ToString("yyyy-MM-dd HH:mm:ss")
+        });
+
+        return Results.Json(new
+        {
+            items,
+            totalCount,
+            totalPages = (int)Math.Ceiling(totalCount / (double)size)
+        });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, OnlineContract.Helpers.EventType.Error, "Contracts fetch failed", ex.ToString(), 2);
+        return Results.Json(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
+    }
+}).RequireAuthorization();
+
+app.MapGet("/api/contracts/{id:int}", async (AppDbContext db, int id) =>
+{
+    if (id <= 0) return Results.NotFound(new { message = "Contract not found." });
+
+    var row = await (
+        from c in db.Contracts.AsNoTracking()
+        join u0 in db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug
+        from u in ug.DefaultIfEmpty()
+        where c.Id > 0 && c.Id == id
+        select new
+        {
+            c.Id,
+            c.EntryDate,
+            c.ContractState,
+            CustomerFullName = u == null
+                ? ""
+                : ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim(),
+        }
+    ).FirstOrDefaultAsync();
+
+    if (row == null) return Results.NotFound(new { message = "Contract not found." });
+
+    return Results.Json(new
+    {
+        id = row.Id,
+        customerFullName = row.CustomerFullName,
+        contractState = row.ContractState.ToString(),
+        entryDate = row.EntryDate.ToString("yyyy-MM-dd HH:mm:ss")
+    });
+}).RequireAuthorization();
+
+app.MapGet("/api/contracts/export", async (AppDbContext db, string? state, string? name) =>
+{
+    try
+    {
+        var q =
+            from c in db.Contracts.AsNoTracking()
+            join u0 in db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug
+            from u in ug.DefaultIfEmpty()
+            where c.Id > 0
+            select new
+            {
+                c.Id,
+                c.EntryDate,
+                c.ContractState,
+                CustomerFullName = u == null
+                    ? ""
+                    : ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim(),
+                CustomerCode = u == null ? "" : (u.Code ?? "")
+            };
+
+        if (!string.IsNullOrWhiteSpace(state) && Enum.TryParse<OnlineContract.Helpers.ContractState>(state, true, out var st))
+        {
+            q = q.Where(x => x.ContractState == st);
+        }
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var n = name.Trim().ToLower();
+            q = q.Where(x =>
+                (x.CustomerFullName ?? "").ToLower().Contains(n) ||
+                (x.CustomerCode ?? "").ToLower().Contains(n));
+        }
+
+        // Safety cap to avoid exporting an unbounded dataset accidentally.
+        var rows = await q
+            .OrderByDescending(x => x.EntryDate)
+            .ThenBy(x => x.Id)
+            .Take(50000)
+            .ToListAsync();
+
+        static string CsvEscape(string? s)
+        {
+            var v = s ?? "";
+            var needsQuotes = v.Contains(',') || v.Contains('"') || v.Contains('\n') || v.Contains('\r');
+            if (v.Contains('"')) v = v.Replace("\"", "\"\"");
+            return needsQuotes ? $"\"{v}\"" : v;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Id,CustomerFullName,ContractState,EntryDate");
+        foreach (var r in rows)
+        {
+            sb.Append(CsvEscape(r.Id.ToString()));
+            sb.Append(',');
+            sb.Append(CsvEscape(r.CustomerFullName));
+            sb.Append(',');
+            sb.Append(CsvEscape(r.ContractState.ToString()));
+            sb.Append(',');
+            sb.Append(CsvEscape(r.EntryDate.ToString("yyyy-MM-dd HH:mm:ss")));
+            sb.AppendLine();
+        }
+
+        var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+        return Results.File(bytes, "text/csv; charset=utf-8", "contracts.csv");
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, OnlineContract.Helpers.EventType.Error, "Contracts export failed", ex.ToString(), 2);
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
 
 // Lifecycle log
 var lifetime = app.Lifetime;

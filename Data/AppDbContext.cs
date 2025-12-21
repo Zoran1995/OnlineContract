@@ -11,6 +11,7 @@ namespace OnlineContract.Data
         public DbSet<EventLog> EventLogs { get; set; }
         public DbSet<EventLogView> EventLogViews { get; set; }
         public DbSet<Store> Stores { get; set; }
+        public DbSet<Contract> Contracts { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -34,6 +35,21 @@ namespace OnlineContract.Data
                 entity.Property(e => e.Created_At).HasColumnName("created_at");
                 entity.Property(e => e.Updated_At).HasColumnName("updated_at");
                 entity.Property(e => e.Last_Modified_User_Id).HasColumnName("last_modified_user_id");
+            });
+
+            // Map Contract entity to dbo.contract with snake_case columns
+            modelBuilder.Entity<Contract>(entity =>
+            {
+                entity.ToTable("contract", "dbo");
+                entity.HasKey(e => e.Id).HasName("PK_contract");
+                entity.Property(e => e.Id).HasColumnName("contract_id");
+                entity.Property(e => e.EntryDate).HasColumnName("input_dt");
+                entity.Property(e => e.InputUserId).HasColumnName("input_user_id");
+                entity.Property(e => e.ContractState).HasColumnName("contract_state");
+                entity.Property(e => e.LastModifiedById).HasColumnName("last_modified_by_id");
+                entity.Property(e => e.LastUpdatedDt).HasColumnName("last_updated_dt");
+                entity.Property(e => e.Stamp).HasColumnName("stamp");
+                entity.Ignore(e => e.CustomerFullName);
             });
         }
     }

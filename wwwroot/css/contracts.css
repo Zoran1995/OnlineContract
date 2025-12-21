@@ -1,0 +1,8 @@
+.badge { 
+  display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; 
+  border:1px solid #d0d7de; background:#f6f8fa; 
+}
+.badge-ok { border-color:#22c55e; color:#166534; background:#dcfce7; }
+.badge-mid { border-color:#a3a3a3; color:#3f3f46; background:#f4f4f5; }
+.badge-bad { border-color:#ef4444; color:#7f1d1d; background:#fee2e2; }
+tr.selected { background:#f0f7ff; }

@@ -28,7 +28,8 @@ Minimal ASP.NET Core app serving static pages from `wwwroot` with a few JSON API
   - `POST /api/login` → `{ success, userId, roleId }`.
   - `POST /api/register` enforces unique username/email and auto‑logs in new users.
   - `Models/AxUser.cs` maps `[Column("role_id")] int RoleId`.
-  - Privileged roles: Administrator=7, Manager=8. UI checks `localStorage.roleId`.
+  - Privileged roles: Administrator=7, Manager=8.
+  - Navbar and page gating are driven from `GET /whoami` (cookie auth) via `wwwroot/js/shared.js`.
   - Client consistently passes `userId` to `/api/stores` GET/PUT; server defaults to `2` (system) if missing.
 
 - Event Log
@@ -48,6 +49,21 @@ Minimal ASP.NET Core app serving static pages from `wwwroot` with a few JSON API
   - UX: Three‑dots menu opens on first click and closes on second; also closes on outside click and Escape.
   - Navbar: Export to CSV is hidden on Users & Teams page.
 
+- Contracts
+  - Page: `/contracts` (grid + filters + paging) styled like Users/EventLog.
+  - Filters: Contract state + Customer name/code; Search/Clear buttons aligned with filters.
+  - Selection: clicking a row enables the `Open` button; otherwise it stays disabled.
+  - APIs:
+    - `GET /api/contracts?state=&name=&page=&pageSize=` → `{ items, totalCount, totalPages }`
+    - `GET /api/contracts/{id}` → single contract payload
+    - `GET /api/contracts/export?state=&name=` → CSV download (`contracts.csv`)
+  - Data source:
+    - Reads from `dbo.contract` (`contract_id`, `input_dt`, `input_user_id`, `contract_state`, ...)
+    - Only rows where `contract_id > 0` are returned/exported.
+  - Access control:
+    - Guests and `Customer` role are blocked with an inline “Access Denied” screen.
+    - Export button shows a warning toast if the grid is empty.
+
 ## Run locally
 
 1. Build
@@ -63,7 +79,7 @@ Minimal ASP.NET Core app serving static pages from `wwwroot` with a few JSON API
      dotnet watch run --launch-profile https --configuration Debug
      ```
 3. Open pages
-   - `/home`, `/about`, `/address`, `/products`, `/login`, `/eventlog`
+  - `/home`, `/about`, `/address`, `/products`, `/login`, `/eventlog`, `/users`, `/contracts`
 
 ## Implementation notes
 

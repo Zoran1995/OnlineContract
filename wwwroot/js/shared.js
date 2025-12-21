@@ -376,7 +376,10 @@ function ensureNotificationUI() {
         };
         const uid = claimVal('nameidentifier') || claimVal('ClaimTypes.NameIdentifier');
         // Prefer server-provided roleId; fallback to parsing claims
-        const role = Number(data?.roleId ?? 0) || parseInt((claimVal('role') || claimVal('ClaimTypes.Role') || '0'), 10) || 0;
+        const serverRoleId = data?.roleId ?? 0;
+        const roleFromServer = Number(serverRoleId) || 0;
+        const roleFromClaims = parseInt((claimVal('role') || claimVal('ClaimTypes.Role') || '0'), 10) || 0;
+        const role = roleFromServer || roleFromClaims || 0;
         const code = data?.name || claimVal('name') || claimVal('ClaimTypes.Name') || '';
         return { isAuthenticated: isAuth, userId: uid ? parseInt(uid, 2) : 2, roleId: role, code };
       } catch { return { isAuthenticated: false, code: '', roleId: 0 }; }
@@ -384,9 +387,14 @@ function ensureNotificationUI() {
 
     const updateNavbarAuth = (auth) => {
       const isLoggedIn = !!auth?.isAuthenticated;
-      const roleId = parseInt((auth?.roleId ?? 0), 10) || 0;
+      const roleIdRaw = auth?.roleId ?? 0;
+      const roleId = parseInt(String(roleIdRaw), 10) || 0;
       // Privileged roles: Manager=8, Administrator=7 (per ax_user.role_id)
       const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
+      const isCustomer = isLoggedIn && roleId === 5;
+
+      const pathNow = (window.location && window.location.pathname || '').toLowerCase();
+      const isEventLogPage = pathNow.includes('/eventlog');
 
       // Hide nav links to protected pages when not privileged (EventLog + Users)
       const protectedLinks = Array.from(document.querySelectorAll('.navbar a'))
@@ -408,9 +416,14 @@ function ensureNotificationUI() {
         .filter(a => (a.getAttribute('href') || '').toLowerCase().includes('/eventlog'));
       eventLogLinks.forEach(a => a.classList.toggle('hidden', !isPrivileged));
 
-      // Hide export button unless logged in (EventLog page)
+      // Export button rules:
+      // - EventLog export is privileged-only
+      // - Contracts export is available to any authenticated user
       const exportBtn = document.getElementById('exportBtn');
-      if (exportBtn) exportBtn.classList.toggle('hidden', !isPrivileged);
+      if (exportBtn) {
+        const canSeeExport = isEventLogPage ? isPrivileged : (isLoggedIn && !isCustomer);
+        exportBtn.classList.toggle('hidden', !canSeeExport);
+      }
 
       // Ensure Admin dropdown menu exists and is visible only for privileged users
       const rightContainer = document.querySelector('.navbar .flex-none') || document.querySelector('.navbar .flex-none.items-center');
@@ -545,7 +558,6 @@ function ensureNotificationUI() {
 
       // Transform EventLog navbar link into a dropdown with Event Log + Change store details
       const navbar = document.querySelector('.navbar');
-      const pathNow = (window.location && window.location.pathname || '').toLowerCase();
       if (navbar) {
         const links = Array.from(navbar.querySelectorAll('a'));
         const eventLogLink = links.find(a => (a.getAttribute('href') || '').toLowerCase().includes('/eventlog'));
@@ -567,6 +579,7 @@ function ensureNotificationUI() {
             menu.tabIndex = 0;
             menu.className = 'dropdown-content menu p-2 shadow bg-base-100 rounded-box w-56';
             menu.innerHTML = `
+              <li><a href="/contracts" id="ddContracts"><span class="material-icons mr-2">receipt</span>Contracts</a></li>
               <li><a href="#" id="ddChangeStore"><span class="material-icons mr-2">edit</span>Change Store Details</a></li>
               <li><a href="/users" id="ddUsersTeams"><span class="material-icons mr-2">group</span>Users &amp; Teams</a></li>
               <li><a href="/eventlog" id="ddEventLog"><span class="material-icons mr-2">list</span>All Events</a></li>
@@ -599,10 +612,31 @@ function ensureNotificationUI() {
                 // default navigation behavior
               });
             }
+            
+            const ddContracts = menu.querySelector('#ddContracts');
+            if (ddContracts && !ddContracts._oc_bound) {
+              ddContracts._oc_bound = true;
+              ddContracts.addEventListener('click', () => {
+                // default navigation to /contracts (rewrite -> contracts.html)
+              });
+            }
           }
-          // Toggle dropdown visibility based on privilege (hidden removes it from layout)
+
+          // Toggle dropdown visibility: show Menu only when authenticated.
+          // Privileged-only entries stay hidden for non-privileged users.
           const dd = document.getElementById('eventlogDropdown');
-          if (dd) dd.classList.toggle('hidden', !isPrivileged);
+          if (dd) dd.classList.toggle('hidden', !isLoggedIn);
+
+          try {
+            const ddChangeStore = document.getElementById('ddChangeStore');
+            const ddUsersTeams = document.getElementById('ddUsersTeams');
+            const ddEventLog = document.getElementById('ddEventLog');
+            const ddContracts = document.getElementById('ddContracts');
+            if (ddChangeStore) ddChangeStore.classList.toggle('hidden', !isPrivileged);
+            if (ddUsersTeams) ddUsersTeams.classList.toggle('hidden', !isPrivileged);
+            if (ddEventLog) ddEventLog.classList.toggle('hidden', !isPrivileged);
+            if (ddContracts) ddContracts.classList.toggle('hidden', !isLoggedIn || isCustomer);
+          } catch {}
         }
       }
     };
@@ -722,12 +756,14 @@ function ensureNotificationUI() {
 // Gate protected pages and show an inline Access Denied panel instead of redirecting
 function gateProtectedPages(auth){
   const path = (window.location && window.location.pathname || '').toLowerCase();
-  const protectedAny = [ '/users', '/users.html', '/eventlog', '/eventlog.html', '/changestore', '/changestore.html' ];
+  const protectedAny = [ '/users', '/users.html', '/eventlog', '/eventlog.html', '/changestore', '/changestore.html', '/contracts', '/contracts.html' ];
   if (!protectedAny.includes(path)) return;
 
   const isAuth = !!auth?.isAuthenticated;
-  const roleId = parseInt((auth?.roleId ?? 0), 10) || 0;
+  const roleIdRaw = auth?.roleId ?? 0;
+  const roleId = parseInt(String(roleIdRaw), 10) || 0;
   const isPrivileged = isAuth && (roleId === 7 || roleId === 8);
+  const isCustomer = isAuth && roleId === 5;
 
   // EventLog and Change Store require privileged roles; Users page requires authentication only
   const requiresPrivilege = (p) =>
@@ -735,7 +771,10 @@ function gateProtectedPages(auth){
 
   const mustBePrivileged = requiresPrivilege(path);
 
-  const deny = (!isAuth) || (mustBePrivileged && !isPrivileged);
+  const isContractsPage = path === '/contracts' || path === '/contracts.html';
+  const denyContracts = isContractsPage && (!isAuth || isCustomer);
+
+  const deny = denyContracts || (!isAuth) || (mustBePrivileged && !isPrivileged);
   if (!deny) return;
 
   // Hide known main content containers
@@ -1036,11 +1075,11 @@ function hideStandaloneLogout() {
     const hasDropdown = !!document.getElementById('userDropdown');
     if (!hasDropdown) return;
 
-    // 1) Ako postoji eksplicitni #navLogOut (negde u layoutu), sakrij ga
+    // 1) If an explicit #navLogOut exists anywhere in the layout, hide it
     const explicit = document.getElementById('navLogOut');
     if (explicit) explicit.classList.add('hidden');
 
-    // 2) Ako postoji neki drugi "Log Out" link/dugme (bez ID-ja) u .navbar – sakrij
+    // 2) If another "Log Out" link/button exists in the navbar (without an ID), hide it
     const lone = Array.from(document.querySelectorAll('.navbar a, .navbar button'))
       .find(el =>
         el.id !== 'ddLogout' &&
