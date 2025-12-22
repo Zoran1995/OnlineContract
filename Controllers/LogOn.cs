@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Security.Claims;
 using OnlineContract.Data;
 using OnlineContract.Helpers;
@@ -112,7 +114,7 @@ var rewriteOptions = new RewriteOptions()
      .AddRewrite("(?i)^eventlog$", "eventlog.html", skipRemainingRules: true)
      .AddRewrite("(?i)^about$", "about.html", skipRemainingRules: true)
      .AddRewrite("(?i)^address$", "address.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^products$", "products.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^collections$", "collections.html", skipRemainingRules: true)
      .AddRewrite("(?i)^changestore$", "changestore.html", skipRemainingRules: true)
      .AddRewrite("(?i)^users$", "users.html", skipRemainingRules: true)
      .AddRewrite("(?i)^contracts$", "contracts.html", true);
@@ -192,6 +194,38 @@ app.MapGet("/contracts/{id:int}", (HttpContext context, int id) =>
 {
     // HTML shell is static; data loads via /api/contracts/{id}
     var filePath = Path.Combine(app.Environment.WebRootPath, "contract-details.html");
+    return Results.File(filePath, "text/html");
+}).RequireAuthorization();
+
+// Products pages (Admin/Manager/Worker)
+static bool CanManageProducts(HttpContext http)
+{
+    try
+    {
+        var rc = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type.EndsWith("/role", StringComparison.OrdinalIgnoreCase))?.Value;
+        return int.TryParse(rc, out var roleId) && (roleId == 6 || roleId == 7 || roleId == 8);
+    }
+    catch { return false; }
+}
+
+app.MapGet("/products", (HttpContext context) =>
+{
+    if (!CanManageProducts(context)) return Results.Redirect("/home");
+    var filePath = Path.Combine(app.Environment.WebRootPath, "products.html");
+    return Results.File(filePath, "text/html");
+}).RequireAuthorization();
+
+app.MapGet("/products/new", (HttpContext context) =>
+{
+    if (!CanManageProducts(context)) return Results.Redirect("/home");
+    var filePath = Path.Combine(app.Environment.WebRootPath, "product-details.html");
+    return Results.File(filePath, "text/html");
+}).RequireAuthorization();
+
+app.MapGet("/products/{id:int}", (HttpContext context, int id) =>
+{
+    if (!CanManageProducts(context)) return Results.Redirect("/home");
+    var filePath = Path.Combine(app.Environment.WebRootPath, "product-details.html");
     return Results.File(filePath, "text/html");
 }).RequireAuthorization();
 
@@ -618,7 +652,7 @@ app.MapPost("/api/users/{id}/delete", async (AppDbContext db, int id, int? userI
 }).RequireAuthorization();
 
 // -------------------------
-// EventLog + Stores (kao i do sada)
+// EventLog + Stores (as before)
 // -------------------------
 
 app.MapGet("/api/event-log", async (AppDbContext db, int userId, int type, DateTime? from, DateTime? to, int page, int pageSize) =>
@@ -954,6 +988,591 @@ app.MapGet("/api/contracts/export", async (AppDbContext db, HttpContext http, st
     catch (Exception ex)
     {
         await LoggerHelper.LogEventAsync(db, OnlineContract.Helpers.EventType.Error, "Contracts export failed", ex.ToString(), 2);
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+// -------------------------
+// Products API (Admin/Manager/Worker)
+// -------------------------
+
+static int GetCurrentUserId(HttpContext http)
+{
+    try
+    {
+        var uid = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type.EndsWith("/nameidentifier", StringComparison.OrdinalIgnoreCase))?.Value;
+        return int.TryParse(uid, out var id) ? id : 2;
+    }
+    catch { return 2; }
+}
+
+app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q, int? storeId, int page, int pageSize) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    try
+    {
+        var pageIndex = page < 1 ? 1 : page;
+        var size = pageSize <= 0 ? 10 : (pageSize > 200 ? 200 : pageSize);
+
+        IQueryable<Product> products = db.Products
+            .AsNoTracking()
+            .Where(p => p.Id > 0 && !p.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var s = q.Trim();
+            products = products.Where(p =>
+                EF.Functions.Like(p.Name ?? "", $"%{s}%") ||
+                EF.Functions.Like(p.Description ?? "", $"%{s}%"));
+        }
+
+        var baseQuery =
+            from p in products
+            let qty1 =
+                (from v in db.ProductVariants.AsNoTracking()
+                 where !v.IsDeleted && v.ProductId == p.Id
+                 join i in db.ProductInventories.AsNoTracking()
+                      on v.Id equals i.ProductVariantId
+                 where !i.IsDeleted && i.StoreId == 1
+                 select (int?)i.QtyOnHand).Sum()
+            let qty2 =
+                (from v in db.ProductVariants.AsNoTracking()
+                 where !v.IsDeleted && v.ProductId == p.Id
+                 join i in db.ProductInventories.AsNoTracking()
+                      on v.Id equals i.ProductVariantId
+                 where !i.IsDeleted && i.StoreId == 2
+                 select (int?)i.QtyOnHand).Sum()
+            select new
+            {
+                p.Id,
+                p.Name,
+                p.Description,
+                p.InputDt,
+                p.IsActive,
+                QtyStore1 = qty1 ?? 0,
+                QtyStore2 = qty2 ?? 0
+            };
+
+        // Store availability filter ("All Stores" => storeId is null/0)
+        if (storeId.HasValue && storeId.Value > 0)
+        {
+            if (storeId.Value == 1) baseQuery = baseQuery.Where(x => x.QtyStore1 > 0);
+            else if (storeId.Value == 2) baseQuery = baseQuery.Where(x => x.QtyStore2 > 0);
+            else
+            {
+                // Generic store filter for any store_id
+                var sid = storeId.Value;
+                baseQuery =
+                    from r in baseQuery
+                    let qtySelected =
+                        (from v in db.ProductVariants.AsNoTracking()
+                         where !v.IsDeleted && v.ProductId == r.Id
+                         join i in db.ProductInventories.AsNoTracking()
+                              on v.Id equals i.ProductVariantId
+                         where !i.IsDeleted && i.StoreId == sid
+                         select (int?)i.QtyOnHand).Sum()
+                    where (qtySelected ?? 0) > 0
+                    select r;
+            }
+        }
+
+        var totalCount = await baseQuery.CountAsync();
+
+        var rows = await baseQuery
+            .OrderBy(x => x.Id)
+            .Skip(Math.Max(0, (pageIndex - 1) * size))
+            .Take(size)
+            .ToListAsync();
+
+        var items = rows.Select(r => new
+        {
+            id = r.Id,
+            name = r.Name ?? "",
+            description = r.Description ?? "",
+            inputDt = r.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
+            qtyStore1 = r.QtyStore1,
+            qtyStore2 = r.QtyStore2,
+            isActive = r.IsActive
+        });
+
+        return Results.Json(new
+        {
+            items,
+            totalCount,
+            totalPages = (int)Math.Ceiling(totalCount / (double)size)
+        });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Products fetch failed", ex.ToString(), 2);
+        return Results.Json(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
+    }
+}).RequireAuthorization();
+
+app.MapGet("/api/products/{id:int}", async (AppDbContext db, HttpContext http, int id) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (id <= 0) return Results.NotFound(new { message = "Product not found." });
+
+    var p = await db.Products.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+    if (p == null) return Results.NotFound(new { message = "Product not found." });
+
+    var inputUserCode = "";
+    if ((p.InputUserId ?? 0) > 0)
+    {
+        inputUserCode = await db.AxUsers.AsNoTracking()
+            .Where(u => u.Id == p.InputUserId)
+            .Select(u => u.Code)
+            .FirstOrDefaultAsync() ?? "";
+    }
+
+    var lastModifiedByCode = "";
+    if ((p.LastModifiedById ?? 0) > 0)
+    {
+        lastModifiedByCode = await db.AxUsers.AsNoTracking()
+            .Where(u => u.Id == p.LastModifiedById)
+            .Select(u => u.Code)
+            .FirstOrDefaultAsync() ?? "";
+    }
+
+    var variants = await db.ProductVariants.AsNoTracking()
+        .Where(v => v.ProductId == id && !v.IsDeleted)
+        .OrderBy(v => v.Id)
+        .ToListAsync();
+
+    var variantIds = variants.Select(v => v.Id).ToList();
+    var inv = await db.ProductInventories.AsNoTracking()
+        .Where(i => variantIds.Contains(i.ProductVariantId) && !i.IsDeleted)
+        .ToListAsync();
+
+    var invMap = inv
+        .GroupBy(i => new { i.ProductVariantId, i.StoreId })
+        .ToDictionary(g => (g.Key.ProductVariantId, g.Key.StoreId), g => g.Sum(x => x.QtyOnHand));
+
+    var vDtos = variants.Select(v => new
+    {
+        id = v.Id,
+        size = v.Size ?? "",
+        color = v.Color ?? "",
+        price = v.Price,
+        isActive = v.IsActive,
+        sizeKey = v.SizeKey,
+        colorKey = v.ColorKey,
+        photoFileName = v.PhotoFileName,
+        qtyStore1 = invMap.TryGetValue((v.Id, 1), out var q1) ? q1 : 0,
+        qtyStore2 = invMap.TryGetValue((v.Id, 2), out var q2) ? q2 : 0
+    });
+
+    return Results.Json(new
+    {
+        id = p.Id,
+        name = p.Name ?? "",
+        description = p.Description ?? "",
+        inputDt = p.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
+        inputUserId = p.InputUserId,
+        inputUserCode,
+        lastModifiedById = p.LastModifiedById,
+        lastModifiedByCode,
+        lastUpdatedDt = p.LastUpdatedDt?.ToString("yyyy-MM-dd HH:mm:ss"),
+        isActive = p.IsActive,
+        isDeleted = p.IsDeleted,
+        stamp = p.Stamp,
+        variants = vDtos
+    });
+}).RequireAuthorization();
+
+app.MapPost("/api/products", async (AppDbContext db, HttpContext http, ProductCreateDto dto) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    try
+    {
+        var name = (dto.Name ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            return Results.Json(new { success = false, message = "Product name is required. Please enter a name and try again." });
+
+        var uid = GetCurrentUserId(http);
+        var p = new Product
+        {
+            Name = name,
+            Description = dto.Description ?? "",
+            IsActive = dto.IsActive,
+            IsDeleted = false,
+            InputDt = DateTime.UtcNow,
+            InputUserId = uid,
+            LastModifiedById = uid,
+            LastUpdatedDt = DateTime.UtcNow,
+            Stamp = 0
+        };
+        db.Products.Add(p);
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product created", $"ProductId={p.Id}", uid);
+        return Results.Json(new { success = true, id = p.Id, message = "Product was successfully created." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Create product failed", ex.ToString(), 2);
+        return Results.Json(new { success = false, message = "Product could not be created. Please try again." });
+    }
+}).RequireAuthorization();
+
+app.MapPut("/api/products/{id:int}", async (AppDbContext db, HttpContext http, int id, ProductUpdateDto dto) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    try
+    {
+        var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (p == null) return Results.NotFound(new { message = "Product not found." });
+
+        if (dto.Name != null) p.Name = dto.Name.Trim();
+        if (dto.Description != null) p.Description = dto.Description;
+        if (dto.IsActive.HasValue) p.IsActive = dto.IsActive.Value;
+
+        var uid = GetCurrentUserId(http);
+        p.LastModifiedById = uid;
+        p.LastUpdatedDt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product updated", $"ProductId={p.Id}", uid);
+        return Results.Json(new { success = true, message = "Product was successfully updated." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Update product failed", ex.ToString(), 2);
+        return Results.Json(new { success = false, message = "Product could not be updated. Please try again." });
+    }
+}).RequireAuthorization();
+
+
+
+app.MapPut("/api/products/{id:int}/details",
+async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
+{
+    if (!CanManageProducts(http))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    var jsonOptions = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
+    {
+        PropertyNameCaseInsensitive = true,
+        NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
+    };
+
+    await using var tx = await db.Database.BeginTransactionAsync();
+
+    static string? NormalizePhotoFileName(string? value)
+    {
+        var s = (value ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(s)) return null;
+
+        // Only store a filename (no path)
+        s = Path.GetFileName(s);
+        if (string.IsNullOrWhiteSpace(s)) return null;
+
+        // Remove invalid chars
+        foreach (var ch in Path.GetInvalidFileNameChars())
+            s = s.Replace(ch, '_');
+
+        var ext = (Path.GetExtension(s) ?? "").ToLowerInvariant();
+        var allowedExt = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".gif", ".webp"
+        };
+        if (!allowedExt.Contains(ext))
+            throw new InvalidOperationException("Invalid image format. Allowed formats: PNG, JPG/JPEG, GIF, WEBP.");
+
+        return s;
+    }
+    try
+    {
+        var dto = await request.ReadFromJsonAsync<ProductDetailsUpdateDto>(jsonOptions);
+        if (dto is null)
+            return Results.BadRequest(new { success = false, message = "Invalid JSON." });
+
+        var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (p == null)
+            return Results.NotFound(new { message = "Product not found." });
+
+        int uid = GetCurrentUserId(http);
+
+        // Basic product fields
+        if (dto.Name is not null)        p.Name = dto.Name.Trim();
+        if (dto.Description is not null) p.Description = dto.Description;
+        if (dto.IsActive.HasValue)       p.IsActive = dto.IsActive.Value;
+        p.LastModifiedById = uid;
+        p.LastUpdatedDt    = DateTime.UtcNow;
+
+        // Delete variants by id (>0)
+        var deletedIds = (dto.DeletedVariantIds ?? new List<int>()).Where(x => x > 0).ToList();
+        if (deletedIds.Count > 0)
+        {
+            var toDelete = await db.ProductVariants
+                .Where(v => v.ProductId == id && deletedIds.Contains(v.Id))
+                .ToListAsync();
+
+            foreach (var v in toDelete)
+            {
+                v.IsDeleted        = true;
+                v.LastModifiedById = uid;
+                v.LastUpdatedDt    = DateTime.UtcNow;
+
+                var invs = await db.ProductInventories
+                    .Where(i => i.ProductVariantId == v.Id && !i.IsDeleted)
+                    .ToListAsync();
+
+                foreach (var inv in invs)
+                {
+                    inv.IsDeleted        = true;
+                    inv.LastModifiedById = uid;
+                    inv.LastUpdatedDt    = DateTime.UtcNow;
+                }
+            }
+        }
+
+        foreach (var vd in dto.Variants ?? Enumerable.Empty<ProductVariantDto>())
+        {
+            if (vd.IsDeleted == true) continue;
+
+            int     vId      = vd.Id.GetValueOrDefault(0);
+            string  size     = vd.Size ?? "";
+            string  color    = vd.Color ?? "";
+            decimal price    = vd.Price;
+            string? photo    = NormalizePhotoFileName(vd.PhotoFileName);
+            bool    isActive = vd.IsActive;
+            int     qty1     = Math.Max(0, vd.QtyStore1);
+            int     qty2     = Math.Max(0, vd.QtyStore2);
+
+            ProductVariant? v;
+
+            if (vId <= 0)
+            {
+                v = new ProductVariant
+                {
+                    ProductId        = id,
+                    Size             = size,
+                    Color            = color,
+                    Price            = price,
+                    PhotoFileName    = photo,
+                    IsActive         = isActive,
+                    IsDeleted        = false,
+                    InputDt          = DateTime.UtcNow,
+                    InputUserId      = uid,
+                    LastModifiedById = uid,
+                    LastUpdatedDt    = DateTime.UtcNow,
+                    Stamp            = 0
+                };
+                db.ProductVariants.Add(v);
+                await db.SaveChangesAsync();
+            }
+            else
+            {
+                v = await db.ProductVariants
+                    .FirstOrDefaultAsync(x => x.Id == vId && x.ProductId == id);
+                if (v == null) continue;
+
+                v.IsDeleted        = false;
+                v.Size             = size;
+                v.Color            = color;
+                v.Price            = price;
+                v.PhotoFileName    = photo;
+                v.IsActive         = isActive;
+                v.LastModifiedById = uid;
+                v.LastUpdatedDt    = DateTime.UtcNow;
+            }
+
+            static int Clamp(int n) => n < 0 ? 0 : n;
+
+            async Task UpsertInvAsync(int storeId, int qty)
+            {
+                var inv = await db.ProductInventories
+                    .FirstOrDefaultAsync(x => x.ProductVariantId == v!.Id && x.StoreId == storeId);
+                if (inv == null)
+                {
+                    inv = new ProductInventory
+                    {
+                        ProductVariantId = v!.Id,
+                        StoreId          = storeId,
+                        QtyOnHand        = Clamp(qty),
+                        IsActive         = true,
+                        IsDeleted        = false,
+                        InputDt          = DateTime.UtcNow,
+                        InputUserId      = uid,
+                        LastModifiedById = uid,
+                        LastUpdatedDt    = DateTime.UtcNow,
+                        Stamp            = 0
+                    };
+                    db.ProductInventories.Add(inv);
+                }
+                else
+                {
+                    inv.IsDeleted        = false;
+                    inv.QtyOnHand        = Clamp(qty);
+                    inv.LastModifiedById = uid;
+                    inv.LastUpdatedDt    = DateTime.UtcNow;
+                }
+            }
+
+            await UpsertInvAsync(1, qty1);
+            await UpsertInvAsync(2, qty2);
+        }
+
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
+
+        await LoggerHelper.LogEventAsync(db, EventType.Information,
+            "Product details saved", $"ProductId={p.Id}", uid);
+
+        return Results.Json(new { success = true, message = "Product details were successfully saved." });
+    }
+    catch (Exception ex)
+    {
+        await tx.RollbackAsync();
+
+        // If SaveChanges failed, tracked entities can prevent logging from saving.
+        // Clearing the tracker ensures the event_log insert is independent.
+        try { db.ChangeTracker.Clear(); } catch { }
+
+        await LoggerHelper.LogEventAsync(
+            db, EventType.Error, "Save product details failed", ex.ToString(), GetCurrentUserId(http));
+
+        var msg = ex is InvalidOperationException
+            ? ex.Message
+            : "Product details could not be saved. Please try again.";
+        return Results.Json(new { success = false, message = msg });
+    }
+})
+.RequireAuthorization();
+
+app.MapPost("/api/products/upload-photo", async (AppDbContext db, HttpContext http) =>
+{
+    if (!CanManageProducts(http))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    try
+    {
+        if (!http.Request.HasFormContentType)
+            return Results.BadRequest(new { success = false, message = "Expected multipart/form-data." });
+
+        var form = await http.Request.ReadFormAsync();
+        var file = form.Files.FirstOrDefault();
+        if (file == null || file.Length <= 0)
+            return Results.BadRequest(new { success = false, message = "No image was uploaded. Please choose a file and try again." });
+
+        var uploadDir = @"C:\Projects\Build\InstallDocs";
+        Directory.CreateDirectory(uploadDir);
+
+        var originalName = Path.GetFileName(file.FileName ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(originalName))
+            originalName = "upload.bin";
+
+        var ext = (Path.GetExtension(originalName) ?? "").ToLowerInvariant();
+        var allowedExt = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".gif", ".webp" };
+        if (!allowedExt.Contains(ext))
+            return Results.BadRequest(new { success = false, message = "Invalid image format. Allowed formats: PNG, JPG/JPEG, GIF, WEBP." });
+
+        var ct = (file.ContentType ?? "").ToLowerInvariant();
+        if (!ct.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            return Results.BadRequest(new { success = false, message = "Invalid file type. Please upload an image file." });
+
+        // Very small sanitization: remove invalid chars
+        foreach (var ch in Path.GetInvalidFileNameChars())
+            originalName = originalName.Replace(ch, '_');
+
+        var targetPath = Path.Combine(uploadDir, originalName);
+        if (System.IO.File.Exists(targetPath))
+        {
+            var nameNoExt = Path.GetFileNameWithoutExtension(originalName);
+            var existingExt = Path.GetExtension(originalName);
+            var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+            originalName = $"{nameNoExt}_{stamp}{existingExt}";
+            targetPath = Path.Combine(uploadDir, originalName);
+        }
+
+        await using (var fs = new FileStream(targetPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            await file.CopyToAsync(fs);
+        }
+
+        var uid = GetCurrentUserId(http);
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product photo uploaded", $"File={originalName}", uid);
+
+        return Results.Json(new
+        {
+            success = true,
+            fileName = originalName,
+            uploadPath = uploadDir
+        });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Upload product photo failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.Json(new { success = false, message = "Image upload failed. Please try again." });
+    }
+}).RequireAuthorization();
+
+app.MapPost("/api/products/{id:int}/deactivate", async (AppDbContext db, HttpContext http, int id) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    try
+    {
+        var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (p == null) return Results.NotFound(new { message = "Product not found." });
+        var uid = GetCurrentUserId(http);
+        p.IsActive = false;
+        p.LastModifiedById = uid;
+        p.LastUpdatedDt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deactivated", $"ProductId={p.Id}", uid);
+        return Results.Ok(new { success = true, message = "Product was successfully deactivated." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Deactivate product failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+app.MapPost("/api/products/{id:int}/activate", async (AppDbContext db, HttpContext http, int id) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    try
+    {
+        var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (p == null) return Results.NotFound(new { message = "Product not found." });
+        var uid = GetCurrentUserId(http);
+        p.IsActive = true;
+        p.LastModifiedById = uid;
+        p.LastUpdatedDt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product activated", $"ProductId={p.Id}", uid);
+        return Results.Ok(new { success = true, message = "Product was successfully activated." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Activate product failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+app.MapPost("/api/products/{id:int}/delete", async (AppDbContext db, HttpContext http, int id) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    try
+    {
+        var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (p == null) return Results.NotFound(new { message = "Product not found." });
+        var uid = GetCurrentUserId(http);
+        p.IsDeleted = true;
+        p.LastModifiedById = uid;
+        p.LastUpdatedDt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deleted", $"ProductId={p.Id}", uid);
+        return Results.Ok(new { success = true, message = "Product was successfully deleted." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Delete product failed", ex.ToString(), GetCurrentUserId(http));
         return Results.StatusCode(500);
     }
 }).RequireAuthorization();

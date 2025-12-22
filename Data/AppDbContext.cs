@@ -12,6 +12,9 @@ namespace OnlineContract.Data
         public DbSet<EventLogView> EventLogViews { get; set; }
         public DbSet<Store> Stores { get; set; }
         public DbSet<Contract> Contracts { get; set; }
+        public DbSet<Product> Products { get; set; }
+        public DbSet<ProductVariant> ProductVariants { get; set; }
+        public DbSet<ProductInventory> ProductInventories { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -50,6 +53,70 @@ namespace OnlineContract.Data
                 entity.Property(e => e.LastUpdatedDt).HasColumnName("last_updated_dt");
                 entity.Property(e => e.Stamp).HasColumnName("stamp");
                 entity.Ignore(e => e.CustomerFullName);
+            });
+
+            modelBuilder.Entity<Product>(entity =>
+            {
+                entity.ToTable("product", "dbo");
+                entity.HasKey(e => e.Id).HasName("PK_product");
+                entity.Property(e => e.Id).HasColumnName("product_id");
+                entity.Property(e => e.Name).HasColumnName("name");
+                entity.Property(e => e.Description).HasColumnName("description");
+                entity.Property(e => e.InputDt).HasColumnName("input_dt");
+                entity.Property(e => e.InputUserId).HasColumnName("input_user_id");
+                entity.Property(e => e.LastModifiedById).HasColumnName("last_modified_by_id");
+                entity.Property(e => e.LastUpdatedDt).HasColumnName("last_updated_dt");
+                entity.Property(e => e.IsActive).HasColumnName("is_active");
+                entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
+                entity.Property(e => e.Stamp).HasColumnName("stamp");
+            });
+
+            modelBuilder.Entity<ProductVariant>(entity =>
+            {
+                entity.ToTable("product_variant", "dbo");
+                entity.HasKey(e => e.Id).HasName("PK_product_variant");
+                entity.Property(e => e.Id).HasColumnName("product_variant_id");
+                entity.Property(e => e.ProductId).HasColumnName("product_id");
+                entity.Property(e => e.Size).HasColumnName("size");
+                entity.Property(e => e.Color).HasColumnName("color");
+                entity.Property(e => e.Price).HasColumnName("price").HasColumnType("decimal(18,2)");
+                entity.Property(e => e.InputDt).HasColumnName("input_dt");
+                entity.Property(e => e.InputUserId).HasColumnName("input_user_id");
+                entity.Property(e => e.LastModifiedById).HasColumnName("last_modified_by_id");
+                entity.Property(e => e.LastUpdatedDt).HasColumnName("last_updated_dt");
+                entity.Property(e => e.IsActive).HasColumnName("is_active");
+                entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
+                entity.Property(e => e.Stamp).HasColumnName("stamp");
+                // Computed columns in DB: must not be included in INSERT/UPDATE
+                var sizeKeyProp = entity.Property(e => e.SizeKey)
+                    .HasColumnName("size_key")
+                    .ValueGeneratedOnAddOrUpdate();
+                sizeKeyProp.Metadata.SetBeforeSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+                sizeKeyProp.Metadata.SetAfterSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+
+                var colorKeyProp = entity.Property(e => e.ColorKey)
+                    .HasColumnName("color_key")
+                    .ValueGeneratedOnAddOrUpdate();
+                colorKeyProp.Metadata.SetBeforeSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+                colorKeyProp.Metadata.SetAfterSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+                entity.Property(e => e.PhotoFileName).HasColumnName("photo_file_name");
+            });
+
+            modelBuilder.Entity<ProductInventory>(entity =>
+            {
+                entity.ToTable("product_inventory", "dbo");
+                entity.HasKey(e => e.Id).HasName("PK_product_inventory");
+                entity.Property(e => e.Id).HasColumnName("product_inventory_id");
+                entity.Property(e => e.ProductVariantId).HasColumnName("product_variant_id");
+                entity.Property(e => e.StoreId).HasColumnName("store_id");
+                entity.Property(e => e.QtyOnHand).HasColumnName("qty_on_hand");
+                entity.Property(e => e.InputDt).HasColumnName("input_dt");
+                entity.Property(e => e.InputUserId).HasColumnName("input_user_id");
+                entity.Property(e => e.LastModifiedById).HasColumnName("last_modified_by_id");
+                entity.Property(e => e.LastUpdatedDt).HasColumnName("last_updated_dt");
+                entity.Property(e => e.IsActive).HasColumnName("is_active");
+                entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
+                entity.Property(e => e.Stamp).HasColumnName("stamp");
             });
         }
     }

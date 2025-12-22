@@ -5,9 +5,10 @@ Minimal ASP.NET Core app serving static pages from `wwwroot` with a few JSON API
 ## Key Features (Dec 2025)
 
 - Pages & navigation
-  - Routes: `/home`, `/about`, `/address`, `/products`, `/eventlog`, `/login`.
+  - Routes: `/home`, `/about`, `/address`, `/collections`, `/eventlog`, `/login`.
+  - Privileged product management: `/products` (grid) and `/products/{id}` (details).
   - About & Address pull store info from DB via `GET /api/stores`.
-  - Home “Browse” goes to `/products`.
+  - Home “Browse” goes to `/collections`.
   - Admin-only change store modal lives at route `/changestore`.
 
 - Store data from DB
@@ -28,7 +29,7 @@ Minimal ASP.NET Core app serving static pages from `wwwroot` with a few JSON API
   - `POST /api/login` → `{ success, userId, roleId }`.
   - `POST /api/register` enforces unique username/email and auto‑logs in new users.
   - `Models/AxUser.cs` maps `[Column("role_id")] int RoleId`.
-  - Privileged roles: Administrator=7, Manager=8.
+  - Privileged roles: Worker=6, Manager=7, Administrator=8.
   - Navbar and page gating are driven from `GET /whoami` (cookie auth) via `wwwroot/js/shared.js`.
   - Client consistently passes `userId` to `/api/stores` GET/PUT; server defaults to `2` (system) if missing.
 
@@ -64,6 +65,21 @@ Minimal ASP.NET Core app serving static pages from `wwwroot` with a few JSON API
     - Guests and `Customer` role are blocked with an inline “Access Denied” screen.
     - Export button shows a warning toast if the grid is empty.
 
+- Products (privileged management)
+  - Page: `/products` (grid + filters + paging) for Worker/Manager/Administrator.
+  - Filters: Name + Store dropdown.
+    - Store dropdown always includes “All Stores” and store names from `dbo.stores` via `GET /api/stores`.
+  - Grid:
+    - First column is Product ID.
+    - Status is plain text (“Active” / “Inactive”), matching Users.
+    - Row selection is highlighted and enables actions like Open.
+  - Product Details page: `/products/{id}`
+    - Uses tabs for product info, variants, and inventory.
+    - Shows `ax_user.code` (not numeric user ids) for audit fields returned by the API.
+    - Photo upload is optional; server validates image formats (PNG/JPG/JPEG/GIF/WEBP).
+    - Upload destination: `C:\Projects\Build\InstallDocs` (only the filename is stored on the variant).
+  - Auditing: create/update/activate/deactivate/delete actions are logged to `event_log`.
+
 ## Run locally
 
 1. Build
@@ -79,7 +95,7 @@ Minimal ASP.NET Core app serving static pages from `wwwroot` with a few JSON API
      dotnet watch run --launch-profile https --configuration Debug
      ```
 3. Open pages
-  - `/home`, `/about`, `/address`, `/products`, `/login`, `/eventlog`, `/users`, `/contracts`
+  - `/home`, `/about`, `/address`, `/collections`, `/login`, `/eventlog`, `/users`, `/contracts`, `/products`
 
 ## Implementation notes
 
@@ -104,7 +120,7 @@ Minimal ASP.NET Core app serving static pages from `wwwroot` with a few JSON API
 
 - Removed outdated Home promos and footer reaction icons.
 - Removed hardcoded contact info; About/Address now fully DB‑driven.
-- Products routing and links updated.
+- Public “Products” page renamed to `/collections`; privileged `/products` is the management module.
 
 ## Security & quality
 

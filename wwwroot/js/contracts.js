@@ -127,11 +127,13 @@
     items.forEach(it => {
       const tr = document.createElement("tr");
       tr.addEventListener("click", () => {
-        Array.from(tbody.querySelectorAll("tr.selected")).forEach(r => r.classList.remove("selected"));
-        tr.classList.add("selected");
+        Array.from(tbody.querySelectorAll("tr.active")).forEach(r => r.classList.remove("active"));
+        tr.classList.add("active");
         selectedId = it.id;
         updateOpenState();
       });
+
+      if (selectedId && it.id === selectedId) tr.classList.add('active');
 
       const cells = [
         String(it.id),

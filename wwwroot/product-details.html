@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="pastel">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KidzStyle · Product</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link rel="icon" href="/resources/icons/tshirt.svg" type="image/svg+xml" />
+
+  <link href="/css/login.css" rel="stylesheet" />
+  <link href="/css/eventlog.css" rel="stylesheet" />
+
+  <style>
+    .hidden { display: none !important; }
+    main { max-width: 1200px; margin: 0 auto; }
+    .dropdown .dropdown-content { position: absolute; z-index: 10000; }
+  </style>
+</head>
+<body class="bg-base-200 text-base-content">
+
+  <!-- Navbar (single, sticky) -->
+  <div class="navbar bg-base-100 shadow sticky top-0 z-50">
+    <div class="flex-1">
+      <a href="/home" class="btn btn-ghost normal-case text-xl">
+        <span class="material-icons mr-2">home</span> Home
+      </a>
+      <a href="/about" class="btn btn-ghost">
+        <span class="material-icons mr-2">info</span> About
+      </a>
+      <a href="/address" class="btn btn-ghost">
+        <span class="material-icons mr-2">location_on</span> Address
+      </a>
+      <a href="/eventlog" class="btn btn-ghost">
+        <span class="material-icons mr-2">bug_report</span> EventLog
+      </a>
+    </div>
+    <div class="flex-none items-center gap-3">
+      <a id="navSignIn" href="/login" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</a>
+      <a id="navLogIn" href="/login" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</a>
+    </div>
+  </div>
+
+  <main class="container mx-auto p-4">
+    <div class="flex items-center justify-between gap-3 mb-3">
+      <div>
+        <h1 id="pageTitle" class="text-2xl font-bold">Product</h1>
+        <div id="pageSubtitle" class="text-sm text-gray-500"></div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <a href="/products" class="btn btn-sm btn-outline">
+          <span class="material-icons mr-2">arrow_back</span> Back
+        </a>
+        <button id="btnSave" class="btn btn-sm btn-primary">
+          <span class="material-icons mr-2">save</span> Save
+        </button>
+      </div>
+    </div>
+
+    <div role="tablist" class="tabs tabs-lifted">
+      <input type="radio" name="product_tabs" role="tab" class="tab" aria-label="Basic Details" checked />
+      <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="label"><span class="label-text">Name</span></label>
+            <input id="prodName" class="input input-bordered w-full" type="text" placeholder="Product name" />
+          </div>
+          <div class="flex items-end">
+            <label class="label cursor-pointer gap-3">
+              <span class="label-text">Active</span>
+              <input id="prodActive" type="checkbox" class="toggle toggle-primary" checked />
+            </label>
+          </div>
+
+          <div class="bg-base-200 rounded-lg p-3">
+            <div class="text-xs text-gray-500">Product ID</div>
+            <div id="prodId" class="font-semibold"></div>
+          </div>
+          <div class="bg-base-200 rounded-lg p-3">
+            <div class="text-xs text-gray-500">Input Date</div>
+            <div id="prodInputDt" class="font-semibold"></div>
+          </div>
+          <div class="bg-base-200 rounded-lg p-3">
+            <div class="text-xs text-gray-500">Input User</div>
+            <div id="prodInputUserId" class="font-semibold"></div>
+          </div>
+          <div class="bg-base-200 rounded-lg p-3">
+            <div class="text-xs text-gray-500">Last Updated</div>
+            <div id="prodLastUpdated" class="font-semibold"></div>
+          </div>
+          <div class="bg-base-200 rounded-lg p-3">
+            <div class="text-xs text-gray-500">Last Modified By</div>
+            <div id="prodLastModifiedBy" class="font-semibold"></div>
+          </div>
+        </div>
+      </div>
+
+      <input type="radio" name="product_tabs" role="tab" class="tab" aria-label="Inventory" />
+      <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
+        <div class="flex flex-col gap-2 mb-3">
+          <div class="text-sm text-gray-500">Manage variants (size/color) and quantities per store.</div>
+          <div class="text-sm text-gray-500">Image upload folder: <span class="font-mono">C:\Projects\Build\InstallDocs</span></div>
+          <div class="flex items-center justify-end gap-2">
+            <button id="btnOpenVariant" class="btn btn-sm" disabled>
+              <span class="material-icons mr-2">open_in_new</span> Open
+            </button>
+            <button id="btnAddVariant" class="btn btn-sm btn-outline">
+              <span class="material-icons mr-2">add</span> Add Inventory
+            </button>
+            <button id="btnDeleteVariant" class="btn btn-sm btn-outline" disabled>
+              <span class="material-icons mr-2">delete</span> Delete
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
+          <table id="variantsTable" class="table table-zebra w-full" aria-label="Product variants">
+            <thead>
+              <tr>
+                <th style="width:140px">Size</th>
+                <th style="width:160px">Color</th>
+                <th style="width:140px">Price</th>
+                <th style="width:220px">Photo</th>
+                <th style="width:140px">Store 1 Qty</th>
+                <th style="width:140px">Store 2 Qty</th>
+                <th style="width:120px">Status</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <input type="radio" name="product_tabs" role="tab" class="tab" aria-label="Notes" />
+      <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
+        <label class="label"><span class="label-text">Description / Notes</span></label>
+        <textarea id="prodNotes" class="textarea textarea-bordered w-full" rows="10" placeholder="Write notes about this product..."></textarea>
+      </div>
+    </div>
+
+    <div id="detailsEmpty" class="hidden mt-4 text-sm text-gray-500">Product not found.</div>
+  </main>
+
+  <dialog id="variantModal" class="modal">
+    <form method="dialog" class="modal-box">
+      <h3 id="variantModalTitle" class="font-bold text-lg mb-2">Add Inventory</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="form-control">
+          <label class="label"><span class="label-text">Size</span></label>
+          <input id="vSize" class="input input-bordered" type="text" placeholder="e.g. M" />
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Color</span></label>
+          <input id="vColor" class="input input-bordered" type="text" placeholder="e.g. Pink" />
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Price</span></label>
+          <input id="vPrice" class="input input-bordered" type="number" step="0.01" min="0" value="0.00" />
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Photo</span></label>
+          <div class="flex items-center gap-2">
+            <input id="vPhotoFile" type="file" class="hidden" accept="image/*" />
+            <button id="vPhotoUploadBtn" type="button" class="btn btn-outline btn-sm">
+              <span class="material-icons mr-2">upload</span> Upload
+            </button>
+            <button id="vPhotoRemoveBtn" type="button" class="btn btn-outline btn-sm" disabled>
+              <span class="material-icons mr-2">delete</span> Remove
+            </button>
+            <span id="vPhotoFileName" class="text-xs text-gray-500 truncate" title=""></span>
+          </div>
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Store 1 Qty</span></label>
+          <input id="vQty1" class="input input-bordered" type="number" min="0" value="0" />
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Store 2 Qty</span></label>
+          <input id="vQty2" class="input input-bordered" type="number" min="0" value="0" />
+        </div>
+        <div class="form-control md:col-span-2">
+          <label class="label cursor-pointer gap-3">
+            <span class="label-text">Active</span>
+            <input id="vActive" type="checkbox" class="toggle toggle-primary" checked />
+          </label>
+        </div>
+      </div>
+      <div class="modal-action">
+        <button id="variantCancel" class="btn">Cancel</button>
+        <button id="variantAdd" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loading-box">Loading...</div>
+  </div>
+
+  <!-- Notification UI injected by /js/shared.js -->
+  <script src="/js/shared.js"></script>
+  <script src="/js/product-details.js"></script>
+</body>
+</html>

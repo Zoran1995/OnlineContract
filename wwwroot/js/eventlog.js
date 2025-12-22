@@ -144,9 +144,14 @@ async function loadLogs() {
     const data = await res.json();
 
     renderLogs(data.items);
-    totalPages = data.totalPages;
+    totalPages = Math.max(1, Number(data.totalPages) || 1);
+    if (currentPage > totalPages) currentPage = totalPages;
     pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
     pageCountInfo.textContent = `Total records: ${data.totalCount}`;
+
+    // Disable Prev/Next at edges (same UX as Users)
+    prevPage.disabled = (currentPage <= 1 || data.totalCount === 0);
+    nextPage.disabled = (currentPage >= totalPages || data.totalCount === 0);
 
     // Keep Clear enabled (same behavior as Users/Contracts)
     clearBtn.disabled = false;

@@ -305,7 +305,7 @@ function ensureNotificationUI() {
       cartBtn.title = 'Shopping cart';
       cartBtn.innerHTML = '<span class="material-icons">shopping_cart</span>';
 
-      const CART_URL  = '/cart';
+      const CART_URL  = '/contracts';
       const LOGIN_URL = '/login?mode=login';
       const RETURN_URL = location.pathname + location.search;
 
@@ -313,7 +313,7 @@ function ensureNotificationUI() {
     cartBtn.addEventListener('click', (e) => {
       e.preventDefault();
 
-      const CART_URL   = '/cart';
+      const CART_URL   = '/contracts';
       const LOGIN_URL  = '/login?mode=login';
       const RETURN_URL = location.pathname + location.search;
 
@@ -493,6 +493,7 @@ function ensureNotificationUI() {
       // Privileged roles: Manager=8, Administrator=7 (per ax_user.role_id)
       const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
       const isCustomer = isLoggedIn && roleId === 5;
+    const canManageProducts = isLoggedIn && (roleId === 6 || roleId === 7 || roleId === 8);
 
       const pathNow = (window.location && window.location.pathname || '').toLowerCase();
       const isEventLogPage = pathNow.includes('/eventlog');
@@ -683,6 +684,7 @@ function ensureNotificationUI() {
             menu.className = 'dropdown-content menu p-2 shadow bg-base-100 rounded-box w-56';
             menu.innerHTML = `
               <li><a href="/contracts" id="ddContracts"><span class="material-icons mr-2">receipt</span>Contracts</a></li>
+              <li><a href="/products" id="ddProducts"><span class="material-icons mr-2">inventory_2</span>Products</a></li>
               <li><a href="#" id="ddChangeStore"><span class="material-icons mr-2">edit</span>Change Store Details</a></li>
               <li><a href="/users" id="ddUsersTeams"><span class="material-icons mr-2">group</span>Users &amp; Teams</a></li>
               <li><a href="/eventlog" id="ddEventLog"><span class="material-icons mr-2">list</span>All Events</a></li>
@@ -735,10 +737,12 @@ function ensureNotificationUI() {
             const ddUsersTeams = document.getElementById('ddUsersTeams');
             const ddEventLog = document.getElementById('ddEventLog');
             const ddContracts = document.getElementById('ddContracts');
+            const ddProducts = document.getElementById('ddProducts');
             if (ddChangeStore) ddChangeStore.classList.toggle('hidden', !isPrivileged);
             if (ddUsersTeams) ddUsersTeams.classList.toggle('hidden', !isPrivileged);
             if (ddEventLog) ddEventLog.classList.toggle('hidden', !isPrivileged);
             if (ddContracts) ddContracts.classList.toggle('hidden', !isLoggedIn);
+            if (ddProducts) ddProducts.classList.toggle('hidden', !canManageProducts);
           } catch {}
         }
       }
@@ -1075,7 +1079,7 @@ function showToast(type, message) {
   });
 }
 
-function updateNotificationBell() {
+function updateNotificationBell(persist = true) {
   const count = (window.notifications || []).length;
   const badge = document.getElementById('notificationCount');
   const bell = document.getElementById('notificationBell');
@@ -1159,7 +1163,7 @@ function updateNotificationBell() {
     });
 
   // Persist to localStorage using per-user or guest scope
-  _oc_saveNotifications();
+  if (persist) _oc_saveNotifications();
 
   // ensure bell UI exists and adjust position after rendering notifications
   adjustBellPosition();
@@ -1171,6 +1175,34 @@ function updateNotificationBell() {
     panel.style.top = `${window._notificationPanelPos.top}px`;
   }
 }
+
+function _oc_syncNotificationsFromStorage() {
+  try {
+    const key = _oc_getNotificationKey();
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    window.notifications = Array.isArray(parsed) ? parsed : [];
+    updateNotificationBell(false);
+  } catch {
+    window.notifications = window.notifications || [];
+    updateNotificationBell(false);
+  }
+}
+
+// Keep notifications in sync across tabs for the same logged-in user.
+try {
+  if (!window._oc_notif_sync_bound) {
+    window._oc_notif_sync_bound = true;
+    window.addEventListener('storage', (e) => {
+      try {
+        if (!e) return;
+        const key = _oc_getNotificationKey();
+        if (e.key !== key) return;
+        _oc_syncNotificationsFromStorage();
+      } catch {}
+    });
+  }
+} catch {}
 
 // --- ADD start: hide duplicate "Log Out" buttons when dropdown exists ---
 function hideStandaloneLogout() {

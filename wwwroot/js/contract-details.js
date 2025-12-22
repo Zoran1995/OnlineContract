@@ -55,7 +55,7 @@
 
       if (!res.ok) {
         if (detailsEmpty) detailsEmpty.classList.remove('hidden');
-        try { showToast('Contract not found.', 'warning'); } catch {}
+        try { showToast('warning', 'Contract not found.'); } catch {}
         return;
       }
 
@@ -71,7 +71,7 @@
       setText(stampEl, data.stamp ?? '');
     } catch (e) {
       if (detailsEmpty) detailsEmpty.classList.remove('hidden');
-      try { showToast('Failed to load contract details.', 'error'); } catch {}
+      try { showToast('error', 'Failed to load contract details.'); } catch {}
     } finally {
       setLoading(false);
     }
