@@ -230,6 +230,7 @@
 
       tbody.appendChild(tr);
     });
+    try { if (window.attachTableSort) window.attachTableSort('#grid'); } catch {}
   }
 
   function renderPager() {
@@ -336,7 +337,7 @@
 
     btnOpen?.addEventListener('click', () => {
       if (!selectedId) { try { showToast('warning', 'Select a product first'); } catch {} return; }
-      window.location.href = `/products/${selectedId}`;
+      window.open(`/products/${selectedId}`, '_blank');
     });
 
     btnAdd?.addEventListener('click', () => {

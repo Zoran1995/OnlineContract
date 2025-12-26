@@ -194,26 +194,43 @@
   }
 
   function deleteSelectedVariant() {
-    if (selectedVariantId == null) {
-      try { showToast('warning', 'Please select an inventory row first.'); } catch {}
-      return;
-    }
+    if (selectedVariantId == null) { try { showToast('warning', 'Please select an inventory row first.'); } catch {} return; }
 
     const variantId = selectedVariantId;
     const v = state.variants.find(x => x.id === variantId);
     if (!v) return;
-    if (!confirm('Delete the selected inventory row? Click Save to apply the change.')) return;
 
-    if (variantId > 0) {
-      if (!state.deletedVariantIds.includes(variantId)) state.deletedVariantIds.push(variantId);
+    const dlg = document.getElementById('variantDeleteConfirm');
+    const okBtn = document.getElementById('variantConfirmOk');
+    if (!dlg || !okBtn || !dlg.showModal) {
+      if (!confirm('Are you sure you want to remove this inventory row? It will be deleted from the database after you click Save.')) return;
+    } else {
+      let resolved = false;
+      const onOk = (e) => { e.preventDefault(); resolved = true; try { dlg.close(); } catch {} };
+      okBtn.addEventListener('click', onOk, { once: true });
+      dlg.addEventListener('close', () => {
+        if (!resolved) return;
+        proceedDelete();
+      }, { once: true });
+      try { dlg.showModal(); } catch { /* fallback to confirm */ if (!confirm('Are you sure you want to remove this inventory row? It will be deleted from the database after you click Save.')) return; }
+      if (!dlg.open && !resolved) return; // user canceled in fallback path
+      if (!dlg.open && resolved) return; // handled via proceedDelete in close
+      return; // deletion will happen in close handler
     }
 
-    state.variants = state.variants.filter(x => x.id !== variantId);
-    selectedVariantId = null;
-    updateVariantToolbar();
-    renderVariants();
+    // Fallback confirm path proceeds immediately
+    proceedDelete();
 
-    try { showToast('info', 'The row was removed from the grid and marked for deletion. Click Save to apply the change.'); } catch {}
+    function proceedDelete() {
+      if (variantId > 0) {
+        if (!state.deletedVariantIds.includes(variantId)) state.deletedVariantIds.push(variantId);
+      }
+      state.variants = state.variants.filter(x => x.id !== variantId);
+      selectedVariantId = null;
+      updateVariantToolbar();
+      renderVariants();
+      try { showToast('info', 'The row was removed from the grid and marked for deletion. Click Save to apply the change.'); } catch {}
+    }
   }
 
   async function uploadPhotoFile(file) {
@@ -379,6 +396,9 @@
           if (res2.status === 403) { window.location.href = '/home'; return; }
         }
 
+        try {
+          sessionStorage.setItem('pendingToast', JSON.stringify({ type: 'info', message: 'Product was successfully created.' }));
+        } catch {}
         window.location.href = `/products/${newId}`;
         return;
       }

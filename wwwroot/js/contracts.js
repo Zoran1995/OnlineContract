@@ -148,6 +148,7 @@
       });
       tbody.appendChild(tr);
     });
+    try { if (window.attachTableSort) window.attachTableSort('#grid'); } catch {}
   }
 
   function stateBadge(state) {
@@ -211,7 +212,7 @@
     });
     btnOpen?.addEventListener("click", () => {
       if (!selectedId) { try { showToast('warning', 'Select a contract first'); } catch {} return; }
-      window.location.href = `/contracts/${selectedId}`;
+      window.open(`/contracts/${selectedId}`, '_blank');
     });
 
     exportBtn?.addEventListener("click", async () => {

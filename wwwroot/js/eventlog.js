@@ -203,6 +203,7 @@ function renderLogs(items) {
 
     tableBody.appendChild(tr);
   });
+  try { if (window.attachTableSort) window.attachTableSort('#logTable'); } catch {}
 }
 
 async function logClientError(description, stackTrace) {

@@ -51,9 +51,6 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <a href="/products" class="btn btn-sm btn-outline">
-          <span class="material-icons mr-2">arrow_back</span> Back
-        </a>
         <button id="btnSave" class="btn btn-sm btn-primary">
           <span class="material-icons mr-2">save</span> Save
         </button>
@@ -143,6 +140,18 @@
 
     <div id="detailsEmpty" class="hidden mt-4 text-sm text-gray-500">Product not found.</div>
   </main>
+
+  <!-- Confirm delete inventory modal -->
+  <dialog id="variantDeleteConfirm" class="modal">
+    <form method="dialog" class="modal-box">
+      <h3 class="font-bold text-lg mb-2">Delete Inventory</h3>
+      <p class="mb-4">Are you sure you want to remove this inventory row from the grid? It will not be deleted from the database until you click Save.</p>
+      <div class="modal-action">
+        <button class="btn">Cancel</button>
+        <button id="variantConfirmOk" class="btn btn-error">OK</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="variantModal" class="modal">
     <form method="dialog" class="modal-box">

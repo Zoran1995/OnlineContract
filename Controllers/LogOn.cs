@@ -1314,6 +1314,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
             foreach (var v in toDelete)
             {
                 v.IsDeleted        = true;
+                v.IsActive         = false;
                 v.LastModifiedById = uid;
                 v.LastUpdatedDt    = DateTime.UtcNow;
 
@@ -1324,6 +1325,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                 foreach (var inv in invs)
                 {
                     inv.IsDeleted        = true;
+                    inv.IsActive         = false;
                     inv.LastModifiedById = uid;
                     inv.LastUpdatedDt    = DateTime.UtcNow;
                 }

@@ -1246,10 +1246,59 @@ function updateNotificationBadge(count){
 // Export helpers
 window.showToast = showToast;
 window.updateNotificationBadge = updateNotificationBadge;
+window.attachTableSort = attachTableSort;
 
 function dismissAll() {
   window.notifications = [];
   updateNotificationBell();
+}
+
+// Simple client-side table sort for current page rows (ascending/descending per column)
+function attachTableSort(selector){
+  try {
+    const table = typeof selector === 'string' ? document.querySelector(selector) : selector;
+    if (!table || table._oc_sort_bound) return;
+    table._oc_sort_bound = true;
+    const thead = table.querySelector('thead');
+    const tbody = table.querySelector('tbody');
+    if (!thead || !tbody) return;
+    const ths = Array.from(thead.querySelectorAll('th'));
+    const clearIndicators = () => ths.forEach(th => {
+      th.removeAttribute('data-sort');
+      const ind = th.querySelector('.oc-sort-ind');
+      if (ind) ind.remove();
+    });
+    const addIndicator = (th, dir) => {
+      let ind = th.querySelector('.oc-sort-ind');
+      if (!ind) { ind = document.createElement('span'); ind.className = 'oc-sort-ind material-icons ml-1 text-sm align-middle'; th.appendChild(ind); }
+      ind.textContent = dir === 'asc' ? 'arrow_upward' : 'arrow_downward';
+    };
+    ths.forEach((th, colIdx) => {
+      th.style.cursor = 'pointer';
+      th.addEventListener('click', () => {
+        const current = th.getAttribute('data-sort') || '';
+        const dir = current === 'asc' ? 'desc' : 'asc';
+        clearIndicators();
+        th.setAttribute('data-sort', dir);
+        addIndicator(th, dir);
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const parseVal = (td) => {
+          const text = (td?.textContent || '').trim();
+          const num = parseFloat(text.replace(/[^0-9.+-]/g, ''));
+          return isNaN(num) ? text.toLowerCase() : num;
+        };
+        rows.sort((a,b) => {
+          const av = parseVal(a.children[colIdx]);
+          const bv = parseVal(b.children[colIdx]);
+          let cmp = 0;
+          if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv; else cmp = String(av).localeCompare(String(bv));
+          return dir === 'asc' ? cmp : -cmp;
+        });
+        // Re-append sorted rows
+        rows.forEach(r => tbody.appendChild(r));
+      });
+    });
+  } catch {}
 }
 
 function closeNotificationPanel() {

@@ -168,6 +168,7 @@
         tr.appendChild(td);
       });
     });
+    try { if (window.attachTableSort) window.attachTableSort('#usersTable'); } catch {}
   }
 
   function updateOpenState() {
