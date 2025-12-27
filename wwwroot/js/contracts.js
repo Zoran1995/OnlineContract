@@ -57,7 +57,8 @@
     if (btnOpen) btnOpen.disabled = !selectedId;
   }
   function updateExportState() {
-    if (exportBtn) exportBtn.disabled = !(items && items.length > 0);
+    // Keep the navbar export button always enabled; show a warning on click when grid is empty
+    if (exportBtn) exportBtn.disabled = false;
   }
 
   function buildQuery() {
@@ -89,22 +90,20 @@
     return s ? `?${s}` : "";
   }
 
-  function datesInvalid() {
-    const from = (dtFrom?.value || '').trim();
-    const to   = (dtTo?.value   || '').trim();
-    return from && to && from > to; // ISO yyyy-mm-dd comparison works directly
-  }
-
   async function load() {
     try {
-      if (datesInvalid()) {
-        try { showToast('warning', 'From Date cannot be after To Date'); } catch {}
-        setEmptyState(true);
-        updateExportState();
-        renderPager();
-        selectedId = null;
-        updateOpenState();
-        return;
+      // Validate date range like EventLog page: parse dates and show friendly warnings
+      if (dtFrom && dtTo && dtFrom.value && dtTo.value) {
+        const from = new Date(dtFrom.value);
+        const to = new Date(dtTo.value);
+        if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+          try { showToast('error', 'Invalid date format'); } catch {}
+          return;
+        }
+        if (from > to) {
+          try { showToast('warning', 'The start date must be before the end date. Please adjust the date range and try again.'); } catch {}
+          return;
+        }
       }
 
       showLoading();

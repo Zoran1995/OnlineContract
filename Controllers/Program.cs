@@ -1677,7 +1677,7 @@ app.MapGet("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
 
         IQueryable<OnlineContract.Models.Note> notes = db.Notes
             .AsNoTracking()
-            .Where(n => n.ProductId == id && !n.IsDeleted);
+            .Where(n => n.ProductId == id && !n.IsDeleted && n.IsActive);
 
         if (!string.IsNullOrWhiteSpace(q))
         {
@@ -1697,6 +1697,7 @@ app.MapGet("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
             {
                 n.Id,
                 n.Comment,
+                n.IsActive,
                 n.IsMain,
                 n.InputDt,
                 inputUserCode = inputUserCode ?? "",
@@ -1715,6 +1716,7 @@ app.MapGet("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
         {
             Id = r.Id,
             Comment = r.Comment ?? "",
+            IsActive = r.IsActive,
             IsMain = r.IsMain,
             InputDt = r.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
             InputUserId = null,
@@ -1761,6 +1763,7 @@ app.MapPut("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
                 Comment = text,
                 IsMain = false,
                 IsDeleted = false,
+                IsActive = add.IsActive,
                 InputDt = DateTime.UtcNow,
                 InputUserId = uid,
                 LastModifiedById = uid,
@@ -1775,6 +1778,7 @@ app.MapPut("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
             var n = await db.Notes.FirstOrDefaultAsync(x => x.Id == upd.Id && x.ProductId == id && !x.IsDeleted);
             if (n == null) continue;
             if (upd.Comment != null) n.Comment = upd.Comment.Trim();
+            if (upd.IsActive.HasValue) n.IsActive = upd.IsActive.Value;
             n.LastModifiedById = uid;
             n.LastUpdatedDt = DateTime.UtcNow;
         }
@@ -1794,7 +1798,7 @@ app.MapPut("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
         if (dto.SetMainId.HasValue && dto.SetMainId.Value > 0)
         {
             var targetId = dto.SetMainId.Value;
-            var notes = await db.Notes.Where(x => x.ProductId == id && !x.IsDeleted).ToListAsync();
+            var notes = await db.Notes.Where(x => x.ProductId == id && !x.IsDeleted && x.IsActive).ToListAsync();
             foreach (var n in notes)
             {
                 n.IsMain = (n.Id == targetId);
@@ -1806,7 +1810,7 @@ app.MapPut("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
         await db.SaveChangesAsync();
         await tx.CommitAsync();
 
-        var totalNotes = await db.Notes.CountAsync(n => n.ProductId == id && !n.IsDeleted);
+            var totalNotes = await db.Notes.CountAsync(n => n.ProductId == id && !n.IsDeleted && n.IsActive);
         await LoggerHelper.LogEventAsync(db, EventType.Information, "Product notes saved", $"ProductId={id}; totalNotes={totalNotes}", uid);
         return Results.Json(new { success = true, message = "Notes were successfully saved.", totalNotes });
     }
@@ -1835,7 +1839,7 @@ app.MapGet("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
 
         IQueryable<OnlineContract.Models.Note> notes = db.Notes
             .AsNoTracking()
-            .Where(n => n.ContractId == id && !n.IsDeleted);
+            .Where(n => n.ContractId == id && !n.IsDeleted && n.IsActive);
 
         if (!string.IsNullOrWhiteSpace(q))
         {
@@ -1855,6 +1859,7 @@ app.MapGet("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
             {
                 n.Id,
                 n.Comment,
+                n.IsActive,
                 n.IsMain,
                 n.IsDeleted,
                 n.InputDt,
@@ -1874,6 +1879,7 @@ app.MapGet("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
         {
             Id = r.Id,
             Comment = r.Comment ?? "",
+            IsActive = r.IsActive,
             IsMain = r.IsMain,
             IsDeleted = r.IsDeleted,
             InputDt = r.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
@@ -1921,6 +1927,7 @@ app.MapPut("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
                 Comment = comment,
                 IsMain = false,
                 IsDeleted = false,
+                IsActive = add.IsActive,
                 InputDt = DateTime.UtcNow,
                 InputUserId = uid,
                 LastModifiedById = uid,
@@ -1936,6 +1943,7 @@ app.MapPut("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
             if (n == null) continue;
             if (upd.Comment != null) n.Comment = upd.Comment.Trim();
             if (upd.IsDeleted.HasValue) n.IsDeleted = upd.IsDeleted.Value;
+            if (upd.IsActive.HasValue) n.IsActive = upd.IsActive.Value;
             n.LastModifiedById = uid;
             n.LastUpdatedDt = DateTime.UtcNow;
         }
@@ -1955,7 +1963,7 @@ app.MapPut("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
         if (dto.SetMainId.HasValue && dto.SetMainId.Value > 0)
         {
             var targetId = dto.SetMainId.Value;
-            var notes = await db.Notes.Where(x => x.ContractId == id && !x.IsDeleted).ToListAsync();
+            var notes = await db.Notes.Where(x => x.ContractId == id && !x.IsDeleted && x.IsActive).ToListAsync();
             foreach (var n in notes)
             {
                 n.IsMain = (n.Id == targetId);

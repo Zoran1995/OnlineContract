@@ -72,16 +72,24 @@
     <main class="container mx-auto p-4">
         <div class="flex items-center justify-between gap-3 mb-3">
             <h1 class="text-2xl font-bold">Contracts</h1>
+        </div>
 
-            <div class="flex items-center gap-2">
-                <button id="btnOpen" class="btn btn-sm" disabled>
-                    <span class="material-icons">open_in_new</span> <span>Open</span>
-                </button>
-            </div>
+        <!-- Toolbar (above the filters widget) -->
+        <div class="flex items-center gap-2 mb-3 justify-end">
+            <button id="btnOpen" class="btn btn-sm" disabled>
+                <span class="material-icons">open_in_new</span>
+                <span>Open</span>
+            </button>
+            <button id="btnAddContract" class="btn btn-sm">
+                <span class="material-icons">add</span>
+                <span>Add</span>
+            </button>
+
+            <!-- kebab menu removed as per request -->
         </div>
 
         <!-- Filters -->
-        <section id="contractsFilters" class="mb-3">
+        <section id="contractsFilters" class="bg-base-100 rounded-xl shadow p-4 mb-2">
             <!-- CHANGED: items-center -> items-end -->
             <div class="grid grid-cols-12 gap-x-2 gap-y-1 items-end"> <!-- NEW -->
                 <!-- All states -->

@@ -8,6 +8,7 @@ namespace OnlineContract.Models
     {
         public int Id { get; set; }
         public string? Comment { get; set; }
+        public bool IsActive { get; set; }
         public string? Text { get => Comment; set => Comment = value; }
         public bool IsMain { get; set; }
         public bool IsDeleted { get; set; }
@@ -23,6 +24,7 @@ namespace OnlineContract.Models
     {
         [Required]
         public string? Comment { get; set; }
+        public bool IsActive { get; set; } = true;
         public string? Text { get => Comment; set => Comment = value; }
         public bool IsDeleted { get; set; } = false;
     }
@@ -32,6 +34,7 @@ namespace OnlineContract.Models
         [Required]
         public int Id { get; set; }
         public string? Comment { get; set; }
+        public bool? IsActive { get; set; }
         public string? Text { get => Comment; set => Comment = value; }
         public bool? IsDeleted { get; set; }
     }

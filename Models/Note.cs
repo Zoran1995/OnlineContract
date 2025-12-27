@@ -28,6 +28,9 @@ namespace OnlineContract.Models
         [Column("is_main")]
         public bool IsMain { get; set; }
 
+        [Column("is_active")]
+        public bool IsActive { get; set; } = true;
+
         [Column("is_deleted")]
         public bool IsDeleted { get; set; }
 

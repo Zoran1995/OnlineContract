@@ -74,35 +74,35 @@
   </div>
 
   <main class="container mx-auto p-4">
-    <!-- Header: left title, right Open + Add + menu -->
+    <!-- Header: left title -->
     <div class="flex items-center justify-between gap-3 mb-3">
       <h1 class="text-2xl font-bold">Products</h1>
+    </div>
 
-      <div class="flex items-center gap-2">
-        <button id="btnOpen" class="btn btn-sm" disabled>
-          <span class="material-icons">open_in_new</span>
-          <span>Open</span>
-        </button>
-        <button id="btnAdd" class="btn btn-sm btn-primary">
-          <span class="material-icons">add</span>
-          <span>Add Product</span>
-        </button>
+    <!-- Toolbar (above the filters widget) -->
+    <div class="flex items-center gap-2 mb-3 justify-end">
+      <button id="btnOpen" class="btn btn-sm" disabled>
+        <span class="material-icons">open_in_new</span>
+        <span>Open</span>
+      </button>
+      <button id="btnAdd" class="btn btn-sm btn-primary">
+        <span class="material-icons">add</span>
+        <span>Add Product</span>
+      </button>
 
-        <!-- Updated kebab menu: IDs and structure aligned with JS -->
-        <div id="toolbarMenu" class="dropdown dropdown-end" tabindex="0">
-          <button id="btnToolbarMenu" class="btn btn-sm btn-ghost" tabindex="0" role="button" aria-label="More" aria-expanded="false" aria-controls="toolbarMenuContent">
-            <span class="material-icons">more_vert</span>
-          </button>
-          <ul id="toolbarMenuContent" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-40 hidden">
-            <li class="hidden"><a id="btnDeactivate"><span class="material-icons mr-2">block</span>Deactivate</a></li>
-            <li><a id="btnDelete" aria-disabled="true" class="pointer-events-none opacity-50"><span class="material-icons mr-2">delete</span>Delete</a></li>
-          </ul>
-        </div>
+      <div id="toolbarMenu" class="dropdown dropdown-end" tabindex="0">
+        <button id="btnToolbarMenu" class="btn btn-sm btn-ghost" tabindex="0" aria-haspopup="menu" aria-expanded="false">
+          <span class="material-icons">more_vert</span>
+        </button>
+        <ul id="toolbarMenuContent" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-40" role="menu" aria-label="Toolbar actions">
+          <li class="hidden"><a id="btnDeactivate"><span class="material-icons mr-2">block</span>Deactivate</a></li>
+          <li><a id="btnDelete" aria-disabled="true" class="pointer-events-none opacity-50"><span class="material-icons mr-2">delete</span>Delete</a></li>
+        </ul>
       </div>
     </div>
 
     <!-- Filters: Name + Store (compact); Search/Clear aligned to the far right -->
-    <section id="productsFilters" class="mb-3">
+    <section id="productsFilters" class="bg-base-100 rounded-xl shadow p-4 mb-2">
       <div class="grid grid-cols-12 gap-x-2 gap-y-1 items-center">
         <!-- Name -->
         <div class="col-span-12 md:col-span-3">
