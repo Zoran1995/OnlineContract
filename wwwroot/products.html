@@ -10,7 +10,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
-  <link rel="icon" href="/resources/icons/inventory_2.svg" type="image/svg+xml" />
+  <link rel="icon" href="/resources/icons/tshirt.svg" type="image/svg+xml" />
 
   <!-- App styles -->
   <link rel="stylesheet" href="/css/eventlog.css" />
@@ -39,6 +39,10 @@
     /* Shortened filter widths on larger screens (xs still uses w-full) */
     #fltStore { width: 11rem; }  /* ~176px */
     #fltQuery { width: 16rem; }  /* ~256px */
+    /* Ensure dropdowns position absolutely and sit above filters (match Users) */
+    .dropdown .dropdown-content { position: absolute; z-index: 10000; }
+    /* Override global larger dropdown sizing for the products toolbar menu so it matches Users */
+    #toolbarMenu .dropdown-content { min-width: 10rem !important; max-width: 12rem !important; }
   </style>
 </head>
 <body class="bg-base-200 text-base-content">
@@ -84,14 +88,14 @@
           <span>Add Product</span>
         </button>
 
-        <!-- Kebab menu (Activate/Deactivate + Delete) -->
-        <div class="dropdown dropdown-end">
-          <button class="btn btn-sm btn-ghost" tabindex="0" role="button" aria-label="More">
+        <!-- Updated kebab menu: IDs and structure aligned with JS -->
+        <div id="toolbarMenu" class="dropdown dropdown-end" tabindex="0">
+          <button id="btnToolbarMenu" class="btn btn-sm btn-ghost" tabindex="0" role="button" aria-label="More" aria-expanded="false" aria-controls="toolbarMenuContent">
             <span class="material-icons">more_vert</span>
           </button>
-          <ul class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52">
+          <ul id="toolbarMenuContent" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-40 hidden">
             <li class="hidden"><a id="btnDeactivate"><span class="material-icons mr-2">block</span>Deactivate</a></li>
-            <li><a id="btnDelete"><span class="material-icons mr-2">delete</span>Delete</a></li>
+            <li><a id="btnDelete" aria-disabled="true" class="pointer-events-none opacity-50"><span class="material-icons mr-2">delete</span>Delete</a></li>
           </ul>
         </div>
       </div>
@@ -177,6 +181,18 @@
   <div id="loadingOverlay" class="loading-overlay hidden">
     <div class="loading-box">Loading...</div>
   </div>
+
+  <!-- Confirm delete product modal (match inventory modal style) -->
+  <dialog id="productDeleteConfirm" class="modal">
+    <form method="dialog" class="modal-box">
+      <h3 class="font-bold text-lg mb-2">Delete Product</h3>
+      <p class="mb-4">Are you sure you want to delete this product? This action cannot be undone.</p>
+      <div class="modal-action">
+        <button class="btn">Cancel</button>
+        <button id="productConfirmOk" class="btn btn-error">OK</button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- Scripts -->
   <script src="/js/shared.js"></script>

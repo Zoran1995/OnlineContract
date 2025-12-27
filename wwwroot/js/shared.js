@@ -34,6 +34,67 @@ function _oc_saveNotifications() {
 // Initialize notifications from the appropriate scope
 _oc_loadNotifications();
 
+// Debug: monitor when `notificationPanel` class/style changes or when its
+// classList is mutated. Temporary instrumentation to diagnose why the panel
+// jumps to bottom-right on Collections after open/close cycles.
+try {
+  if (!window._oc_debug_classlist_wrapped) {
+    const _origAdd = DOMTokenList.prototype.add;
+    const _origRemove = DOMTokenList.prototype.remove;
+    DOMTokenList.prototype.add = function (...args) {
+      const res = _origAdd.apply(this, args);
+      try {
+        const p = document.getElementById('notificationPanel');
+        if (p && p.classList === this) {
+          console.debug('OC: classList.add on notificationPanel ->', args, '\nSTACK:\n', new Error().stack);
+        }
+      } catch { }
+      return res;
+    };
+    DOMTokenList.prototype.remove = function (...args) {
+      const res = _origRemove.apply(this, args);
+      try {
+        const p = document.getElementById('notificationPanel');
+        if (p && p.classList === this) {
+          console.debug('OC: classList.remove on notificationPanel ->', args, '\nSTACK:\n', new Error().stack);
+        }
+      } catch { }
+      return res;
+    };
+    window._oc_debug_classlist_wrapped = true;
+  }
+} catch { }
+
+// Attach a MutationObserver to the panel once it exists (poll briefly).
+try {
+  (function attachPanelObserver() {
+    let tries = 0;
+    const t = setInterval(() => {
+      try {
+        const panel = document.getElementById('notificationPanel');
+        if (!panel) {
+          tries++;
+          if (tries > 50) clearInterval(t);
+          return;
+        }
+        clearInterval(t);
+        try {
+          const mo = new MutationObserver((mutations) => {
+            mutations.forEach(m => {
+              try {
+                if (m.attributeName === 'class' || m.attributeName === 'style') {
+                  console.debug('OC: panel mutation', m.attributeName, 'class=', panel.className, 'style=', panel.getAttribute('style'));
+                }
+              } catch { }
+            });
+          });
+          mo.observe(panel, { attributes: true, attributeFilter: ['class', 'style'] });
+        } catch { }
+      } catch { clearInterval(t); }
+    }, 100);
+  })();
+} catch { }
+
 // Global client error logger to help diagnose runtime issues
 try {
   if (!window._oc_error_bound) {
@@ -85,35 +146,41 @@ function ensureNotificationUI() {
       st.id = styleId;
       st.textContent = `
       
-.notification-panel{
-  background:#fff;
-  border:1px solid rgba(0,0,0,0.08);
-  border-radius:10px;
-  padding:12px;
-  box-shadow:0 4px 24px rgba(0,0,0,0.12);
-  color:#111;
-  min-width:520px; /* wider panel so controls don't wrap and create a scrollbar */
-}
-#notificationList{
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-  max-height:72vh; /* slightly larger list to reduce chance of showing scroll on open */
-  overflow:auto;
-}
+      .notification-panel{
+      background:#fff;
+      border:1px solid rgba(0,0,0,0.08);
+      border-radius:12px;
+      padding:8px;
+      box-shadow:0 12px 24px rgba(0,0,0,0.14);
+      color:#111;
+      position:fixed !important; /* ensure it's rendered above page containers */
+      width:480px !important; /* slightly wider so control buttons fit */
+      max-width: calc(100vw - 32px) !important;
+      /* no forced min-height: let height adapt to content; allow scrolling when very tall */
+      max-height:60vh !important;
+      display:flex;
+      flex-direction:column;
+      box-sizing: border-box;
+      z-index: 1100 !important;
+      overflow-x: hidden !important;
+    }
 
-      .notif-card{display:flex;align-items:center;gap:12px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:#fff;padding:10px 12px;position:relative}
-      .notif-accent{flex:0 0 28px;width:28px;height:28px;border-radius:50%;display:flex;justify-content:center;align-items:center;color:#fff}
+/* ensure internal list never creates horizontal scroll */
+#notificationList{display:flex;flex-direction:column;gap:8px;flex:1 1 auto;overflow-y:auto;word-wrap:break-word;overflow-x:hidden}
+
+      .notif-card{display:grid;grid-template-columns:32px 1fr 24px;align-items:start;gap:12px;border-radius:8px;border:1px solid rgba(0,0,0,0.04);background:#fff;padding:10px 12px;position:relative}
+      .notif-accent{width:32px;height:32px;border-radius:50%;display:flex;justify-content:center;align-items:center;color:#fff}
       .notif-accent .material-icons{font-size:18px;line-height:1}
-      .notif-content{flex:1 1 auto;line-height:1.4;color:#111}
-      .notification-close{margin-left:8px;color:#666;cursor:pointer;border:none;background:transparent;font-size:14px}
+      .notif-content{line-height:1.3;color:#111;overflow-wrap:break-word}
+      .notification-close{justify-self:end;color:#666;cursor:pointer;border:none;background:transparent;font-size:16px;line-height:1}
       .notif--info .notif-accent{background:#2563eb}
       .notif--error .notif-accent{background:#ef4444}
       .notif--warning .notif-accent{background:#f59e0b}
       /* Panel filter buttons - softer pastel variants with left icons */
-      .notif-info{background:rgba(96,165,250,0.15);color:#0b5cff;border-color:rgba(96,165,250,0.2);}
+      /* Make information button pastel light-blue (not green) */
+      .notif-info{background:rgba(191,219,254,0.22) !important;color:#0b5cff;border-color:rgba(191,219,254,0.28) !important}
       .notif-info .material-icons{color:#0b5cff;margin-right:6px}
-      .notif-info:hover{background:rgba(96,165,250,0.22)}
+      .notif-info:hover{background:rgba(191,219,254,0.28) !important}
       .notif-warning{background:rgba(250,204,21,0.12);color:#a16207;border-color:rgba(250,204,21,0.15);}
       .notif-warning .material-icons{color:#a16207;margin-right:6px}
       .notif-warning:hover{background:rgba(250,204,21,0.18)}
@@ -123,8 +190,62 @@ function ensureNotificationUI() {
       /* Global grid pagination style: smaller, consistent buttons */
       .grid-pagination .btn, .grid-pagination .btn-sm, .grid-pagination .btn-xs { padding: 6px 8px; font-size: 0.85rem; }
       .grid-pagination .page-indicator { font-size: 0.9rem; color: #4b5563; }
+      /* Make dropdown contents a bit wider and prevent horizontal scroll across all pages */
+      .dropdown .dropdown-content, .dropdown-content.w-40, .dropdown-content.w-52, .dropdown-content.w-56, .dropdown-content.w-64 {
+        /* Relax large forced width so dropdowns can adapt on narrow pages */
+        min-width: 10rem !important;
+        max-width: calc(100vw - 48px) !important;
+        overflow-x: hidden !important;
+        box-sizing: border-box;
+        white-space: normal !important;
+        word-break: break-word !important;
+      }
       `;
       document.head.appendChild(st);
+      // Ensure strong overrides for notification control visuals (pastel info button, aligned controls)
+      try {
+        if (!document.getElementById('oc-notif-override')) {
+          const ov = document.createElement('style');
+          ov.id = 'oc-notif-override';
+          ov.textContent = `
+            /* Normalize control button sizing and alignment inside notification panel */
+            #notificationPanel .notification-controls .btn {
+              position: relative !important;
+              padding: 6px 12px !important;
+              display: inline-flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              gap: 8px !important;
+              line-height: 1 !important;
+              box-shadow: none !important;
+              text-align: center !important;
+              min-width: 92px !important;
+              padding-left: 44px !important; /* make space for absolute icon */
+            }
+            /* Position icon absolutely so text can be perfectly centered */
+            #notificationPanel .notification-controls .btn .material-icons {
+              position: absolute !important;
+              left: 12px !important;
+              top: 50% !important;
+              transform: translateY(-50%) !important;
+              margin: 0 !important;
+            }
+            /* Pastel blue Information button */
+            #notificationPanel .notification-controls .notif-info {
+              background: rgba(191,219,254,0.22) !important;
+              color: #0b5cff !important;
+              border: 1px solid rgba(191,219,254,0.28) !important;
+              box-shadow: none !important;
+            }
+            #notificationPanel .notification-controls .notif-info .material-icons {
+              color: #0b5cff !important;
+            }
+            /* Prevent the info button from being colored by other theme rules */
+            #notificationPanel .notification-controls .notif-info:hover { background: rgba(191,219,254,0.28) !important; }
+          `;
+          document.head.appendChild(ov);
+        }
+      } catch { }
     }
   } catch { }
   // Defensive cleanup: ensure only one bell and one notification badge exist
@@ -152,7 +273,25 @@ function ensureNotificationUI() {
     bell.id = 'notificationBell';
     bell.className = 'bell';
     bell.setAttribute('aria-label', 'Notifications');
-    bell.onclick = toggleNotificationPanel;
+    // Use event listener and stop propagation so opening the panel
+    // doesn't trigger a document-level click-away handler immediately.
+    if (!bell._oc_bound_toggle) {
+      bell._oc_bound_toggle = true;
+      // Ensure bell is on top so overlays/selected rows don't block clicks
+      try { bell.style.zIndex = '200000'; bell.style.pointerEvents = 'auto'; } catch { }
+      // Use capture-phase pointerdown so we run before most grid handlers
+      bell.addEventListener('pointerdown', (e) => {
+        try { e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); } catch { }
+        try { window._oc_ignoreNextDocClick = true; } catch { }
+        setTimeout(() => { try { window._oc_ignoreNextDocClick = false; } catch { } }, 300);
+        const panel = document.getElementById('notificationPanel');
+        if (!panel) return;
+        try { if (window._notificationPanelOpen) { closeNotificationPanel(); return; } } catch { }
+        openNotificationPanel();
+      }, { capture: true });
+      // Also keep a safe click-phase handler that stops propagation
+      bell.addEventListener('click', (e) => { try { e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); } catch { } });
+    }
 
     // Bell icon
     const icon = document.createElement('span');
@@ -204,6 +343,8 @@ function ensureNotificationUI() {
         const menu = document.createElement('ul');
         menu.tabIndex = 0;
         menu.className = 'dropdown-content menu p-2 shadow bg-base-100 rounded-box w-40';
+        // start hidden so the activator's first click shows the menu
+        menu.classList.add('hidden');
         menu.style.left = '0';
         menu.style.right = 'auto';
         menu.style.top = 'calc(100% + 4px)';
@@ -401,20 +542,38 @@ function ensureNotificationUI() {
     panel.id = 'notificationPanel';
     panel.className = 'notification-panel hidden';
 
+    // Defensive inline-hidden state: some pages may not include the
+    // expected `.hidden { display:none }` rule early, so ensure the
+    // panel is invisible until explicitly opened.
+    try {
+      panel.style.display = 'none';
+      panel.style.visibility = 'hidden';
+      panel.style.left = '';
+      panel.style.right = '';
+      panel.style.top = '';
+      panel.style.bottom = 'auto';
+    } catch { }
+
     const list = document.createElement('div');
     list.id = 'notificationList';
     panel.appendChild(list);
 
     // Controls row: Dismiss all (thin) + type filters (info/warning/error)
     const controls = document.createElement('div');
+    controls.className = 'notification-controls';
     controls.style.display = 'flex';
     controls.style.gap = '8px';
     controls.style.marginTop = '8px';
+    // keep all control buttons on one line
+    controls.style.flexWrap = 'nowrap';
+    controls.style.alignItems = 'center';
+    controls.style.justifyContent = 'flex-start';
 
     const dismissBtn = document.createElement('button');
     dismissBtn.className = 'btn btn-xs';
     dismissBtn.textContent = 'Dismiss all';
     dismissBtn.onclick = dismissAll;
+    dismissBtn.style.flex = '0 0 auto';
     controls.appendChild(dismissBtn);
 
     const infoBtn = document.createElement('button');
@@ -425,6 +584,17 @@ function ensureNotificationUI() {
       window._notificationFilterType = 'info';
       updateNotificationBell();
     };
+    // Force pastel blue styling inline to override theme colors
+    try {
+      infoBtn.style.flex = '0 0 auto';
+      infoBtn.style.backgroundColor = 'rgba(191,219,254,0.22)';
+      infoBtn.style.color = '#0b5cff';
+      infoBtn.style.border = '1px solid rgba(191,219,254,0.28)';
+      infoBtn.style.boxShadow = 'none';
+      infoBtn.style.padding = '6px 10px';
+      const ico = infoBtn.querySelector('.material-icons');
+      if (ico) ico.style.color = '#0b5cff';
+    } catch { }
     controls.appendChild(infoBtn);
 
     const warnBtn = document.createElement('button');
@@ -435,6 +605,7 @@ function ensureNotificationUI() {
       window._notificationFilterType = 'warning';
       updateNotificationBell();
     };
+    warnBtn.style.flex = '0 0 auto';
     controls.appendChild(warnBtn);
 
     const errorBtn = document.createElement('button');
@@ -445,15 +616,19 @@ function ensureNotificationUI() {
       window._notificationFilterType = 'error';
       updateNotificationBell();
     };
+    errorBtn.style.flex = '0 0 auto';
     controls.appendChild(errorBtn);
 
     panel.appendChild(controls);
 
-    // panel will be absolutely positioned by JS when opened
-    panel.style.position = 'absolute';
-    panel.style.zIndex = '100000';
-
-    document.body.appendChild(panel);
+    // Force panel to be fixed to the viewport so it never scrolls with page containers
+    // Use CSS priority to override any page styles that might create transformed ancestors
+    try {
+      panel.style.setProperty('position', 'fixed', 'important');
+      panel.style.setProperty('z-index', '100000', 'important');
+    } catch { /* ignore */ }
+    // Ensure the panel is attached directly to the document body (viewport context)
+    try { document.body.appendChild(panel); } catch { document.documentElement.appendChild(panel); }
   }
 
   // adjust position to avoid overlapping export button
@@ -476,6 +651,31 @@ function ensureNotificationUI() {
         updateNotificationBell();
       }
     });
+  } catch { }
+
+  // Prevent the Menu (eventlogDropdown) from being auto-closed by other document
+  // click handlers: when the Menu is open, capture outside clicks and stop
+  // other listeners from running so the Menu only closes when its activator
+  // is clicked again.
+  try {
+    // Close `#eventlogDropdown` when clicking outside of it.
+    document.addEventListener('click', (e) => {
+      try {
+        const dd = document.getElementById('eventlogDropdown');
+        if (!dd) return;
+        if (!dd.classList.contains('dropdown-open')) return;
+        // If the click is inside the dropdown or on the activator, allow it
+        if (dd.contains(e.target)) return;
+        const activator = dd.querySelector('[role="button"]') || dd.querySelector('#adminLabel');
+        if (activator && activator.contains(e.target)) return;
+        // Click outside: close the dropdown
+        try {
+          dd.classList.remove('dropdown-open');
+          const content = dd.querySelector('.dropdown-content');
+          if (content) content.classList.add('hidden');
+        } catch { }
+      } catch { }
+    }, true); // use capture phase so we run before bubble-phase closers
   } catch { }
 
   // Ensure admin change-store modal HTML exists
@@ -570,6 +770,8 @@ function ensureNotificationUI() {
         const menu = document.createElement('ul');
         menu.tabIndex = 0;
         menu.className = 'dropdown-content menu p-2 shadow bg-base-100 rounded-box w-40';
+        // start hidden so the activator's first click shows the menu
+        menu.classList.add('hidden');
         // Open directly below the activator, but align to open toward the left side to keep content visible
         menu.style.left = 'auto';
         menu.style.right = '0';
@@ -677,6 +879,23 @@ function ensureNotificationUI() {
         });
       }
 
+        // Ensure admin label toggles its dropdown menu on click
+        try {
+          if (adminLabel && !adminLabel._oc_bound_toggle) {
+            adminLabel._oc_bound_toggle = true;
+            adminLabel.addEventListener('click', (e) => {
+              try { e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); } catch { }
+              try { window._oc_ignoreNextDocClick = true; } catch { }
+              setTimeout(() => { try { window._oc_ignoreNextDocClick = false; } catch { } }, 300);
+              const dd = document.getElementById('userDropdown');
+              if (!dd) return;
+              dd.classList.toggle('dropdown-open');
+              const menu = dd.querySelector('.dropdown-content');
+              if (menu) menu.classList.toggle('hidden');
+            });
+          }
+        } catch { }
+
       // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
       // CALL to hide duplicate "Log Out" after dropdown is ready
       hideStandaloneLogout();
@@ -704,6 +923,8 @@ function ensureNotificationUI() {
             const menu = document.createElement('ul');
             menu.tabIndex = 0;
             menu.className = 'dropdown-content menu p-2 shadow bg-base-100 rounded-box w-56';
+            // start hidden so the activator's first click shows the menu
+            menu.classList.add('hidden');
             menu.innerHTML = `
               <li><a href="/contracts" id="ddContracts"><span class="material-icons mr-2">receipt</span>Contracts</a></li>
               <li><a href="/products" id="ddProducts"><span class="material-icons mr-2">inventory_2</span>Products</a></li>
@@ -719,6 +940,29 @@ function ensureNotificationUI() {
             if (parent.firstChild) parent.insertBefore(wrapper, parent.firstChild); else parent.appendChild(wrapper);
             wrapper.appendChild(activator);
             wrapper.appendChild(menu);
+
+            // Toggle dropdown on activator click (open on first click, close on second)
+            if (!activator._oc_bound_toggle) {
+              activator._oc_bound_toggle = true;
+              // Use capture-phase pointerdown to open the menu and stop propagation
+              // so other global handlers (pointerdown/click) won't immediately close it.
+              if (!activator._oc_bound_pointer) {
+                activator._oc_bound_pointer = true;
+                activator.addEventListener('click', (e) => {
+                  try { e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); } catch { }
+                  // Short ignore guard so document-level click handlers don't
+                  // treat this opening click as a click-away.
+                  try { window._oc_ignoreNextDocClick = true; } catch { }
+                  setTimeout(() => { try { window._oc_ignoreNextDocClick = false; } catch { } }, 300);
+
+                  const w = document.getElementById('eventlogDropdown');
+                  if (!w) return;
+                  w.classList.toggle('dropdown-open');
+                  const content = w.querySelector('.dropdown-content');
+                  if (content) content.classList.toggle('hidden');
+                });
+              }
+            }
 
             // Bind Change Store modal open
             const ddChange = menu.querySelector('#ddChangeStore');
@@ -1193,8 +1437,12 @@ function updateNotificationBell(persist = true) {
   // If panel is currently open, keep it anchored at the cached position
   const panel = document.getElementById('notificationPanel');
   if (panel && !panel.classList.contains('hidden') && window._notificationPanelPos) {
-    panel.style.left = `${window._notificationPanelPos.left}px`;
-    panel.style.top = `${window._notificationPanelPos.top}px`;
+    // Prefer anchoring by right/top when available (we anchor to bell by right edge)
+    if (window._notificationPanelPos.right !== undefined) {
+      panel.style.left = '';
+      panel.style.right = `${window._notificationPanelPos.right}px`;
+    }
+    if (window._notificationPanelPos.top !== undefined) panel.style.top = `${window._notificationPanelPos.top}px`;
   }
 }
 
@@ -1326,12 +1574,26 @@ function attachTableSort(selector) {
 function closeNotificationPanel() {
   const panel = document.getElementById('notificationPanel');
   if (!panel) return;
+  try { console.debug('OC: closeNotificationPanel start', { class: panel.className, style: panel.getAttribute && panel.getAttribute('style') }); } catch {}
   panel.classList.add('hidden');
+  // Strongly enforce hidden state to avoid page CSS/scripts moving the panel
+  try { panel.style.display = 'none'; } catch {}
+  try { panel.style.visibility = 'hidden'; } catch {}
+  try { panel.style.left = ''; panel.style.right = ''; panel.style.top = ''; panel.style.bottom = 'auto'; } catch {}
+  try { panel.style.width = ''; } catch {}
+  try {
+    // Remove any capture-phase outside handler if present
+    if (window._notificationOutsideHandler) {
+      try { document.removeEventListener('pointerdown', window._notificationOutsideHandler, true); } catch { }
+      try { document.removeEventListener('click', window._notificationOutsideHandler, false); } catch { }
+      window._notificationOutsideHandler = null;
+    }
+  } catch { }
   panel.style.left = '';
   panel.style.top = '';
   panel.style.width = '';
-  panel.style.display = '';
-  panel.style.visibility = '';
+  panel.style.display = 'none';
+  panel.style.visibility = 'hidden';
   window._notificationPanelPos = null;
   // Reset notification filter on close so all messages are shown next time
   window._notificationFilterType = null;
@@ -1340,45 +1602,155 @@ function closeNotificationPanel() {
     document.removeEventListener('click', window._notificationOutsideHandler);
     window._notificationOutsideHandler = null;
   }
+  try {
+    if (window._oc_notificationReposition) {
+      window.removeEventListener('scroll', window._oc_notificationReposition, { passive: true });
+      window.removeEventListener('resize', window._oc_notificationReposition);
+      window._oc_notificationReposition = null;
+    }
+  } catch { }
+    try { window._notificationPanelOpen = false; } catch { }
+
+  // Temporary guard: reapply hidden inline styles a few times in case other
+  // scripts race and try to re-show/move the panel. This is defensive and
+  // kept short to avoid loops.
+  try {
+    let _tries = 0;
+    const _ti = setInterval(() => {
+      try {
+        const p = document.getElementById('notificationPanel');
+        if (!p || !p.classList.contains('hidden')) {
+          _tries++;
+          if (_tries > 8) clearInterval(_ti);
+          return;
+        }
+        p.style.display = 'none';
+        p.style.visibility = 'hidden';
+        p.style.left = '';
+        p.style.right = '';
+        p.style.top = '';
+        p.style.bottom = 'auto';
+        p.style.width = '';
+        _tries++;
+        if (_tries > 8) clearInterval(_ti);
+      } catch { clearInterval(_ti); }
+    }, 80);
+  } catch { }
 }
 
 function openNotificationPanel() {
   const panel = document.getElementById('notificationPanel');
   const bell = document.getElementById('notificationBell');
   if (!panel || !bell) return;
+  try { console.debug('OC: openNotificationPanel start', { panelClass: panel.className }); } catch {}
+  // Ensure panel is a direct child of document.body so fixed positioning
+  // is relative to the viewport and not a transformed ancestor.
+  try { if (panel.parentElement !== document.body) document.body.appendChild(panel); } catch { }
+  // prevent re-entrancy: if already open, do nothing
+  try { if (window._notificationPanelOpen) return; } catch { }
   updateNotificationBell();
-  // Show the panel invisibly to measure its size
+  // Show the panel invisibly to measure its size (use fixed positioning)
   panel.classList.remove('hidden');
+  // Re-assert fixed positioning to guard against page CSS that forces different behavior
+  try { panel.style.setProperty('position', 'fixed', 'important'); panel.style.setProperty('z-index', '100000', 'important'); } catch { }
   panel.style.visibility = 'hidden';
   panel.style.display = 'block';
-  const rect = bell.getBoundingClientRect();  
-  const desiredWidth = 520;
-  const panelWidth = Math.max(panel.offsetWidth || 0, desiredWidth);
-  // compute left so panel's right edge aligns with bell's right edge
-  // With fixed-position panel, compute using viewport coordinates
-  const left = Math.min(rect.right - panelWidth + 8, window.innerWidth - panelWidth - 8);
-  const top = rect.bottom + 8;
-  panel.style.left = `${left}px`;
+  const rect = bell.getBoundingClientRect();
+  const desiredWidth = 480; // base target width (matches CSS min-width)
+  // Allow the panel to shrink to fit viewport when necessary (keep 24px margin both sides)
+  const maxAllowed = Math.max(200, window.innerWidth - 48);
+  let panelWidth = Math.max(panel.offsetWidth || 0, desiredWidth);
+  if (panelWidth > maxAllowed) panelWidth = maxAllowed;
+  // Anchor panel's right edge to bell's right edge so it appears directly below the bell.
+  // Special-case: some pages (Collections) have layout rules that affect bounding rects;
+  // when on /collections, anchor relative to the navbar right edge to avoid jumping.
+  let desiredRight;
+  let top;
+  try {
+    const path = (location && location.pathname || '').toLowerCase();
+    if (path.includes('/collections')) {
+      const navbar = document.querySelector('.navbar');
+      const nrect = navbar ? navbar.getBoundingClientRect() : rect;
+      top = (nrect.bottom || rect.bottom) + 8;
+      // anchor to the navbar right edge so panel aligns with header controls
+      try {
+        const navbarRight = nrect.right || rect.right;
+        desiredRight = Math.max(8, Math.round(window.innerWidth - navbarRight + 8));
+      } catch { desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8)); }
+    } else {
+      desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8));
+      top = rect.bottom + 8; // viewport coordinates for fixed positioning
+    }
+  } catch { desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8)); top = rect.bottom + 8; }
+  // Apply right anchoring and clear left to avoid conflicting layout rules
+  panel.style.left = '';
+  panel.style.right = `${desiredRight}px`;
   panel.style.top = `${top}px`;
   // Lock width while open so content changes (e.g., dismiss all) don't reflow and shift alignment
+  // Apply inline width to win over page-specific CSS rules
   panel.style.width = `${panelWidth}px`;
   panel.style.visibility = '';
   panel.style.display = '';
+  panel.style.bottom = 'auto';
+
+  // Ensure toast container is aligned with the navbar as well
+  try { adjustToastContainer(); } catch { }
 
   // Cache position while open to prevent jumps during content changes
-  window._notificationPanelPos = { left, top };
+  // Store right/top (we anchor panel by right to the bell)
+  window._notificationPanelPos = { right: desiredRight, top };
+
+  try { window._notificationPanelOpen = true; } catch { }
 
   // Add click-away handler after current event loop to avoid immediate close
+  // Short guard: ignore any document clicks that occur immediately after opening.
+  try { window._oc_ignoreNextDocClick = true; } catch { window._oc_ignoreNextDocClick = false; }
+  setTimeout(() => { try { window._oc_ignoreNextDocClick = false; } catch { } }, 150);
+
   setTimeout(() => {
+    // Ensure we don't leave duplicate handlers attached; attach capture-phase pointerdown
+    try {
+      if (window._notificationOutsideHandler) {
+        try { document.removeEventListener('pointerdown', window._notificationOutsideHandler, true); } catch { }
+        try { document.removeEventListener('click', window._notificationOutsideHandler, false); } catch { }
+        window._notificationOutsideHandler = null;
+      }
+    } catch { }
+
     window._notificationOutsideHandler = function (e) {
+      try { console.debug('OC: outsideHandler invoked', { target: e.target && (e.target.id || e.target.className || e.target.tagName) }); } catch {}
+      try { if (window._oc_ignoreNextDocClick) return; } catch { }
       const panelEl = document.getElementById('notificationPanel');
       const bellEl = document.getElementById('notificationBell');
       if (!panelEl) return;
+      // If click target is inside panel or bell, do nothing
       if (panelEl.contains(e.target) || (bellEl && bellEl.contains(e.target))) return;
+      try { console.debug('OC: outsideHandler closing panel'); } catch {}
       closeNotificationPanel();
     };
-    document.addEventListener('click', window._notificationOutsideHandler);
+    // Capture-phase pointerdown runs before many bubble-phase handlers and will catch outside clicks/taps
+    document.addEventListener('pointerdown', window._notificationOutsideHandler, true);
+    // Keep a bubble-phase click fallback for environments that may not fire pointer events
+    document.addEventListener('click', window._notificationOutsideHandler, false);
   }, 0);
+
+  // Keep the panel anchored to the bell while open (reposition on scroll/resize)
+  try {
+    window._oc_notificationReposition = function () {
+      try {
+        const bell = document.getElementById('notificationBell');
+        const panel = document.getElementById('notificationPanel');
+        if (!bell || !panel) return;
+        const rect = bell.getBoundingClientRect();
+        const desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8));
+        const top = rect.bottom + 8;
+        panel.style.right = `${desiredRight}px`;
+        panel.style.top = `${top}px`;
+      } catch { }
+    };
+    window.addEventListener('scroll', window._oc_notificationReposition, { passive: true });
+    window.addEventListener('resize', window._oc_notificationReposition);
+  } catch { }
 }
 
 function toggleNotificationPanel() {
@@ -1544,6 +1916,9 @@ function ensureAdminChangeStoreModal() {
   // Wire buttons
   const cancelBtn = modal.querySelector('#adminStoreCancel');
   const okBtn = modal.querySelector('#adminStoreOk');
+  // Ensure buttons don't act as form submit buttons by default
+  try { if (cancelBtn) cancelBtn.type = 'button'; } catch { }
+  try { if (okBtn) okBtn.type = 'button'; } catch { }
   if (cancelBtn && !cancelBtn._oc_bound) {
     cancelBtn._oc_bound = true;
     cancelBtn.addEventListener('click', (e) => {

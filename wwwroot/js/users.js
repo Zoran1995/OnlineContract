@@ -638,6 +638,23 @@
     if (!selectedUserId) { showToast('warning', 'Select a user first'); return; }
     const u = items.find(x => x.id === selectedUserId);
     if (!u) { showToast('error', 'User not found'); return; }
+    const dlg = document.getElementById('userDeleteConfirm');
+    const okBtn = document.getElementById('userConfirmOk');
+    if (!dlg || !okBtn || !dlg.showModal) {
+      if (!confirm('Delete the selected user? This action cannot be undone.')) return;
+    } else {
+      let resolved = false;
+      const onOk = (e) => { e.preventDefault(); resolved = true; try { dlg.close(); } catch {} };
+      okBtn.addEventListener('click', onOk, { once: true });
+      dlg.addEventListener('close', () => {
+        if (!resolved) return;
+        proceedDelete();
+      }, { once: true });
+      try { dlg.showModal(); } catch { if (!confirm('Delete the selected user? This action cannot be undone.')) return; }
+      if (!dlg.open && !resolved) return;
+      if (!dlg.open && resolved) return;
+      return;
+    }
 
     try {
       const userId = localStorage.getItem('userId') ?? 2;
@@ -655,6 +672,28 @@
       }
     } catch {
       showToast('error', 'Delete failed');
+    }
+
+    function proceedDelete() {
+      (async function() {
+        try {
+          const userId = localStorage.getItem('userId') ?? 2;
+          const res = await fetch(`/api/users/${u.id}/delete?userId=${userId}`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' }
+          });
+          if (res.ok) {
+            showToast('info', 'User deleted');
+            selectedUserId = null;
+            await loadUsers();
+          } else {
+            showToast('error', 'Delete failed');
+          }
+        } catch {
+          showToast('error', 'Delete failed');
+        }
+      })();
     }
   }
 })();

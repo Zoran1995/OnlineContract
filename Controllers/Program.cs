@@ -635,6 +635,8 @@ app.MapPost("/api/users/{id}/delete", async (AppDbContext db, int id, int? userI
     {
         var u = await db.AxUsers.FirstOrDefaultAsync(x => x.Id == id);
         if (u == null) return Results.NotFound(new { message = "User not found." });
+        // Deactivate and mark deleted
+        u.IsActive = false;
         u.IsDeleted = true;
         await db.SaveChangesAsync();
         await LoggerHelper.LogEventAsync(db, EventType.Information, "User deleted", $"Code={u.Code}", userId ?? 2);
@@ -1039,7 +1041,7 @@ app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q,
 
         IQueryable<Product> products = db.Products
             .AsNoTracking()
-            .Where(p => p.Id > 0 && !p.IsDeleted);
+            .Where(p => p.Id > 0 && !p.IsDeleted && p.IsActive);
 
         if (!string.IsNullOrWhiteSpace(q))
         {
@@ -1052,17 +1054,17 @@ app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q,
             from p in products
             let qty1 =
                 (from v in db.ProductVariants.AsNoTracking()
-                 where !v.IsDeleted && v.ProductId == p.Id
+                  where !v.IsDeleted && v.ProductId == p.Id && v.IsActive
                  join i in db.ProductInventories.AsNoTracking()
                       on v.Id equals i.ProductVariantId
-                 where !i.IsDeleted && i.StoreId == 1
+                  where !i.IsDeleted && i.StoreId == 1 && i.IsActive
                  select (int?)i.QtyOnHand).Sum()
             let qty2 =
                 (from v in db.ProductVariants.AsNoTracking()
-                 where !v.IsDeleted && v.ProductId == p.Id
+                  where !v.IsDeleted && v.ProductId == p.Id && v.IsActive
                  join i in db.ProductInventories.AsNoTracking()
                       on v.Id equals i.ProductVariantId
-                 where !i.IsDeleted && i.StoreId == 2
+                  where !i.IsDeleted && i.StoreId == 2 && i.IsActive
                  select (int?)i.QtyOnHand).Sum()
             select new
             {
@@ -1087,10 +1089,10 @@ app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q,
                     from r in baseQuery
                     let qtySelected =
                         (from v in db.ProductVariants.AsNoTracking()
-                         where !v.IsDeleted && v.ProductId == r.Id
+                        where !v.IsDeleted && v.ProductId == r.Id && v.IsActive
                          join i in db.ProductInventories.AsNoTracking()
                               on v.Id equals i.ProductVariantId
-                         where !i.IsDeleted && i.StoreId == sid
+                         where !i.IsDeleted && i.StoreId == sid && i.IsActive
                          select (int?)i.QtyOnHand).Sum()
                     where (qtySelected ?? 0) > 0
                     select r;
@@ -1425,6 +1427,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                 {
                     inv.IsDeleted        = false;
                     inv.QtyOnHand        = Clamp(qty);
+                    inv.IsActive         = true;
                     inv.LastModifiedById = uid;
                     inv.LastUpdatedDt    = DateTime.UtcNow;
                 }
@@ -1533,15 +1536,45 @@ app.MapPost("/api/products/{id:int}/deactivate", async (AppDbContext db, HttpCon
     if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     try
     {
+        await using var tx = await db.Database.BeginTransactionAsync();
         var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (p == null) return Results.NotFound(new { message = "Product not found." });
         var uid = GetCurrentUserId(http);
+
+        // Deactivate product
         p.IsActive = false;
         p.LastModifiedById = uid;
         p.LastUpdatedDt = DateTime.UtcNow;
+
+        // Deactivate and mark as inactive the product variants
+        var variants = await db.ProductVariants.Where(v => v.ProductId == id && !v.IsDeleted).ToListAsync();
+        var now = DateTime.UtcNow;
+        var variantIds = new List<int>();
+        foreach (var v in variants)
+        {
+            v.IsActive = false;
+            v.LastModifiedById = uid;
+            v.LastUpdatedDt = now;
+            variantIds.Add(v.Id);
+        }
+
+        // Deactivate related inventory rows
+        if (variantIds.Count > 0)
+        {
+            var inventories = await db.ProductInventories.Where(i => variantIds.Contains(i.ProductVariantId) && !i.IsDeleted).ToListAsync();
+            foreach (var inv in inventories)
+            {
+                inv.IsActive = false;
+                inv.LastModifiedById = uid;
+                inv.LastUpdatedDt = now;
+            }
+        }
+
         await db.SaveChangesAsync();
-        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deactivated", $"ProductId={p.Id}", uid);
-        return Results.Ok(new { success = true, message = "Product was successfully deactivated." });
+        await tx.CommitAsync();
+
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deactivated", $"ProductId={p.Id}; variants={variantIds.Count}", uid);
+        return Results.Ok(new { success = true, message = "Product was successfully deactivated.", variantCount = variantIds.Count });
     }
     catch (Exception ex)
     {
@@ -1575,20 +1608,55 @@ app.MapPost("/api/products/{id:int}/activate", async (AppDbContext db, HttpConte
 app.MapPost("/api/products/{id:int}/delete", async (AppDbContext db, HttpContext http, int id) =>
 {
     if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    await using var tx = await db.Database.BeginTransactionAsync();
     try
     {
         var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (p == null) return Results.NotFound(new { message = "Product not found." });
         var uid = GetCurrentUserId(http);
+
+        // Deactivate and mark as deleted the product itself
+        p.IsActive = false;
         p.IsDeleted = true;
         p.LastModifiedById = uid;
         p.LastUpdatedDt = DateTime.UtcNow;
+
+        // Find variants for this product and mark them deleted/deactivated
+        var variants = await db.ProductVariants.Where(v => v.ProductId == id && !v.IsDeleted).ToListAsync();
+        var now = DateTime.UtcNow;
+        var variantIds = new List<int>();
+        foreach (var v in variants)
+        {
+            v.IsActive = false;
+            v.IsDeleted = true;
+            v.LastModifiedById = uid;
+            v.LastUpdatedDt = now;
+            variantIds.Add(v.Id);
+        }
+
+        // Find related inventory rows and mark them deleted/deactivated
+        if (variantIds.Count > 0)
+        {
+            var inventories = await db.ProductInventories.Where(i => variantIds.Contains(i.ProductVariantId) && !i.IsDeleted).ToListAsync();
+            foreach (var inv in inventories)
+            {
+                inv.IsActive = false;
+                inv.IsDeleted = true;
+                inv.LastModifiedById = uid;
+                inv.LastUpdatedDt = now;
+            }
+        }
+
         await db.SaveChangesAsync();
-        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deleted", $"ProductId={p.Id}", uid);
-        return Results.Ok(new { success = true, message = "Product was successfully deleted." });
+        await tx.CommitAsync();
+
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deleted", $"ProductId={p.Id}; variants={variantIds.Count}", uid);
+        return Results.Ok(new { success = true, message = "Product was successfully deleted.", variantCount = variantIds.Count });
     }
     catch (Exception ex)
     {
+        try { await tx.RollbackAsync(); } catch { }
         await LoggerHelper.LogEventAsync(db, EventType.Error, "Delete product failed", ex.ToString(), GetCurrentUserId(http));
         return Results.StatusCode(500);
     }
@@ -1738,8 +1806,9 @@ app.MapPut("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
         await db.SaveChangesAsync();
         await tx.CommitAsync();
 
-        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product notes saved", $"ProductId={id}", uid);
-        return Results.Json(new { success = true, message = "Notes were successfully saved." });
+        var totalNotes = await db.Notes.CountAsync(n => n.ProductId == id && !n.IsDeleted);
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product notes saved", $"ProductId={id}; totalNotes={totalNotes}", uid);
+        return Results.Json(new { success = true, message = "Notes were successfully saved.", totalNotes });
     }
     catch (Exception ex)
     {

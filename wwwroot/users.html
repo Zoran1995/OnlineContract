@@ -10,7 +10,7 @@
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
 
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
-  <link rel="icon" href="/resources/icons/badge-heart.svg" type="image/svg+xml" />
+  <link rel="icon" href="/resources/icons/user.svg" type="image/svg+xml" />
   <link href="/css/login.css" rel="stylesheet" />
   <link href="/css/eventlog.css" rel="stylesheet" />
 
@@ -224,6 +224,18 @@
   <div id="loadingOverlay" class="loading-overlay hidden">
     <div class="loading-box">Loading...</div>
   </div>
+
+  <!-- Confirm delete user modal -->
+  <dialog id="userDeleteConfirm" class="modal">
+    <form method="dialog" class="modal-box">
+      <h3 class="font-bold text-lg mb-2">Delete User</h3>
+      <p class="mb-4">Are you sure you want to delete this user? This action cannot be undone.</p>
+      <div class="modal-action">
+        <button class="btn">Cancel</button>
+        <button id="userConfirmOk" class="btn btn-error">OK</button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- Order matters: load shared first, then users -->
   <script src="/js/shared.js"></script>

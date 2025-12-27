@@ -21,6 +21,10 @@ namespace OnlineContract.Models
         [MaxLength(4000)]
         public string? Comment { get; set; }
 
+        [Column("subject")]
+        [MaxLength(250)]
+        public string Subject { get; set; } = "";
+
         [Column("is_main")]
         public bool IsMain { get; set; }
 

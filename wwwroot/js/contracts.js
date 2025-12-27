@@ -97,7 +97,6 @@
 
   async function load() {
     try {
-      // Validacija opsega datuma
       if (datesInvalid()) {
         try { showToast('warning', 'From Date cannot be after To Date'); } catch {}
         setEmptyState(true);
@@ -129,7 +128,6 @@
         const computedPages = Math.ceil(totalCount / pageSize) || 1;
         totalPages = (Number.isFinite(apiPages) && apiPages > 0) ? apiPages : computedPages;
       }
-      // (uklonjeno) dupliranje: items = Array.isArray(data.items) ? data.items : [];
       renderRows();
       renderPager();
       setEmptyState(items.length === 0);
@@ -217,7 +215,7 @@
       return `${d.getFullYear()}-${mm}-${dd}`;
     }
 
-    // Set default dates to today on initial load (bez dodatnog DOMContentLoaded)
+    // Set default dates to today on initial load
     if (dtFrom && !dtFrom.value) dtFrom.value = todayString();
     if (dtTo && !dtTo.value) dtTo.value = todayString();
 
@@ -271,7 +269,6 @@
 
     exportBtn?.addEventListener("click", async () => {
       try {
-        // Ako nema podataka u gridu, ne eksportovati
         if (!items || items.length === 0) {
           try { showToast('warning', 'There is no data to export. Please run a search or adjust filters before exporting.'); } catch {}
           return;
