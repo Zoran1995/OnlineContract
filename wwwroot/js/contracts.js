@@ -56,6 +56,9 @@
   function updateOpenState() {
     if (btnOpen) btnOpen.disabled = !selectedId;
   }
+  function updateExportState() {
+    if (exportBtn) exportBtn.disabled = !(items && items.length > 0);
+  }
 
   function buildQuery() {
     const qs = new URLSearchParams();
@@ -86,8 +89,25 @@
     return s ? `?${s}` : "";
   }
 
+  function datesInvalid() {
+    const from = (dtFrom?.value || '').trim();
+    const to   = (dtTo?.value   || '').trim();
+    return from && to && from > to; // ISO yyyy-mm-dd comparison works directly
+  }
+
   async function load() {
     try {
+      // Validacija opsega datuma
+      if (datesInvalid()) {
+        try { showToast('warning', 'From Date cannot be after To Date'); } catch {}
+        setEmptyState(true);
+        updateExportState();
+        renderPager();
+        selectedId = null;
+        updateOpenState();
+        return;
+      }
+
       showLoading();
       setEmptyState(false);
       selectedId = null;
@@ -109,24 +129,27 @@
         const computedPages = Math.ceil(totalCount / pageSize) || 1;
         totalPages = (Number.isFinite(apiPages) && apiPages > 0) ? apiPages : computedPages;
       }
-
+      // (uklonjeno) dupliranje: items = Array.isArray(data.items) ? data.items : [];
       renderRows();
       renderPager();
       setEmptyState(items.length === 0);
+      updateExportState();
     } catch (err) {
       try { showToast('error', 'Failed to load contracts'); } catch {}
       setEmptyState(true);
+      updateExportState();
     } finally {
       hideLoading();
     }
   }
 
   function renderRows() {
+    if (!tbody) return;
     tbody.innerHTML = "";
     if (items.length === 0) {
       const tr = document.createElement("tr");
       const td = document.createElement("td");
-      td.colSpan = 4;
+      td.colSpan = 5;
       td.className = "empty";
       td.textContent = "No results.";
       tr.appendChild(td);
@@ -148,13 +171,14 @@
       const cells = [
         String(it.id),
         String(it.customerFullName ?? ''),
+        String(it.amount ?? ''),
         stateBadge(it.contractState),
         String(it.entryDate ?? '')
       ];
       cells.forEach(html => {
         const td = document.createElement("td");
         if (typeof html === "string" && html.startsWith("<")) td.innerHTML = html; else td.textContent = html;
-      tr.appendChild(td);
+        tr.appendChild(td);
       });
       tbody.appendChild(tr);
     });
@@ -162,7 +186,9 @@
   }
 
   function stateBadge(state) {
-    const s = String(state || '').toLowerCase();
+    const s = String(state || '')
+      .toLowerCase()
+      .replace(/\s+/g, ''); // "written off" -> "writtenoff"
     const color = (s === 'accepted' || s === 'completed' || s === 'delivered') ? 'badge-ok'
       : (s === 'rejected' || s === 'cancelled' || s === 'writtenoff') ? 'badge-bad'
       : 'badge-mid';
@@ -178,11 +204,23 @@
     if (pageInfo) pageInfo.textContent = `Page ${page} of ${pages}`;
     if (pageCountInfo) pageCountInfo.textContent = `Total records: ${totalCount}`;
 
-    prevPage.disabled = (page <= 1 || totalCount === 0);
-    nextPage.disabled = (page >= pages || totalCount === 0);
+    if (prevPage) prevPage.disabled = (page <= 1 || totalCount === 0);
+    if (nextPage) nextPage.disabled = (page >= pages || totalCount === 0);
   }
 
   document.addEventListener("DOMContentLoaded", () => {
+    // Helper: produce yyyy-mm-dd
+    function todayString() {
+      const d = new Date();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${d.getFullYear()}-${mm}-${dd}`;
+    }
+
+    // Set default dates to today on initial load (bez dodatnog DOMContentLoaded)
+    if (dtFrom && !dtFrom.value) dtFrom.value = todayString();
+    if (dtTo && !dtTo.value) dtTo.value = todayString();
+
     // Determine role to decide whether to hide filters (Customer view)
     fetchWhoAmI().then(auth => {
       authRoleId = parseInt(String(auth?.roleId ?? 0), 10) || 0;
@@ -199,27 +237,33 @@
     btnSearch?.addEventListener("click", (e) => { e.preventDefault(); page = 1; load(); });
     btnClear?.addEventListener("click", (e) => {
       e.preventDefault();
-      ddlState.value = "";
-      txtName.value = "";
+      ddlState && (ddlState.value = "");
+      txtName && (txtName.value = "");
+      if (dtFrom) dtFrom.value = todayString();
+      if (dtTo) dtTo.value = todayString();
       page = 1;
       load();
     });
+
     [ddlState, txtName].forEach(el => {
       if (el && !el._boundEnter) {
         el._boundEnter = true;
         el.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); page = 1; load(); } });
       }
     });
+
     prevPage?.addEventListener("click", () => { if (page > 1) { page--; load(); } });
     nextPage?.addEventListener("click", () => {
       const pages = Math.max(1, Number(totalPages || 1));
       if (page < pages) { page++; load(); }
     });
+
     pageSizeSel?.addEventListener("change", (e) => {
       pageSize = parseInt(e.target.value, 10) || 10;
       page = 1;
       load();
     });
+
     btnOpen?.addEventListener("click", () => {
       if (!selectedId) { try { showToast('warning', 'Select a contract first'); } catch {} return; }
       window.open(`/contracts/${selectedId}`, '_blank');
@@ -227,9 +271,9 @@
 
     exportBtn?.addEventListener("click", async () => {
       try {
-        // If the grid is empty (no contracts), show a friendly warning and do not export
+        // Ako nema podataka u gridu, ne eksportovati
         if (!items || items.length === 0) {
-          showToast('warning', 'There is no data to export. Please run a search or adjust filters before exporting.');
+          try { showToast('warning', 'There is no data to export. Please run a search or adjust filters before exporting.'); } catch {}
           return;
         }
 
@@ -248,11 +292,10 @@
         a.download = 'contracts.csv';
         a.click();
         window.URL.revokeObjectURL(url);
-        showToast('info', 'Export successful');
+        try { showToast('info', 'Export successful'); } catch {}
       } catch (err) {
         try { showToast('error', 'Export failed'); } catch {}
       }
     });
-
   });
 })();

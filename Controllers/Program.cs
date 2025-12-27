@@ -792,7 +792,7 @@ app.MapPut("/api/stores/{id}", async (AppDbContext db, int id, StoreUpdateDto dt
 });
 
 // Contracts API (Authorized)
-app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? state, string? name, int page, int pageSize) =>
+app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? state, string? name, string? fromDate, string? toDate, int page, int pageSize) =>
 {
     try
     {
@@ -815,6 +815,7 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
                 c.Id,
                 c.EntryDate,
                 c.ContractState,
+                c.Amount,
                 CustomerFullName = u == null
                     ? ""
                     : ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim(),
@@ -834,6 +835,17 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
                 (x.CustomerCode ?? "").ToLower().Contains(n));
         }
 
+        // Date range filters (EntryDate)
+        if (!string.IsNullOrWhiteSpace(fromDate) && DateTime.TryParse(fromDate, out var fd))
+        {
+            q = q.Where(x => x.EntryDate >= fd);
+        }
+        if (!string.IsNullOrWhiteSpace(toDate) && DateTime.TryParse(toDate, out var td))
+        {
+            var tdEnd = td.Date.AddDays(1).AddTicks(-1);
+            q = q.Where(x => x.EntryDate <= tdEnd);
+        }
+
         var totalCount = await q.CountAsync();
 
         var pageRows = await q
@@ -847,6 +859,7 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
         {
             id = x.Id,
             customerFullName = x.CustomerFullName,
+            amount = x.Amount,
             contractState = x.ContractState.ToString(),
             entryDate = x.EntryDate.ToString("yyyy-MM-dd HH:mm:ss")
         });
@@ -910,7 +923,7 @@ app.MapGet("/api/contracts/{id:int}", async (AppDbContext db, HttpContext http, 
     });
 }).RequireAuthorization();
 
-app.MapGet("/api/contracts/export", async (AppDbContext db, HttpContext http, string? state, string? name) =>
+app.MapGet("/api/contracts/export", async (AppDbContext db, HttpContext http, string? state, string? name, string? fromDate, string? toDate) =>
 {
     try
     {
@@ -930,6 +943,7 @@ app.MapGet("/api/contracts/export", async (AppDbContext db, HttpContext http, st
                 c.Id,
                 c.EntryDate,
                 c.ContractState,
+                c.Amount,
                 CustomerFullName = u == null
                     ? ""
                     : ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim(),
@@ -949,6 +963,16 @@ app.MapGet("/api/contracts/export", async (AppDbContext db, HttpContext http, st
                 (x.CustomerCode ?? "").ToLower().Contains(n));
         }
 
+        if (!string.IsNullOrWhiteSpace(fromDate) && DateTime.TryParse(fromDate, out var fd))
+        {
+            q = q.Where(x => x.EntryDate >= fd);
+        }
+        if (!string.IsNullOrWhiteSpace(toDate) && DateTime.TryParse(toDate, out var td))
+        {
+            var tdEnd = td.Date.AddDays(1).AddTicks(-1);
+            q = q.Where(x => x.EntryDate <= tdEnd);
+        }
+
         // Safety cap to avoid exporting an unbounded dataset accidentally.
         var rows = await q
             .OrderByDescending(x => x.EntryDate)
@@ -965,12 +989,14 @@ app.MapGet("/api/contracts/export", async (AppDbContext db, HttpContext http, st
         }
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Id,CustomerFullName,ContractState,EntryDate");
+        sb.AppendLine("Id,CustomerFullName,Amount,ContractState,EntryDate");
         foreach (var r in rows)
         {
             sb.Append(CsvEscape(r.Id.ToString()));
             sb.Append(',');
             sb.Append(CsvEscape(r.CustomerFullName));
+            sb.Append(',');
+            sb.Append(CsvEscape(r.Amount.ToString()));
             sb.Append(',');
             sb.Append(CsvEscape(r.ContractState.ToString()));
             sb.Append(',');

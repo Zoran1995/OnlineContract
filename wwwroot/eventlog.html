@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en" data-theme="pastel">
 <head>
@@ -41,7 +42,7 @@
       <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
         <div>
           <label class="label"><span class="label-text">Type</span></label>
-          <select id="typeFilter" class="select select-bordered w-full">
+          <select id="typeFilter" class="select select-sm select-bordered w-full">
             <option value="0" selected>All</option>
             <option value="1">Information</option>
             <option value="2">Warning</option>
@@ -49,16 +50,16 @@
           </select>
         </div>
         <div>
-          <label class="label"><span class="label-text">Date from</span></label>
-          <input id="fromDate" type="datetime-local" class="input input-bordered w-full" />
+          <label class="label"><span class="label-text">From Date</span></label>
+          <input id="fromDate" type="datetime-local" class="input input-sm input-bordered w-full" />
         </div>
         <div>
-          <label class="label"><span class="label-text">Date to</span></label>
-          <input id="toDate" type="datetime-local" class="input input-bordered w-full" />
+          <label class="label"><span class="label-text">To Date</span></label>
+          <input id="toDate" type="datetime-local" class="input input-sm input-bordered w-full" />
         </div>
         <div class="w-full flex gap-2 justify-end md:col-start-5">
-          <button id="searchBtn" class="btn btn-primary">Search</button>
-          <button id="clearBtn" class="btn btn-outline" disabled>Clear</button>
+          <button id="searchBtn" class="btn btn-sm btn-primary">Search</button>
+          <button id="clearBtn" class="btn btn-sm btn-outline" disabled>Clear</button>
         </div>
         <div class="text-sm text-gray-500 col-span-1 md:col-span-5">
           <span id="emptyState" class="hidden">No data found for selected filters.</span>

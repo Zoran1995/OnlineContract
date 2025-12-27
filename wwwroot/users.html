@@ -76,17 +76,17 @@
       <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
         <div>
           <label class="label"><span class="label-text">Name</span></label>
-          <input id="fltName" class="input input-bordered w-full" type="text" placeholder="Search by name/code" />
+          <input id="fltName" class="input input-sm input-bordered w-full" type="text" placeholder="Search by name/code" />
         </div>
         <div>
           <label class="label"><span class="label-text">Team</span></label>
-          <select id="fltTeam" class="select select-bordered w-full">
-            <option value="" selected>(All teams)</option>
+          <select id="fltTeam" class="select select-sm select-bordered w-full">
+            <option value="" selected>All teams</option>
           </select>
         </div>
         <div class="w-full flex gap-2 justify-end md:col-start-5">
-          <button id="btnSearch" class="btn btn-primary"><span class="material-icons mr-2">search</span> Search</button>
-          <button id="btnClear" class="btn btn-outline"><span class="material-icons mr-2">clear_all</span> Clear</button>
+          <button id="btnSearch" class="btn btn-sm btn-primary"><span class="material-icons mr-2">search</span> Search</button>
+          <button id="btnClear" class="btn btn-sm btn-outline"><span class="material-icons mr-2">clear_all</span> Clear</button>
         </div>
         <div class="text-sm text-gray-500 col-span-1 md:col-span-5">
           <span id="emptyState" class="hidden">No data found for selected filters.</span>
@@ -96,7 +96,7 @@
 
     <!-- Grid -->
     <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
-      <table id="usersTable" class="table table-zebra w-full" aria-label="Users & Teams">
+      <table id="usersTable" class="table table-zebra w-full" aria-label="Users &amp; Teams">
         <thead>
           <tr>
             <th>ID</th>
@@ -225,7 +225,7 @@
     <div class="loading-box">Loading...</div>
   </div>
 
-  <!-- Redosled je bitan: shared pa users -->
+  <!-- Order matters: load shared first, then users -->
   <script src="/js/shared.js"></script>
   <script src="/js/users.js"></script>
 </body>

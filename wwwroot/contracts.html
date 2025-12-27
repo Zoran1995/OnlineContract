@@ -1,6 +1,7 @@
 
 <!DOCTYPE html>
 <html lang="en" data-theme="pastel">
+
 <head>
     <meta charset="utf-8" />
     <title>KidzStyle · Contracts</title>
@@ -8,7 +9,7 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
     <link rel="icon" href="/resources/icons/clipboard-list.svg" type="image/svg+xml" />
 
     <link rel="stylesheet" href="/css/eventlog.css" />
@@ -17,8 +18,26 @@
 
     <style>
         .hidden { display: none !important; }
+
+        /* ===== Small adjustments for the filters toolbar ===== */
+        /* Vertically center text inside selects */
+        #contractsFilters select {
+            padding-top: 8px;
+            padding-bottom: 8px;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        /* Unified heights for compact controls */
+        #contractsFilters .select.select-sm { height: 36px; }
+        #contractsFilters .input.input-sm  { height: 36px; } /* NEW */
+
+        /* Compact widths (on larger screens) */
+        #ddlState { width: 11rem; }   /* ~176px */
+        #txtName  { width: 16rem; }   /* ~256px */
+        #dtFrom, #dtTo { width: 10rem; } /* ~160px */
     </style>
 </head>
+
 <body class="bg-base-200 text-base-content">
 
     <!-- Navbar (single, sticky) -->
@@ -38,9 +57,15 @@
             </a>
         </div>
         <div class="flex-none items-center gap-3">
-            <a id="navSignIn" href="/login" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</a>
-            <a id="navLogIn" href="/login" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</a>
-            <button id="exportBtn" class="btn btn-outline"><span class="material-icons mr-2">file_download</span> Export CSV</button>
+            <a id="navSignIn" href="/login" class="btn btn-outline">
+                <span class="material-icons mr-2">person_add</span> Sign In
+            </a>
+            <a id="navLogIn" href="/login" class="btn btn-primary">
+                <span class="material-icons mr-2">login</span> Log In
+            </a>
+            <button id="exportBtn" class="btn btn-outline">
+                <span class="material-icons mr-2">file_download</span> Export CSV
+            </button>
         </div>
     </div>
 
@@ -56,12 +81,13 @@
         </div>
 
         <!-- Filters -->
-        <section id="contractsFilters" class="bg-base-100 rounded-xl shadow p-4 mb-2">
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                <div>
-                    <label class="label"><span class="label-text">Contract state</span></label>
-                    <select id="ddlState" class="select select-bordered w-full">
-                        <option value="" selected>All states</option>
+        <section id="contractsFilters" class="mb-3">
+            <!-- CHANGED: items-center -> items-end -->
+            <div class="grid grid-cols-12 gap-x-2 gap-y-1 items-end"> <!-- NEW -->
+                <!-- All states -->
+                <div class="col-span-12 md:col-span-2">
+                    <select id="ddlState" class="select select-sm select-bordered w-full md:w-auto">
+                        <option value="">All states</option>
                         <option>Draft</option>
                         <option>Accepted</option>
                         <option>Partially Accepted</option>
@@ -76,27 +102,35 @@
                     </select>
                 </div>
 
-                <div class="md:col-span-2">
-                    <label class="label"><span class="label-text">Customer full name</span></label>
-                    <input id="txtName" type="text" class="input input-bordered w-full" placeholder="Search by customer..." />
+                <!-- Customer full name -->
+                <div class="col-span-12 md:col-span-3">
+                    <input id="txtName" class="input input-sm input-bordered w-full md:w-auto"
+                           placeholder="Customer full name" />
                 </div>
 
-                <div>
-                    <label class="label"><span class="label-text">From Date</span></label>
-                    <input id="dtFrom" type="date" class="input input-bordered w-full" />
-                </div>
-                <div>
-                    <label class="label"><span class="label-text">To Date</span></label>
-                    <input id="dtTo" type="date" class="input input-bordered w-full" />
+                <!-- From Date -->
+                <div class="col-span-6 md:col-span-2">
+                    <label for="dtFrom" class="block text-xs font-medium mb-1">From Date</label>
+                    <input id="dtFrom" type="date" class="input input-sm input-bordered w-full md:w-auto" />
                 </div>
 
-                <div class="w-full flex gap-2 justify-end md:col-start-5">
-                    <button id="btnSearch" class="btn btn-primary"><span class="material-icons mr-2">search</span> Search</button>
-                    <button id="btnClear" class="btn btn-outline"><span class="material-icons mr-2">clear_all</span> Clear</button>
+                <!-- To Date -->
+                <div class="col-span-6 md:col-span-2">
+                    <label for="dtTo" class="block text-xs font-medium mb-1">To Date</label>
+                    <input id="dtTo" type="date" class="input input-sm input-bordered w-full md:w-auto" />
                 </div>
 
-                <div class="text-sm text-gray-500 col-span-1 md:col-span-5">
-                    <span id="emptyState" class="hidden">No data found for selected filters.</span>
+                <!-- Actions (right) -->
+                <div class="col-span-12 md:col-span-3 flex gap-2 justify-start md:justify-end self-end">
+                    <!-- ONLY CHANGE: added icons to Search/Clear -->
+                    <button id="btnSearch" class="btn btn-sm btn-primary">
+                        <span class="material-icons mr-1 align-middle" aria-hidden="true">search</span>
+                        <span class="align-middle">Search</span>
+                    </button>
+                    <button id="btnClear" class="btn btn-sm">
+                        <span class="material-icons mr-1 align-middle" aria-hidden="true">menu</span>
+                        <span class="align-middle">Clear</span>
+                    </button>
                 </div>
             </div>
         </section>
@@ -108,6 +142,7 @@
                     <tr>
                         <th style="width:80px">ID</th>
                         <th>Customer Full Name</th>
+                        <th style="width:120px">Amount</th>
                         <th style="width:180px">Contract State</th>
                         <th style="width:220px">Entry Date</th>
                     </tr>
@@ -126,9 +161,14 @@
                 <option value="100">100</option>
             </select>
 
-            <button id="prevPage" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
+            <button id="prevPage" class="btn btn-outline btn-sm">
+                <span class="material-icons mr-2">chevron_left</span>
+                Previous
+            </button>
             <span id="pageInfo" class="font-semibold"></span>
-            <button id="nextPage" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
+            <button id="nextPage" class="btn btn-outline btn-sm">
+                Next <span class="material-icons ml-2">chevron_right</span>
+            </button>
 
             <span id="pageCountInfo" class="page-count-info"></span>
         </div>
@@ -139,7 +179,7 @@
         <div class="loading-box">Loading...</div>
     </div>
 
-    <!-- Notification UI injected by /js/shared.js -->
+    <!-- Scripts -->
     <script src="/js/shared.js"></script>
     <script src="/js/contracts.js"></script>
 </body>

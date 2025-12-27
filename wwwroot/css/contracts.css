@@ -6,3 +6,21 @@
 .badge-mid { border-color:#a3a3a3; color:#3f3f46; background:#f4f4f5; }
 .badge-bad { border-color:#ef4444; color:#7f1d1d; background:#fee2e2; }
 tr.selected { background:#f0f7ff; }
+
+/* Filters: fine-tuning for compact layout */
+#contractsFilters .input,
+#contractsFilters .select {
+  font-size: 0.875rem;   /* sm */
+  padding: 4px 8px;
+  min-height: 30px;
+}
+
+#contractsFilters .btn {
+  font-size: 0.85rem;
+  padding: 6px 10px;
+}
+
+#contractsFilters .grid {
+  gap: 6px 8px; /* row-gap 6px, column-gap 8px;*/
+}
+

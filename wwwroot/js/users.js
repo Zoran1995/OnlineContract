@@ -56,7 +56,7 @@
       if (teamSel) {
         const current = teamSel.value;
         teamSel.innerHTML = '';
-        const optAll = document.createElement('option'); optAll.value = ''; optAll.textContent = '(All teams)'; teamSel.appendChild(optAll);
+        const optAll = document.createElement('option'); optAll.value = ''; optAll.textContent = 'All teams'; teamSel.appendChild(optAll);
         groups.forEach(g => {
           if (!g) return;
           const opt = document.createElement('option');

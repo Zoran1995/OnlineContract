@@ -42,38 +42,38 @@ try {
       try {
         const userId = parseInt(localStorage.getItem('userId') || '2', 10) || 2;
         await fetch('/api/log-client-error', {
-          method: 'POST', headers: { 'Content-Type':'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId, description: 'Client JS error', stackTrace: String(e.error || e.message || e.filename) })
         });
-      } catch {}
+      } catch { }
     });
     window.addEventListener('unhandledrejection', async (e) => {
       try {
         const userId = parseInt(localStorage.getItem('userId') || '2', 10) || 2;
         await fetch('/api/log-client-error', {
-          method: 'POST', headers: { 'Content-Type':'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId, description: 'Unhandled promise rejection', stackTrace: String(e.reason) })
         });
-      } catch {}
+      } catch { }
     });
   }
-} catch {}
+} catch { }
 
-  // -- Cart helpers (visibility + click) --
-  function _oc_isLoggedIn() {
-    try { return localStorage.getItem('isLoggedIn') === 'true' || !!localStorage.getItem('userId'); } catch { return false; }
-  }
-  function _oc_getRoleId() {
-    try { const raw = localStorage.getItem('roleId'); return raw ? parseInt(raw, 10) : 0; } catch { return 0; }
-  }
-  function _oc_updateCartVisibility() {
-    const cartWrap = document.getElementById('hdrCart');
-    if (!cartWrap) return;
-    const logged = _oc_isLoggedIn();
-    const roleId = _oc_getRoleId();
-    const shouldShow = (!logged) || (logged && roleId === 5); // 5 = Customer
-    cartWrap.classList.toggle('hidden', !shouldShow);
-  }
+// -- Cart helpers (visibility + click) --
+function _oc_isLoggedIn() {
+  try { return localStorage.getItem('isLoggedIn') === 'true' || !!localStorage.getItem('userId'); } catch { return false; }
+}
+function _oc_getRoleId() {
+  try { const raw = localStorage.getItem('roleId'); return raw ? parseInt(raw, 10) : 0; } catch { return 0; }
+}
+function _oc_updateCartVisibility() {
+  const cartWrap = document.getElementById('hdrCart');
+  if (!cartWrap) return;
+  const logged = _oc_isLoggedIn();
+  const roleId = _oc_getRoleId();
+  const shouldShow = (!logged) || (logged && roleId === 5); // 5 = Customer
+  cartWrap.classList.toggle('hidden', !shouldShow);
+}
 
 // Create notification UI (toast container, bell, panel) if it's not present in the page.
 function ensureNotificationUI() {
@@ -84,8 +84,24 @@ function ensureNotificationUI() {
       const st = document.createElement('style');
       st.id = styleId;
       st.textContent = `
-      .notification-panel{background:#fff;border:1px solid rgba(0,0,0,0.08);border-radius:10px;padding:12px;box-shadow:0 4px 24px rgba(0,0,0,0.12);color:#111}
-      #notificationList{display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow:auto}
+      
+.notification-panel{
+  background:#fff;
+  border:1px solid rgba(0,0,0,0.08);
+  border-radius:10px;
+  padding:12px;
+  box-shadow:0 4px 24px rgba(0,0,0,0.12);
+  color:#111;
+  min-width:520px; /* wider panel so controls don't wrap and create a scrollbar */
+}
+#notificationList{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-height:72vh; /* slightly larger list to reduce chance of showing scroll on open */
+  overflow:auto;
+}
+
       .notif-card{display:flex;align-items:center;gap:12px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:#fff;padding:10px 12px;position:relative}
       .notif-accent{flex:0 0 28px;width:28px;height:28px;border-radius:50%;display:flex;justify-content:center;align-items:center;color:#fff}
       .notif-accent .material-icons{font-size:18px;line-height:1}
@@ -110,7 +126,7 @@ function ensureNotificationUI() {
       `;
       document.head.appendChild(st);
     }
-  } catch {}
+  } catch { }
   // Defensive cleanup: ensure only one bell and one notification badge exist
   try {
     const bells = document.querySelectorAll('#notificationBell');
@@ -123,7 +139,7 @@ function ensureNotificationUI() {
       // Keep the first, remove duplicates
       badges.forEach((bn, idx) => { if (idx > 0 && bn.parentElement) bn.parentElement.removeChild(bn); });
     }
-  } catch {}
+  } catch { }
 
   if (!document.getElementById('toastContainer')) {
     const tc = document.createElement('div');
@@ -293,92 +309,92 @@ function ensureNotificationUI() {
       // Make sure bell itself is never hidden
       bell.classList.remove('hidden');
     }
-    
-  // --- CART: create button and place next to bell ---
-  (function ensureCartButtonPlacement(){
-    // If it already exists, just place/refresh it
-    let cartWrap = document.getElementById('hdrCart');
-    if (!cartWrap) {
-      cartWrap = document.createElement('div');
-      cartWrap.id = 'hdrCart';
-      cartWrap.className = 'indicator';
 
-      const cartBtn = document.createElement('button');
-      cartBtn.id = 'btnCart';
-      cartBtn.type = 'button';
-      cartBtn.className = 'btn btn-ghost btn-circle';
-      cartBtn.setAttribute('aria-label', 'Shopping cart');
-      cartBtn.title = 'Shopping cart';
-      cartBtn.innerHTML = '<span class="material-icons">shopping_cart</span>';
+    // --- CART: create button and place next to bell ---
+    (function ensureCartButtonPlacement() {
+      // If it already exists, just place/refresh it
+      let cartWrap = document.getElementById('hdrCart');
+      if (!cartWrap) {
+        cartWrap = document.createElement('div');
+        cartWrap.id = 'hdrCart';
+        cartWrap.className = 'indicator';
 
-      const CART_URL  = '/contracts';
-      const LOGIN_URL = '/login?mode=login';
-      const RETURN_URL = location.pathname + location.search;
+        const cartBtn = document.createElement('button');
+        cartBtn.id = 'btnCart';
+        cartBtn.type = 'button';
+        cartBtn.className = 'btn btn-ghost btn-circle';
+        cartBtn.setAttribute('aria-label', 'Shopping cart');
+        cartBtn.title = 'Shopping cart';
+        cartBtn.innerHTML = '<span class="material-icons">shopping_cart</span>';
 
-      
-    cartBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-
-      const CART_URL   = '/contracts';
-      const LOGIN_URL  = '/login?mode=login';
-      const RETURN_URL = location.pathname + location.search;
-
-      if (!_oc_isLoggedIn()) {
-        try {
-          sessionStorage.setItem('pendingToast', JSON.stringify({
-          type: 'info',
-          message: 'Please sign in to use your cart'
-        }));
-      } catch {}
-
-    window.location.href = `${LOGIN_URL}&returnUrl=${encodeURIComponent(RETURN_URL)}`;
-    return;
-  }
-
-  if (_oc_getRoleId() === 5) {
-    window.location.href = CART_URL;
-  } else {
-    try { showToast?.('warning', 'Cart is available to Customers only'); } catch {}
-  }
-    });
+        const CART_URL = '/contracts';
+        const LOGIN_URL = '/login?mode=login';
+        const RETURN_URL = location.pathname + location.search;
 
 
-      cartWrap.appendChild(cartBtn);
-    }
+        cartBtn.addEventListener('click', (e) => {
+          e.preventDefault();
 
-    const rightContainer =
-      document.querySelector('.navbar .flex-none') ||
-      document.querySelector('.navbar .flex-none.items-center');
-    const navbarRoot = document.querySelector('.navbar');
-    const bellEl = document.getElementById('notificationBell');
+          const CART_URL = '/contracts';
+          const LOGIN_URL = '/login?mode=login';
+          const RETURN_URL = location.pathname + location.search;
 
-    if (rightContainer) {
-      if (bellEl && bellEl.parentElement === rightContainer) {
-        rightContainer.insertBefore(cartWrap, bellEl.nextSibling);
-      } else {
-        rightContainer.appendChild(cartWrap);
+          if (!_oc_isLoggedIn()) {
+            try {
+              sessionStorage.setItem('pendingToast', JSON.stringify({
+                type: 'info',
+                message: 'Please sign in to use your cart'
+              }));
+            } catch { }
+
+            window.location.href = `${LOGIN_URL}&returnUrl=${encodeURIComponent(RETURN_URL)}`;
+            return;
+          }
+
+          if (_oc_getRoleId() === 5) {
+            window.location.href = CART_URL;
+          } else {
+            try { showToast?.('warning', 'Cart is available to Customers only'); } catch { }
+          }
+        });
+
+
+        cartWrap.appendChild(cartBtn);
       }
-      cartWrap.classList.remove('fixed');
-      cartWrap.style.position = 'relative';
-      cartWrap.style.marginLeft = '8px';
-    } else if (navbarRoot) {
-      navbarRoot.appendChild(cartWrap);
-      cartWrap.classList.remove('fixed');
-      cartWrap.style.position = 'relative';
-      cartWrap.style.marginLeft = '8px';
-    } else {
-      cartWrap.classList.add('fixed');
-      cartWrap.style.position = 'fixed';
-      cartWrap.style.top = '16px';
-      cartWrap.style.right = '56px';
-      cartWrap.style.zIndex = '99999';
-      document.body.appendChild(cartWrap);
-    }
 
-    _oc_updateCartVisibility();
-  })();
+      const rightContainer =
+        document.querySelector('.navbar .flex-none') ||
+        document.querySelector('.navbar .flex-none.items-center');
+      const navbarRoot = document.querySelector('.navbar');
+      const bellEl = document.getElementById('notificationBell');
 
-  } catch {}
+      if (rightContainer) {
+        if (bellEl && bellEl.parentElement === rightContainer) {
+          rightContainer.insertBefore(cartWrap, bellEl.nextSibling);
+        } else {
+          rightContainer.appendChild(cartWrap);
+        }
+        cartWrap.classList.remove('fixed');
+        cartWrap.style.position = 'relative';
+        cartWrap.style.marginLeft = '8px';
+      } else if (navbarRoot) {
+        navbarRoot.appendChild(cartWrap);
+        cartWrap.classList.remove('fixed');
+        cartWrap.style.position = 'relative';
+        cartWrap.style.marginLeft = '8px';
+      } else {
+        cartWrap.classList.add('fixed');
+        cartWrap.style.position = 'fixed';
+        cartWrap.style.top = '16px';
+        cartWrap.style.right = '56px';
+        cartWrap.style.zIndex = '99999';
+        document.body.appendChild(cartWrap);
+      }
+
+      _oc_updateCartVisibility();
+    })();
+
+  } catch { }
 
   if (!document.getElementById('notificationPanel')) {
     const panel = document.createElement('div');
@@ -405,7 +421,7 @@ function ensureNotificationUI() {
     infoBtn.className = 'btn btn-xs notif-info';
     infoBtn.setAttribute('aria-label', 'Filter information notifications');
     infoBtn.innerHTML = '<span class="material-icons">info</span>Information';
-    infoBtn.onclick = function() {
+    infoBtn.onclick = function () {
       window._notificationFilterType = 'info';
       updateNotificationBell();
     };
@@ -415,7 +431,7 @@ function ensureNotificationUI() {
     warnBtn.className = 'btn btn-xs notif-warning';
     warnBtn.setAttribute('aria-label', 'Filter warning notifications');
     warnBtn.innerHTML = '<span class="material-icons">warning</span>Warning';
-    warnBtn.onclick = function() {
+    warnBtn.onclick = function () {
       window._notificationFilterType = 'warning';
       updateNotificationBell();
     };
@@ -425,7 +441,7 @@ function ensureNotificationUI() {
     errorBtn.className = 'btn btn-xs notif-error';
     errorBtn.setAttribute('aria-label', 'Filter error notifications');
     errorBtn.innerHTML = '<span class="material-icons">error</span>Error';
-    errorBtn.onclick = function() {
+    errorBtn.onclick = function () {
       window._notificationFilterType = 'error';
       updateNotificationBell();
     };
@@ -460,7 +476,7 @@ function ensureNotificationUI() {
         updateNotificationBell();
       }
     });
-  } catch {}
+  } catch { }
 
   // Ensure admin change-store modal HTML exists
   ensureAdminChangeStoreModal();
@@ -470,7 +486,7 @@ function ensureNotificationUI() {
     // Read auth state from the server (cookie-based) and avoid client-controlled flags
     const syncAuthFromServer = async () => {
       try {
-        const res = await fetch('/whoami', { method: 'GET', credentials: 'include', headers: { 'Accept':'application/json' } });
+        const res = await fetch('/whoami', { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' } });
         if (res.status === 401) {
           return { isAuthenticated: false, code: '', roleId: 0 };
         }
@@ -499,13 +515,13 @@ function ensureNotificationUI() {
       // Privileged roles: Manager=8, Administrator=7 (per ax_user.role_id)
       const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
       const isCustomer = isLoggedIn && roleId === 5;
-    const canManageProducts = isLoggedIn && (roleId === 6 || roleId === 7 || roleId === 8);
+      const canManageProducts = isLoggedIn && (roleId === 6 || roleId === 7 || roleId === 8);
 
       const pathNow = (window.location && window.location.pathname || '').toLowerCase();
       const isEventLogPage = pathNow.includes('/eventlog');
 
       // --- Cart visibility rule: show for guests, or for logged-in Customer (roleId=5) ---
-      try { _oc_updateCartVisibility(); } catch {}
+      try { _oc_updateCartVisibility(); } catch { }
 
       // Navbar links:
       // - Users is privileged-only
@@ -594,13 +610,13 @@ function ensureNotificationUI() {
               const shift = overflowRight + 8;
               m.style.left = `-${shift}px`;
             }
-          } catch {}
+          } catch { }
         };
         // Bind focus/click to adjust position just-in-time
         const activatorEl = document.getElementById('adminLabel');
         if (activatorEl && !activatorEl._oc_bound_pos) {
           activatorEl._oc_bound_pos = true;
-          ['click','focus','mouseenter'].forEach(evt => {
+          ['click', 'focus', 'mouseenter'].forEach(evt => {
             activatorEl.addEventListener(evt, () => setTimeout(positionUserDropdown, 0));
           });
         }
@@ -639,11 +655,11 @@ function ensureNotificationUI() {
         ddLogout.addEventListener('click', async (e) => {
           e.preventDefault();
           // Always notify server to clear auth cookie first
-          try { await fetch('/api/logout', { method: 'POST', credentials: 'include', headers: { 'Accept':'application/json' } }); } catch {}
+          try { await fetch('/api/logout', { method: 'POST', credentials: 'include', headers: { 'Accept': 'application/json' } }); } catch { }
           // Clear client state
           try {
             const currentKey = _oc_getNotificationKey();
-            try { localStorage.removeItem(currentKey); } catch {}
+            try { localStorage.removeItem(currentKey); } catch { }
             window.notifications = [];
             updateNotificationBell();
             localStorage.removeItem('isLoggedIn');
@@ -653,9 +669,9 @@ function ensureNotificationUI() {
             localStorage.removeItem('code');
             localStorage.removeItem('username');
             localStorage.removeItem('email');
-          } catch {}
+          } catch { }
           // Update navbar view to logged-out
-          try { updateNavbarAuth({ isAuthenticated: false, roleId: 0, code: '' }); } catch {}
+          try { updateNavbarAuth({ isAuthenticated: false, roleId: 0, code: '' }); } catch { }
           // Redirect to login page
           window.location.href = '/login?mode=login';
         });
@@ -723,7 +739,7 @@ function ensureNotificationUI() {
                 // default navigation behavior
               });
             }
-            
+
             const ddContracts = menu.querySelector('#ddContracts');
             if (ddContracts && !ddContracts._oc_bound) {
               ddContracts._oc_bound = true;
@@ -749,7 +765,7 @@ function ensureNotificationUI() {
             if (ddEventLog) ddEventLog.classList.toggle('hidden', !isPrivileged);
             if (ddContracts) ddContracts.classList.toggle('hidden', !isLoggedIn);
             if (ddProducts) ddProducts.classList.toggle('hidden', !canManageProducts);
-          } catch {}
+          } catch { }
         }
       }
     };
@@ -757,7 +773,7 @@ function ensureNotificationUI() {
     // First, align with server cookie; then update the navbar view without touching localStorage
     syncAuthFromServer().then((auth) => {
       updateNavbarAuth(auth);
-      try { gateProtectedPages(auth); } catch {}
+      try { gateProtectedPages(auth); } catch { }
     });
 
     // Global nav actions: ensure Log In / Sign In open the right form immediately
@@ -784,11 +800,11 @@ function ensureNotificationUI() {
       logoutBtn._oc_bound = true;
       logoutBtn.addEventListener('click', () => {
         // Also notify server to clear auth cookie
-        try { fetch('/api/logout', { method: 'POST', credentials: 'include', headers: { 'Accept':'application/json' } }); } catch {}
+        try { fetch('/api/logout', { method: 'POST', credentials: 'include', headers: { 'Accept': 'application/json' } }); } catch { }
         try {
           // Clear current user's notification store on logout
           const currentKey = _oc_getNotificationKey();
-          try { localStorage.removeItem(currentKey); } catch {}
+          try { localStorage.removeItem(currentKey); } catch { }
           window.notifications = [];
           updateNotificationBell();
 
@@ -799,13 +815,13 @@ function ensureNotificationUI() {
           localStorage.removeItem('code');
           localStorage.removeItem('username');
           localStorage.removeItem('email');
-        } catch {}
-        try { updateNavbarAuth({ isAuthenticated: false, roleId: 0, code: '' }); } catch {}
+        } catch { }
+        try { updateNavbarAuth({ isAuthenticated: false, roleId: 0, code: '' }); } catch { }
         // redirect to login page
         window.location.href = '/login?mode=login';
       });
     }
-  } catch {}
+  } catch { }
 
   // Inactivity logout: auto log out after exactly 30 minutes of no user activity
   try {
@@ -814,14 +830,14 @@ function ensureNotificationUI() {
     const markActivity = () => {
       try {
         localStorage.setItem('lastActivityTs', Date.now().toString());
-      } catch {}
+      } catch { }
     };
 
     // Initialize last activity when script loads
     markActivity();
 
     // Listen for common user interactions to update activity timestamp
-    ['click','mousemove','keydown','scroll','touchstart'].forEach(evt => {
+    ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
       window.addEventListener(evt, markActivity, { passive: true });
     });
 
@@ -844,14 +860,14 @@ function ensureNotificationUI() {
                 type: 'warning',
                 message: 'You have been logged out due to 30 minutes of inactivity.'
               }));
-            } catch {}
+            } catch { }
             // Redirect to login
             window.location.href = '/login';
           }
-        } catch {}
+        } catch { }
       }, 15000); // check every 15s
     }
-  } catch {}
+  } catch { }
 
   // If a redirect stored a pending toast (via sessionStorage), show it now and then clear it.
   try {
@@ -863,13 +879,13 @@ function ensureNotificationUI() {
       showToast(payload?.type || 'info', payload?.message || '');
       sessionStorage.removeItem('pendingToast');
     }
-  } catch {}
+  } catch { }
 }
 
 // Gate protected pages and show an inline Access Denied panel instead of redirecting
-function gateProtectedPages(auth){
+function gateProtectedPages(auth) {
   const path = (window.location && window.location.pathname || '').toLowerCase();
-  const protectedAny = [ '/users', '/users.html', '/eventlog', '/eventlog.html', '/changestore', '/changestore.html', '/contracts', '/contracts.html' ];
+  const protectedAny = ['/users', '/users.html', '/eventlog', '/eventlog.html', '/changestore', '/changestore.html', '/contracts', '/contracts.html'];
   if (!protectedAny.includes(path)) return;
 
   const isAuth = !!auth?.isAuthenticated;
@@ -880,7 +896,7 @@ function gateProtectedPages(auth){
 
   // EventLog and Change Store require privileged roles; Users page requires authentication only
   const requiresPrivilege = (p) =>
-    ['/eventlog','/eventlog.html','/changestore','/changestore.html','/users','/users.html'].includes(p);
+    ['/eventlog', '/eventlog.html', '/changestore', '/changestore.html', '/users', '/users.html'].includes(p);
 
   const mustBePrivileged = requiresPrivilege(path);
 
@@ -950,7 +966,7 @@ function adjustToastContainer() {
     const anchorBottom = candidates.length ? Math.max(...candidates) : 0;
     // Align toasts exactly with the bottom edge of the highest top element, plus 1px to avoid overlap
     topOffset = Math.max(0, anchorBottom + 1);
-  } catch {}
+  } catch { }
   tc.style.top = `${topOffset}px`;
 
   // If bell is fixed (no navbar), keep some separation implicitly via topOffset.
@@ -1011,7 +1027,7 @@ function showToast(type, message) {
     };
 
     // Inject minimal styles for toast variants if not present
-    (function ensureToastStyles(){
+    (function ensureToastStyles() {
       const styleId = 'oc-toast-styles';
       if (document.getElementById(styleId)) return;
       const st = document.createElement('style');
@@ -1205,10 +1221,10 @@ try {
         const key = _oc_getNotificationKey();
         if (e.key !== key) return;
         _oc_syncNotificationsFromStorage();
-      } catch {}
+      } catch { }
     });
   }
-} catch {}
+} catch { }
 
 // --- ADD start: hide duplicate "Log Out" buttons when dropdown exists ---
 function hideStandaloneLogout() {
@@ -1229,21 +1245,21 @@ function hideStandaloneLogout() {
         el.textContent.trim().toLowerCase() === 'log out'
       );
     if (lone) lone.classList.add('hidden');
-  } catch {}
+  } catch { }
 }
 // --- ADD end ---
 
 // Global helper to update badge by explicit count
-function updateNotificationBadge(count){
+function updateNotificationBadge(count) {
   const n = Number(count || 0);
   const nb = document.getElementById('notif-badge');
   const badge = document.getElementById('notificationCount');
-  if (nb){
+  if (nb) {
     nb.textContent = n > 0 ? String(n) : '';
     nb.classList.toggle('is-hidden', n === 0);
     nb.setAttribute('aria-hidden', n === 0 ? 'true' : 'false');
   }
-  if (badge){
+  if (badge) {
     badge.textContent = n > 0 ? String(n) : '';
     badge.classList.toggle('hidden', n === 0);
   }
@@ -1260,7 +1276,7 @@ function dismissAll() {
 }
 
 // Simple client-side table sort for current page rows (ascending/descending per column)
-function attachTableSort(selector){
+function attachTableSort(selector) {
   try {
     const table = typeof selector === 'string' ? document.querySelector(selector) : selector;
     if (!table || table._oc_sort_bound) return;
@@ -1293,7 +1309,7 @@ function attachTableSort(selector){
           const num = parseFloat(text.replace(/[^0-9.+-]/g, ''));
           return isNaN(num) ? text.toLowerCase() : num;
         };
-        rows.sort((a,b) => {
+        rows.sort((a, b) => {
           const av = parseVal(a.children[colIdx]);
           const bv = parseVal(b.children[colIdx]);
           let cmp = 0;
@@ -1304,7 +1320,7 @@ function attachTableSort(selector){
         rows.forEach(r => tbody.appendChild(r));
       });
     });
-  } catch {}
+  } catch { }
 }
 
 function closeNotificationPanel() {
@@ -1335,8 +1351,9 @@ function openNotificationPanel() {
   panel.classList.remove('hidden');
   panel.style.visibility = 'hidden';
   panel.style.display = 'block';
-  const rect = bell.getBoundingClientRect();
-  const panelWidth = panel.offsetWidth || 320;
+  const rect = bell.getBoundingClientRect();  
+  const desiredWidth = 520;
+  const panelWidth = Math.max(panel.offsetWidth || 0, desiredWidth);
   // compute left so panel's right edge aligns with bell's right edge
   // With fixed-position panel, compute using viewport coordinates
   const left = Math.min(rect.right - panelWidth + 8, window.innerWidth - panelWidth - 8);
@@ -1383,7 +1400,7 @@ if (document.readyState === 'loading') {
         style.textContent = `html, body { overflow-x: hidden; }`;
         document.head.appendChild(style);
       }
-    } catch {}
+    } catch { }
   });
 } else {
   ensureNotificationUI();
@@ -1395,7 +1412,7 @@ if (document.readyState === 'loading') {
       style.textContent = `html, body { overflow-x: hidden; }`;
       document.head.appendChild(style);
     }
-  } catch {}
+  } catch { }
 }
 
 // --- Admin Change Store modal helpers ---
@@ -1429,7 +1446,7 @@ function ensureAdminChangeStoreModal() {
             <div class="flex gap-3 w-full items-center">
               <div class="flex items-center gap-2">
                 <select id="mhStartHour" class="select select-bordered select-sm">
-                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2, '0')}">${String(h).padStart(2, '0')}</option>`).join('')}
                 </select>
                 <select id="mhStartMin" class="select select-bordered select-sm">
                   <option value="00">00</option>
@@ -1439,7 +1456,7 @@ function ensureAdminChangeStoreModal() {
               <span class="self-center text-sm text-base-content/70">to</span>
               <div class="flex items-center gap-2">
                 <select id="mhEndHour" class="select select-bordered select-sm">
-                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2, '0')}">${String(h).padStart(2, '0')}</option>`).join('')}
                 </select>
                 <select id="mhEndMin" class="select select-bordered select-sm">
                   <option value="00">00</option>
@@ -1460,7 +1477,7 @@ function ensureAdminChangeStoreModal() {
             <div class="flex gap-3 w-full items-center">
               <div class="flex items-center gap-2">
                 <select id="shStartHour" class="select select-bordered select-sm">
-                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2, '0')}">${String(h).padStart(2, '0')}</option>`).join('')}
                 </select>
                 <select id="shStartMin" class="select select-bordered select-sm">
                   <option value="00">00</option>
@@ -1470,7 +1487,7 @@ function ensureAdminChangeStoreModal() {
               <span class="self-center text-sm text-base-content/70">to</span>
               <div class="flex items-center gap-2">
                 <select id="shEndHour" class="select select-bordered select-sm">
-                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2, '0')}">${String(h).padStart(2, '0')}</option>`).join('')}
                 </select>
                 <select id="shEndMin" class="select select-bordered select-sm">
                   <option value="00">00</option>
@@ -1491,7 +1508,7 @@ function ensureAdminChangeStoreModal() {
             <div class="flex gap-3 w-full items-center">
               <div class="flex items-center gap-2">
                 <select id="suStartHour" class="select select-bordered select-sm">
-                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2, '0')}">${String(h).padStart(2, '0')}</option>`).join('')}
                 </select>
                 <select id="suStartMin" class="select select-bordered select-sm">
                   <option value="00">00</option>
@@ -1501,7 +1518,7 @@ function ensureAdminChangeStoreModal() {
               <span class="self-center text-sm text-base-content/70">to</span>
               <div class="flex items-center gap-2">
                 <select id="suEndHour" class="select select-bordered select-sm">
-                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                  ${Array.from({ length: 24 }, (_, h) => `<option value="${String(h).padStart(2, '0')}">${String(h).padStart(2, '0')}</option>`).join('')}
                 </select>
                 <select id="suEndMin" class="select select-bordered select-sm">
                   <option value="00">00</option>
@@ -1522,7 +1539,7 @@ function ensureAdminChangeStoreModal() {
   document.body.appendChild(modal);
 
   // Bind hours editor interactions (disable inputs when closed)
-  try { bindHoursEditor(); } catch {}
+  try { bindHoursEditor(); } catch { }
 
   // Wire buttons
   const cancelBtn = modal.querySelector('#adminStoreCancel');
@@ -1556,7 +1573,7 @@ function ensureAdminChangeStoreModal() {
         const res = await fetch(`/api/stores/${id}?userId=${userId}`, {
           method: 'PUT',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json', 'Accept':'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify(payload)
         });
         if (res.ok) {
@@ -1569,7 +1586,7 @@ function ensureAdminChangeStoreModal() {
             let serverText = '';
             try {
               serverText = await res.text();
-            } catch {}
+            } catch { }
             await fetch('/api/log-client-error', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1579,7 +1596,7 @@ function ensureAdminChangeStoreModal() {
                 stackTrace: serverText || `HTTP ${res.status} - ${res.statusText}`
               })
             });
-          } catch {}
+          } catch { }
           showToast('error', 'Failed to save changes.');
         }
       } catch (err) {
@@ -1595,7 +1612,7 @@ function ensureAdminChangeStoreModal() {
               stackTrace: (err && err.stack) ? String(err.stack) : String(err)
             })
           });
-        } catch {}
+        } catch { }
         showToast('error', 'Error while saving changes.');
       }
     });
@@ -1617,9 +1634,9 @@ function closeAdminChangeStoreModal() {
 // --- Working hours editor helpers ---
 function updateHoursEditorDisabled() {
   const pairs = [
-    { c: 'mhClosed', s: ['mhStartHour','mhStartMin'], e: ['mhEndHour','mhEndMin'] },
-    { c: 'shClosed', s: ['shStartHour','shStartMin'], e: ['shEndHour','shEndMin'] },
-    { c: 'suClosed', s: ['suStartHour','suStartMin'], e: ['suEndHour','suEndMin'] }
+    { c: 'mhClosed', s: ['mhStartHour', 'mhStartMin'], e: ['mhEndHour', 'mhEndMin'] },
+    { c: 'shClosed', s: ['shStartHour', 'shStartMin'], e: ['shEndHour', 'shEndMin'] },
+    { c: 'suClosed', s: ['suStartHour', 'suStartMin'], e: ['suEndHour', 'suEndMin'] }
   ];
   pairs.forEach(({ c, s, e }) => {
     const cb = document.getElementById(c);
@@ -1637,7 +1654,7 @@ function updateHoursEditorDisabled() {
 }
 
 function bindHoursEditor() {
-  const ids = ['mhClosed','shClosed','suClosed'];
+  const ids = ['mhClosed', 'shClosed', 'suClosed'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (!el || el._oc_bound) return;
@@ -1645,13 +1662,13 @@ function bindHoursEditor() {
     el.addEventListener('change', () => updateHoursEditorDisabled());
   });
   // Bind selects to fix ranges whenever hour/min changes
-  const selIds = ['mhStartHour','mhStartMin','mhEndHour','mhEndMin','shStartHour','shStartMin','shEndHour','shEndMin','suStartHour','suStartMin','suEndHour','suEndMin'];
+  const selIds = ['mhStartHour', 'mhStartMin', 'mhEndHour', 'mhEndMin', 'shStartHour', 'shStartMin', 'shEndHour', 'shEndMin', 'suStartHour', 'suStartMin', 'suEndHour', 'suEndMin'];
   selIds.forEach(id => {
     const el = document.getElementById(id);
     if (!el || el._oc_norm_bound) return;
     el._oc_norm_bound = true;
-    const handler = () => { try { fixPairRanges(); } catch {} };
-    ['change','blur'].forEach(evt => el.addEventListener(evt, handler));
+    const handler = () => { try { fixPairRanges(); } catch { } };
+    ['change', 'blur'].forEach(evt => el.addEventListener(evt, handler));
   });
   // Also enforce ranges initially
   fixPairRanges();
@@ -1689,7 +1706,7 @@ function nextHalfHour(val) {
   const next = mins + 30;
   if (next > (23 * 60 + 30)) return '';
   const h = Math.floor(next / 60); const m = next % 60;
-  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 function prevHalfHour(val) {
@@ -1698,7 +1715,7 @@ function prevHalfHour(val) {
   const prev = mins - 30;
   if (prev < 0) return '';
   const h = Math.floor(prev / 60); const m = prev % 60;
-  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 function ensureValidRange(startPrefix, endPrefix) {
@@ -1725,9 +1742,9 @@ function ensureValidRange(startPrefix, endPrefix) {
 }
 
 function fixPairRanges() {
-  ensureValidRange('mhStart','mhEnd');
-  ensureValidRange('shStart','shEnd');
-  ensureValidRange('suStart','suEnd');
+  ensureValidRange('mhStart', 'mhEnd');
+  ensureValidRange('shStart', 'shEnd');
+  ensureValidRange('suStart', 'suEnd');
 }
 
 function setHoursEditorFromString(str) {
@@ -1863,7 +1880,7 @@ async function preloadStoresIntoModal() {
     const res = await fetch(`/api/stores?userId=${userId}`);
     const data = await res.json();
     let items = data.items || [];
-    try { items = items.slice().sort((a, b) => (a.id ?? 0) - (b.id ?? 0)); } catch {}
+    try { items = items.slice().sort((a, b) => (a.id ?? 0) - (b.id ?? 0)); } catch { }
     const sel = document.getElementById('storeSelect');
     if (!sel) return;
     // Clear and repopulate options
@@ -1914,7 +1931,7 @@ async function preloadStoresIntoModal() {
           stackTrace: (err && err.stack) ? String(err.stack) : String(err)
         })
       });
-    } catch {}
+    } catch { }
     showToast('error', 'Failed to load stores.');
   }
 }
