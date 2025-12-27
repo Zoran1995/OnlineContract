@@ -176,7 +176,7 @@
     if (!items || items.length === 0) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 7;
+      td.colSpan = 6;
       td.className = 'empty';
       td.textContent = 'No results.';
       tr.appendChild(td);
@@ -208,9 +208,7 @@
       tdName.textContent = String(it.name ?? '');
       tr.appendChild(tdName);
 
-      const tdDesc = document.createElement('td');
-      tdDesc.textContent = String(it.description ?? '');
-      tr.appendChild(tdDesc);
+      // Description removed; Notes feature will replace this soon.
 
       const tdDt = document.createElement('td');
       tdDt.textContent = String(it.inputDt ?? '');

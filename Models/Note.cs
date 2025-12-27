@@ -4,17 +4,28 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace OnlineContract.Models
 {
-    [Table("product", Schema = "dbo")]
-    public class Product
+    [Table("note", Schema = "dbo")]
+    public class Note
     {
         [Key]
-        [Column("product_id")]
+        [Column("note_id")]
         public int Id { get; set; }
 
-        [Column("name")]
-        [MaxLength(200)]
-        public string? Name { get; set; }
+        [Column("product_id")]
+        public int? ProductId { get; set; }
 
+        [Column("contract_id")]
+        public int? ContractId { get; set; }
+
+        [Column("comment")]
+        [MaxLength(4000)]
+        public string? Comment { get; set; }
+
+        [Column("is_main")]
+        public bool IsMain { get; set; }
+
+        [Column("is_deleted")]
+        public bool IsDeleted { get; set; }
 
         [Column("input_dt")]
         public DateTime InputDt { get; set; }
@@ -27,12 +38,6 @@ namespace OnlineContract.Models
 
         [Column("last_updated_dt")]
         public DateTime? LastUpdatedDt { get; set; }
-
-        [Column("is_active")]
-        public bool IsActive { get; set; }
-
-        [Column("is_deleted")]
-        public bool IsDeleted { get; set; }
 
         [Column("stamp")]
         public int Stamp { get; set; }

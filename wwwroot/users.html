@@ -113,18 +113,18 @@
     </div>
 
     <!-- Pagination -->
-    <div class="flex items-center gap-3 mt-3">
+    <div class="flex items-center gap-3 mt-3 grid-pagination">
       <label class="text-sm">Rows per page:</label>
-      <select id="pgSize" class="select select-bordered w-32">
+      <select id="pgSize" class="select select-bordered w-20 select-sm">
         <option value="10" selected>10</option>
         <option value="20">20</option>
         <option value="50">50</option>
         <option value="100">100</option>
       </select>
 
-      <button id="pgPrev" class="btn btn-outline"><span class="material-icons mr-2">chevron_left</span> Previous</button>
+      <button id="pgPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
       <span id="pgInfo" class="font-semibold"></span>
-      <button id="pgNext" class="btn btn-outline">Next <span class="material-icons ml-2">chevron_right</span></button>
+      <button id="pgNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
 
       <span id="pageCountInfo" class="page-count-info"></span>
     </div>

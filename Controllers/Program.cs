@@ -4,14 +4,10 @@ using Microsoft.AspNetCore.Rewrite;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
-using System.IO;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Security.Claims;
 using OnlineContract.Data;
 using OnlineContract.Helpers;
 using OnlineContract.Models;
-using System.ComponentModel.DataAnnotations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -1023,8 +1019,7 @@ app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q,
         {
             var s = q.Trim();
             products = products.Where(p =>
-                EF.Functions.Like(p.Name ?? "", $"%{s}%") ||
-                EF.Functions.Like(p.Description ?? "", $"%{s}%"));
+                EF.Functions.Like(p.Name ?? "", $"%{s}%"));
         }
 
         var baseQuery =
@@ -1047,7 +1042,6 @@ app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q,
             {
                 p.Id,
                 p.Name,
-                p.Description,
                 p.InputDt,
                 p.IsActive,
                 QtyStore1 = qty1 ?? 0,
@@ -1089,7 +1083,6 @@ app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q,
         {
             id = r.Id,
             name = r.Name ?? "",
-            description = r.Description ?? "",
             inputDt = r.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
             qtyStore1 = r.QtyStore1,
             qtyStore2 = r.QtyStore2,
@@ -1155,7 +1148,7 @@ app.MapGet("/api/products/{id:int}", async (AppDbContext db, HttpContext http, i
         id = v.Id,
         size = v.Size ?? "",
         color = v.Color ?? "",
-        price = v.Price,
+        amount = v.Amount,
         isActive = v.IsActive,
         sizeKey = v.SizeKey,
         colorKey = v.ColorKey,
@@ -1168,7 +1161,6 @@ app.MapGet("/api/products/{id:int}", async (AppDbContext db, HttpContext http, i
     {
         id = p.Id,
         name = p.Name ?? "",
-        description = p.Description ?? "",
         inputDt = p.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
         inputUserId = p.InputUserId,
         inputUserCode,
@@ -1196,7 +1188,6 @@ app.MapPost("/api/products", async (AppDbContext db, HttpContext http, ProductCr
         var p = new Product
         {
             Name = name,
-            Description = dto.Description ?? "",
             IsActive = dto.IsActive,
             IsDeleted = false,
             InputDt = DateTime.UtcNow,
@@ -1227,7 +1218,6 @@ app.MapPut("/api/products/{id:int}", async (AppDbContext db, HttpContext http, i
         if (p == null) return Results.NotFound(new { message = "Product not found." });
 
         if (dto.Name != null) p.Name = dto.Name.Trim();
-        if (dto.Description != null) p.Description = dto.Description;
         if (dto.IsActive.HasValue) p.IsActive = dto.IsActive.Value;
 
         var uid = GetCurrentUserId(http);
@@ -1298,7 +1288,6 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
 
         // Basic product fields
         if (dto.Name is not null)        p.Name = dto.Name.Trim();
-        if (dto.Description is not null) p.Description = dto.Description;
         if (dto.IsActive.HasValue)       p.IsActive = dto.IsActive.Value;
         p.LastModifiedById = uid;
         p.LastUpdatedDt    = DateTime.UtcNow;
@@ -1339,7 +1328,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
             int     vId      = vd.Id.GetValueOrDefault(0);
             string  size     = vd.Size ?? "";
             string  color    = vd.Color ?? "";
-            decimal price    = vd.Price;
+            decimal amount    = vd.Amount;
             string? photo    = NormalizePhotoFileName(vd.PhotoFileName);
             bool    isActive = vd.IsActive;
             int     qty1     = Math.Max(0, vd.QtyStore1);
@@ -1354,7 +1343,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                     ProductId        = id,
                     Size             = size,
                     Color            = color,
-                    Price            = price,
+                    Amount            = amount,
                     PhotoFileName    = photo,
                     IsActive         = isActive,
                     IsDeleted        = false,
@@ -1376,7 +1365,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                 v.IsDeleted        = false;
                 v.Size             = size;
                 v.Color            = color;
-                v.Price            = price;
+                v.Amount            = amount;
                 v.PhotoFileName    = photo;
                 v.IsActive         = isActive;
                 v.LastModifiedById = uid;
@@ -1576,6 +1565,322 @@ app.MapPost("/api/products/{id:int}/delete", async (AppDbContext db, HttpContext
     {
         await LoggerHelper.LogEventAsync(db, EventType.Error, "Delete product failed", ex.ToString(), GetCurrentUserId(http));
         return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+// Product Notes endpoints
+app.MapGet("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext http, int id, string? q, int page, int pageSize) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    try
+    {
+        var p = await db.Products.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (p == null) return Results.NotFound(new { message = "Product not found." });
+
+        var pageIndex = page < 1 ? 1 : page;
+        var size = pageSize <= 0 ? 10 : (pageSize > 200 ? 200 : pageSize);
+
+        IQueryable<OnlineContract.Models.Note> notes = db.Notes
+            .AsNoTracking()
+            .Where(n => n.ProductId == id && !n.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var s = q.Trim();
+            notes = notes.Where(n => EF.Functions.Like(n.Comment ?? "", $"%{s}%"));
+        }
+
+        var baseQuery =
+            from n in notes
+            let inputUserCode = (from u in db.AxUsers.AsNoTracking()
+                                 where u.Id == n.InputUserId
+                                 select u.Code).FirstOrDefault()
+            let lastModifiedByCode = (from u in db.AxUsers.AsNoTracking()
+                                      where u.Id == n.LastModifiedById
+                                      select u.Code).FirstOrDefault()
+            select new
+            {
+                n.Id,
+                n.Comment,
+                n.IsMain,
+                n.InputDt,
+                inputUserCode = inputUserCode ?? "",
+                lastModifiedByCode = lastModifiedByCode ?? "",
+                n.LastUpdatedDt
+            };
+
+        var totalCount = await baseQuery.CountAsync();
+        var rows = await baseQuery
+            .OrderByDescending(x => x.InputDt)
+            .Skip(Math.Max(0, (pageIndex - 1) * size))
+            .Take(size)
+            .ToListAsync();
+
+        var items = rows.Select(r => new OnlineContract.Models.NoteDto
+        {
+            Id = r.Id,
+            Comment = r.Comment ?? "",
+            IsMain = r.IsMain,
+            InputDt = r.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
+            InputUserId = null,
+            InputUserCode = r.inputUserCode,
+            LastModifiedById = null,
+            LastModifiedByCode = r.lastModifiedByCode,
+            LastUpdatedDt = r.LastUpdatedDt?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
+        });
+
+        return Results.Json(new
+        {
+            items,
+            totalCount,
+            totalPages = (int)Math.Ceiling(totalCount / (double)size)
+        });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Product notes fetch failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.Json(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
+    }
+}).RequireAuthorization();
+
+app.MapPut("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext http, int id, NotesBulkSaveDto dto) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    await using var tx = await db.Database.BeginTransactionAsync();
+    try
+    {
+        var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (p == null) return Results.NotFound(new { message = "Product not found." });
+
+        int uid = GetCurrentUserId(http);
+
+        foreach (var add in dto.Add ?? new List<OnlineContract.Models.NoteCreateDto>())
+        {
+            var text = (add.Comment ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(text)) continue;
+            var n = new OnlineContract.Models.Note
+            {
+                ProductId = id,
+                ContractId = null,
+                Comment = text,
+                IsMain = false,
+                IsDeleted = false,
+                InputDt = DateTime.UtcNow,
+                InputUserId = uid,
+                LastModifiedById = uid,
+                LastUpdatedDt = DateTime.UtcNow,
+                Stamp = 0
+            };
+            db.Notes.Add(n);
+        }
+
+        foreach (var upd in dto.Update ?? new List<OnlineContract.Models.NoteUpdateDto>())
+        {
+            var n = await db.Notes.FirstOrDefaultAsync(x => x.Id == upd.Id && x.ProductId == id && !x.IsDeleted);
+            if (n == null) continue;
+            if (upd.Comment != null) n.Comment = upd.Comment.Trim();
+            n.LastModifiedById = uid;
+            n.LastUpdatedDt = DateTime.UtcNow;
+        }
+
+        var delIds = (dto.Delete ?? new List<int>()).Where(x => x > 0).ToList();
+        if (delIds.Count > 0)
+        {
+            var toDelete = await db.Notes.Where(x => x.ProductId == id && delIds.Contains(x.Id)).ToListAsync();
+            foreach (var n in toDelete)
+            {
+                n.IsDeleted = true;
+                n.LastModifiedById = uid;
+                n.LastUpdatedDt = DateTime.UtcNow;
+            }
+        }
+
+        if (dto.SetMainId.HasValue && dto.SetMainId.Value > 0)
+        {
+            var targetId = dto.SetMainId.Value;
+            var notes = await db.Notes.Where(x => x.ProductId == id && !x.IsDeleted).ToListAsync();
+            foreach (var n in notes)
+            {
+                n.IsMain = (n.Id == targetId);
+                n.LastModifiedById = uid;
+                n.LastUpdatedDt = DateTime.UtcNow;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
+
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product notes saved", $"ProductId={id}", uid);
+        return Results.Json(new { success = true, message = "Notes were successfully saved." });
+    }
+    catch (Exception ex)
+    {
+        await tx.RollbackAsync();
+        try { db.ChangeTracker.Clear(); } catch { }
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Save product notes failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.Json(new { success = false, message = "Notes could not be saved. Please try again." });
+    }
+}).RequireAuthorization();
+
+// Contract Notes endpoints (parity)
+app.MapGet("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext http, int id, string? q, int page, int pageSize) =>
+{
+    // Using general authorization; ownership enforcement can be added similarly to contracts endpoints
+    if (!http.User?.Identity?.IsAuthenticated ?? true) return Results.StatusCode(StatusCodes.Status401Unauthorized);
+
+    try
+    {
+        var c = await db.Contracts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (c == null) return Results.NotFound(new { message = "Contract not found." });
+
+        var pageIndex = page < 1 ? 1 : page;
+        var size = pageSize <= 0 ? 10 : (pageSize > 200 ? 200 : pageSize);
+
+        IQueryable<OnlineContract.Models.Note> notes = db.Notes
+            .AsNoTracking()
+            .Where(n => n.ContractId == id && !n.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var s = q.Trim();
+            notes = notes.Where(n => EF.Functions.Like(n.Comment ?? "", $"%{s}%"));
+        }
+
+        var baseQuery =
+            from n in notes
+            let inputUserCode = (from u in db.AxUsers.AsNoTracking()
+                                 where u.Id == n.InputUserId
+                                 select u.Code).FirstOrDefault()
+            let lastModifiedByCode = (from u in db.AxUsers.AsNoTracking()
+                                      where u.Id == n.LastModifiedById
+                                      select u.Code).FirstOrDefault()
+            select new
+            {
+                n.Id,
+                n.Comment,
+                n.IsMain,
+                n.IsDeleted,
+                n.InputDt,
+                inputUserCode = inputUserCode ?? "",
+                lastModifiedByCode = lastModifiedByCode ?? "",
+                n.LastUpdatedDt
+            };
+
+        var totalCount = await baseQuery.CountAsync();
+        var rows = await baseQuery
+            .OrderByDescending(x => x.InputDt)
+            .Skip(Math.Max(0, (pageIndex - 1) * size))
+            .Take(size)
+            .ToListAsync();
+
+        var items = rows.Select(r => new OnlineContract.Models.NoteDto
+        {
+            Id = r.Id,
+            Comment = r.Comment ?? "",
+            IsMain = r.IsMain,
+            IsDeleted = r.IsDeleted,
+            InputDt = r.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
+            InputUserId = null,
+            InputUserCode = r.inputUserCode,
+            LastModifiedById = null,
+            LastModifiedByCode = r.lastModifiedByCode,
+            LastUpdatedDt = r.LastUpdatedDt?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
+        });
+
+        return Results.Json(new
+        {
+            items,
+            totalCount,
+            totalPages = (int)Math.Ceiling(totalCount / (double)size)
+        });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Contract notes fetch failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.Json(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
+    }
+}).RequireAuthorization();
+
+app.MapPut("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext http, int id, NotesBulkSaveDto dto) =>
+{
+    if (!http.User?.Identity?.IsAuthenticated ?? true) return Results.StatusCode(StatusCodes.Status401Unauthorized);
+
+    await using var tx = await db.Database.BeginTransactionAsync();
+    try
+    {
+        var c = await db.Contracts.FirstOrDefaultAsync(x => x.Id == id);
+        if (c == null) return Results.NotFound(new { message = "Contract not found." });
+
+        int uid = GetCurrentUserId(http);
+
+        foreach (var add in dto.Add ?? new List<OnlineContract.Models.NoteCreateDto>())
+        {
+            var comment = (add.Comment ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(comment)) continue;
+            var n = new OnlineContract.Models.Note
+            {
+                ProductId = null,
+                ContractId = id,
+                Comment = comment,
+                IsMain = false,
+                IsDeleted = false,
+                InputDt = DateTime.UtcNow,
+                InputUserId = uid,
+                LastModifiedById = uid,
+                LastUpdatedDt = DateTime.UtcNow,
+                Stamp = 0
+            };
+            db.Notes.Add(n);
+        }
+
+        foreach (var upd in dto.Update ?? new List<OnlineContract.Models.NoteUpdateDto>())
+        {
+            var n = await db.Notes.FirstOrDefaultAsync(x => x.Id == upd.Id && x.ContractId == id && !x.IsDeleted);
+            if (n == null) continue;
+            if (upd.Comment != null) n.Comment = upd.Comment.Trim();
+            if (upd.IsDeleted.HasValue) n.IsDeleted = upd.IsDeleted.Value;
+            n.LastModifiedById = uid;
+            n.LastUpdatedDt = DateTime.UtcNow;
+        }
+
+        var delIds = (dto.Delete ?? new List<int>()).Where(x => x > 0).ToList();
+        if (delIds.Count > 0)
+        {
+            var toDelete = await db.Notes.Where(x => x.ContractId == id && delIds.Contains(x.Id)).ToListAsync();
+            foreach (var n in toDelete)
+            {
+                n.IsDeleted = true;
+                n.LastModifiedById = uid;
+                n.LastUpdatedDt = DateTime.UtcNow;
+            }
+        }
+
+        if (dto.SetMainId.HasValue && dto.SetMainId.Value > 0)
+        {
+            var targetId = dto.SetMainId.Value;
+            var notes = await db.Notes.Where(x => x.ContractId == id && !x.IsDeleted).ToListAsync();
+            foreach (var n in notes)
+            {
+                n.IsMain = (n.Id == targetId);
+                n.LastModifiedById = uid;
+                n.LastUpdatedDt = DateTime.UtcNow;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
+
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Contract notes saved", $"ContractId={id}", uid);
+        return Results.Json(new { success = true, message = "Notes were successfully saved." });
+    }
+    catch (Exception ex)
+    {
+        await tx.RollbackAsync();
+        try { db.ChangeTracker.Clear(); } catch { }
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Save contract notes failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.Json(new { success = false, message = "Notes could not be saved. Please try again." });
     }
 }).RequireAuthorization();
 

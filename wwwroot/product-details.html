@@ -119,7 +119,7 @@
               <tr>
                 <th style="width:140px">Size</th>
                 <th style="width:160px">Color</th>
-                <th style="width:140px">Price</th>
+                <th style="width:140px">Amount</th>
                 <th style="width:220px">Photo</th>
                 <th style="width:140px">Store 1 Qty</th>
                 <th style="width:140px">Store 2 Qty</th>
@@ -129,12 +129,64 @@
             <tbody></tbody>
           </table>
         </div>
+        <div class="flex items-center justify-between mt-2 grid-pagination">
+          <div class="flex items-center gap-2">
+            <button id="variantsPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
+            <button id="variantsNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
+            <span class="text-sm text-gray-600 ml-2">Page: <span id="variantsPage">1</span></span>
+          </div>
+          <div class="text-sm">
+            <span class="text-gray-600 mr-2">Total amount:</span>
+            <span id="totalAmount" class="font-semibold">0.00</span>
+          </div>
+        </div>
       </div>
 
       <input type="radio" name="product_tabs" role="tab" class="tab" aria-label="Notes" />
       <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
-        <label class="label"><span class="label-text">Description / Notes</span></label>
-        <textarea id="prodNotes" class="textarea textarea-bordered w-full" rows="10" placeholder="Write notes about this product..."></textarea>
+        <div class="flex flex-col gap-2 mb-3">
+          <div class="text-sm text-gray-500">Manage product notes. Mark one as Main to show prominently.</div>
+          <div class="flex items-center justify-end gap-2">
+            <button id="btnOpenNote" class="btn btn-sm" disabled>
+              <span class="material-icons mr-2">open_in_new</span> Open
+            </button>
+            <button id="btnAddNote" class="btn btn-sm btn-outline">
+              <span class="material-icons mr-2">add</span> Add Note
+            </button>
+            <div class="dropdown">
+              <button tabindex="0" class="btn btn-sm btn-ghost"> 
+                <span class="material-icons">more_vert</span>
+              </button>
+              <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52">
+                <li><a id="menuSetMainNote" class="menu-item"> <span class="material-icons mr-2">star</span> Set as Main</a></li>
+                <li><a id="menuDeleteNote" class="menu-item"> <span class="material-icons mr-2">delete</span> Delete</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
+          <table id="notesTable" class="table table-zebra w-full" aria-label="Product notes">
+            <thead>
+              <tr>
+                <th>Text</th>
+                <th style="width:220px">Input Date</th>
+                <th style="width:160px">User</th>
+                <th style="width:120px">Status</th>
+                <th style="width:100px">Main</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="flex items-center justify-between mt-2 grid-pagination">
+          <div class="flex items-center gap-2">
+            <button id="notesPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
+            <button id="notesNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
+            <span class="text-sm text-gray-600 ml-2">Page: <span id="notesPage">1</span></span>
+          </div>
+          <div class="text-sm text-gray-600">&nbsp;</div>
+        </div>
       </div>
     </div>
 
@@ -153,6 +205,27 @@
     </form>
   </dialog>
 
+  <!-- Note modal -->
+  <dialog id="noteModal" class="modal">
+    <form method="dialog" class="modal-box">
+      <h3 id="noteModalTitle" class="font-bold text-lg mb-2">Add Note</h3>
+      <div class="form-control">
+        <label class="label"><span class="label-text">Text</span></label>
+        <textarea id="noteText" class="textarea textarea-bordered w-full" rows="6" placeholder="Write a note..."></textarea>
+      </div>
+      <div class="form-control mt-3">
+        <label class="label cursor-pointer gap-3">
+          <span class="label-text">Active</span>
+          <input id="noteActive" type="checkbox" class="toggle toggle-primary" checked />
+        </label>
+      </div>
+      <div class="modal-action">
+        <button id="noteCancel" class="btn">Cancel</button>
+        <button id="noteSave" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="variantModal" class="modal">
     <form method="dialog" class="modal-box">
       <h3 id="variantModalTitle" class="font-bold text-lg mb-2">Add Inventory</h3>
@@ -166,8 +239,8 @@
           <input id="vColor" class="input input-bordered" type="text" placeholder="e.g. Pink" />
         </div>
         <div class="form-control">
-          <label class="label"><span class="label-text">Price</span></label>
-          <input id="vPrice" class="input input-bordered" type="number" step="0.01" min="0" value="0.00" />
+          <label class="label"><span class="label-text">Amount</span></label>
+          <input id="vAmount" class="input input-bordered" type="number" step="0.01" min="0" value="0.00" />
         </div>
         <div class="form-control">
           <label class="label"><span class="label-text">Photo</span></label>

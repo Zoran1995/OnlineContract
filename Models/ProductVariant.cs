@@ -22,8 +22,8 @@ namespace OnlineContract.Models
         [MaxLength(50)]
         public string? Color { get; set; }
 
-        [Column("price")]
-        public decimal Price { get; set; }
+        [Column("amount")]
+        public decimal Amount { get; set; }
 
         [Column("input_dt")]
         public DateTime InputDt { get; set; }

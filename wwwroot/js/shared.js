@@ -94,13 +94,19 @@ function ensureNotificationUI() {
       .notif--info .notif-accent{background:#2563eb}
       .notif--error .notif-accent{background:#ef4444}
       .notif--warning .notif-accent{background:#f59e0b}
-      /* Panel filter buttons matching the new colors */
-      .notif-info{background:#2563eb;color:#fff;border-color:#2563eb}
-      .notif-info:hover{filter:brightness(1.05)}
-      .notif-warning{background:#f59e0b;color:#fff;border-color:#f59e0b}
-      .notif-warning:hover{filter:brightness(1.05)}
-      .notif-error{background:#ef4444;color:#fff;border-color:#ef4444}
-      .notif-error:hover{filter:brightness(1.05)}
+      /* Panel filter buttons - softer pastel variants with left icons */
+      .notif-info{background:rgba(96,165,250,0.15);color:#0b5cff;border-color:rgba(96,165,250,0.2);}
+      .notif-info .material-icons{color:#0b5cff;margin-right:6px}
+      .notif-info:hover{background:rgba(96,165,250,0.22)}
+      .notif-warning{background:rgba(250,204,21,0.12);color:#a16207;border-color:rgba(250,204,21,0.15);}
+      .notif-warning .material-icons{color:#a16207;margin-right:6px}
+      .notif-warning:hover{background:rgba(250,204,21,0.18)}
+      .notif-error{background:rgba(239,68,68,0.08);color:#b91c1c;border-color:rgba(239,68,68,0.12);}
+      .notif-error .material-icons{color:#b91c1c;margin-right:6px}
+      .notif-error:hover{background:rgba(239,68,68,0.12)}
+      /* Global grid pagination style: smaller, consistent buttons */
+      .grid-pagination .btn, .grid-pagination .btn-sm, .grid-pagination .btn-xs { padding: 6px 8px; font-size: 0.85rem; }
+      .grid-pagination .page-indicator { font-size: 0.9rem; color: #4b5563; }
       `;
       document.head.appendChild(st);
     }
@@ -398,7 +404,7 @@ function ensureNotificationUI() {
     const infoBtn = document.createElement('button');
     infoBtn.className = 'btn btn-xs notif-info';
     infoBtn.setAttribute('aria-label', 'Filter information notifications');
-    infoBtn.textContent = 'Information';
+    infoBtn.innerHTML = '<span class="material-icons">info</span>Information';
     infoBtn.onclick = function() {
       window._notificationFilterType = 'info';
       updateNotificationBell();
@@ -408,7 +414,7 @@ function ensureNotificationUI() {
     const warnBtn = document.createElement('button');
     warnBtn.className = 'btn btn-xs notif-warning';
     warnBtn.setAttribute('aria-label', 'Filter warning notifications');
-    warnBtn.textContent = 'Warning';
+    warnBtn.innerHTML = '<span class="material-icons">warning</span>Warning';
     warnBtn.onclick = function() {
       window._notificationFilterType = 'warning';
       updateNotificationBell();
@@ -418,7 +424,7 @@ function ensureNotificationUI() {
     const errorBtn = document.createElement('button');
     errorBtn.className = 'btn btn-xs notif-error';
     errorBtn.setAttribute('aria-label', 'Filter error notifications');
-    errorBtn.textContent = 'Error';
+    errorBtn.innerHTML = '<span class="material-icons">error</span>Error';
     errorBtn.onclick = function() {
       window._notificationFilterType = 'error';
       updateNotificationBell();

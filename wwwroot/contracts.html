@@ -81,6 +81,15 @@
                     <input id="txtName" type="text" class="input input-bordered w-full" placeholder="Search by customer..." />
                 </div>
 
+                <div>
+                    <label class="label"><span class="label-text">From Date</span></label>
+                    <input id="dtFrom" type="date" class="input input-bordered w-full" />
+                </div>
+                <div>
+                    <label class="label"><span class="label-text">To Date</span></label>
+                    <input id="dtTo" type="date" class="input input-bordered w-full" />
+                </div>
+
                 <div class="w-full flex gap-2 justify-end md:col-start-5">
                     <button id="btnSearch" class="btn btn-primary"><span class="material-icons mr-2">search</span> Search</button>
                     <button id="btnClear" class="btn btn-outline"><span class="material-icons mr-2">clear_all</span> Clear</button>
@@ -108,18 +117,18 @@
         </div>
 
         <!-- Pagination -->
-        <div class="flex items-center gap-3 mt-3">
+        <div class="flex items-center gap-3 mt-3 grid-pagination">
             <label class="text-sm">Rows per page:</label>
-            <select id="pageSize" class="select select-bordered w-32">
+            <select id="pageSize" class="select select-bordered w-20 select-sm">
                 <option value="10" selected>10</option>
                 <option value="20">20</option>
                 <option value="50">50</option>
                 <option value="100">100</option>
             </select>
 
-            <button id="prevPage" class="btn btn-outline"><span class="material-icons mr-2">chevron_left</span> Previous</button>
+            <button id="prevPage" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
             <span id="pageInfo" class="font-semibold"></span>
-            <button id="nextPage" class="btn btn-outline">Next <span class="material-icons ml-2">chevron_right</span></button>
+            <button id="nextPage" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
 
             <span id="pageCountInfo" class="page-count-info"></span>
         </div>

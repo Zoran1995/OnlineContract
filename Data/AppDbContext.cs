@@ -15,6 +15,7 @@ namespace OnlineContract.Data
         public DbSet<Product> Products { get; set; }
         public DbSet<ProductVariant> ProductVariants { get; set; }
         public DbSet<ProductInventory> ProductInventories { get; set; }
+        public DbSet<Note> Notes { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -51,6 +52,11 @@ namespace OnlineContract.Data
                 entity.Property(e => e.ContractState).HasColumnName("contract_state");
                 entity.Property(e => e.LastModifiedById).HasColumnName("last_modified_by_id");
                 entity.Property(e => e.LastUpdatedDt).HasColumnName("last_updated_dt");
+                entity.Property(e => e.DeliveredDt).HasColumnName("delivered_dt");
+                entity.Property(e => e.WrittenOffDt).HasColumnName("written_off_dt");
+                entity.Property(e => e.RejectedDt).HasColumnName("rejected_dt");
+                entity.Property(e => e.CancelledDt).HasColumnName("cancelled_dt");
+                entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("decimal(18,2)");
                 entity.Property(e => e.Stamp).HasColumnName("stamp");
                 entity.Ignore(e => e.CustomerFullName);
             });
@@ -61,7 +67,6 @@ namespace OnlineContract.Data
                 entity.HasKey(e => e.Id).HasName("PK_product");
                 entity.Property(e => e.Id).HasColumnName("product_id");
                 entity.Property(e => e.Name).HasColumnName("name");
-                entity.Property(e => e.Description).HasColumnName("description");
                 entity.Property(e => e.InputDt).HasColumnName("input_dt");
                 entity.Property(e => e.InputUserId).HasColumnName("input_user_id");
                 entity.Property(e => e.LastModifiedById).HasColumnName("last_modified_by_id");
@@ -79,7 +84,7 @@ namespace OnlineContract.Data
                 entity.Property(e => e.ProductId).HasColumnName("product_id");
                 entity.Property(e => e.Size).HasColumnName("size");
                 entity.Property(e => e.Color).HasColumnName("color");
-                entity.Property(e => e.Price).HasColumnName("price").HasColumnType("decimal(18,2)");
+                entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("decimal(18,2)");
                 entity.Property(e => e.InputDt).HasColumnName("input_dt");
                 entity.Property(e => e.InputUserId).HasColumnName("input_user_id");
                 entity.Property(e => e.LastModifiedById).HasColumnName("last_modified_by_id");
@@ -116,6 +121,23 @@ namespace OnlineContract.Data
                 entity.Property(e => e.LastUpdatedDt).HasColumnName("last_updated_dt");
                 entity.Property(e => e.IsActive).HasColumnName("is_active");
                 entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
+                entity.Property(e => e.Stamp).HasColumnName("stamp");
+            });
+
+            modelBuilder.Entity<Note>(entity =>
+            {
+                entity.ToTable("note", "dbo");
+                entity.HasKey(e => e.Id).HasName("PK_note");
+                entity.Property(e => e.Id).HasColumnName("note_id");
+                entity.Property(e => e.ProductId).HasColumnName("product_id");
+                entity.Property(e => e.ContractId).HasColumnName("contract_id");
+                entity.Property(e => e.Comment).HasColumnName("comment");
+                entity.Property(e => e.IsMain).HasColumnName("is_main");
+                entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
+                entity.Property(e => e.InputDt).HasColumnName("input_dt");
+                entity.Property(e => e.InputUserId).HasColumnName("input_user_id");
+                entity.Property(e => e.LastModifiedById).HasColumnName("last_modified_by_id");
+                entity.Property(e => e.LastUpdatedDt).HasColumnName("last_updated_dt");
                 entity.Property(e => e.Stamp).HasColumnName("stamp");
             });
         }

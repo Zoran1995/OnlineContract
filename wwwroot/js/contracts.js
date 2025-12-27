@@ -11,6 +11,8 @@
 
   const ddlState = document.getElementById("ddlState");
   const txtName = document.getElementById("txtName");
+  const dtFrom = document.getElementById("dtFrom");
+  const dtTo = document.getElementById("dtTo");
 
   const btnOpen = document.getElementById("btnOpen");
   const btnSearch = document.getElementById("btnSearch");
@@ -61,8 +63,12 @@
     qs.set("pageSize", String(pageSize));
     const st = (ddlState?.value || "").trim();
     const nm = (txtName?.value || "").trim();
+    const from = (dtFrom?.value || '').trim();
+    const to = (dtTo?.value || '').trim();
     if (st) qs.set("state", st);
     if (nm) qs.set("name", nm);
+    if (from) qs.set('fromDate', from);
+    if (to) qs.set('toDate', to);
     return `?${qs.toString()}`;
   }
 
@@ -70,8 +76,12 @@
     const qs = new URLSearchParams();
     const st = (ddlState?.value || "").trim();
     const nm = (txtName?.value || "").trim();
+    const from = (dtFrom?.value || '').trim();
+    const to = (dtTo?.value || '').trim();
     if (st) qs.set("state", st);
     if (nm) qs.set("name", nm);
+    if (from) qs.set('fromDate', from);
+    if (to) qs.set('toDate', to);
     const s = qs.toString();
     return s ? `?${s}` : "";
   }

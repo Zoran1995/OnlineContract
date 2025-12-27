@@ -18,15 +18,16 @@ namespace OnlineContract.Helpers
     public enum ContractState
     {
         Draft = 9,
-        Accepted = 10,
-        PartiallyAccepted = 11,
-        Rejected = 12,
-        InProgress = 13,
-        Completed = 14,
-        Dispatched = 15,
-        Delivered = 16,
-        Returned = 17,
-        Cancelled = 18,
-        WrittenOff = 19
+        Submitted = 10,
+        Accepted = 11,
+        PartiallyAccepted = 12,
+        Rejected = 13,
+        InProgress = 14,
+        Completed = 15,
+        Dispatched = 16,
+        Delivered = 17,
+        Returned = 18,
+        Cancelled = 19,
+        WrittenOff = 20
     }
 }

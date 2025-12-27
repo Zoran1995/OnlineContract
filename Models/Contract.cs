@@ -31,6 +31,21 @@ namespace OnlineContract.Models
         [Column("last_updated_dt")]
         public DateTime? LastUpdatedDt { get; set; }
 
+        [Column("delivered_dt")]
+        public DateTime? DeliveredDt { get; set; }
+
+        [Column("written_off_dt")]
+        public DateTime? WrittenOffDt { get; set; }
+
+        [Column("rejected_dt")]
+        public DateTime? RejectedDt { get; set; }
+
+        [Column("cancelled_dt")]
+        public DateTime? CancelledDt { get; set; }
+
+        [Column("amount")]
+        public decimal Amount { get; set; }
+
         [Column("stamp")]
         public int Stamp { get; set; }
     }
