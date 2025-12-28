@@ -47,6 +47,23 @@ searchBtn.addEventListener('click', () => {
   loadLogs();
 });
 
+// Allow pressing Enter in filter inputs to trigger the search (type/select, fromDate, toDate)
+try {
+  const eventlogFilters = document.getElementById('eventlogContent');
+  if (eventlogFilters) {
+    eventlogFilters.addEventListener('keydown', (e) => {
+      try {
+        const t = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+        if (e.key === 'Enter' && (t === 'INPUT' || t === 'SELECT' || t === 'TEXTAREA')) {
+          e.preventDefault();
+          currentPage = 1;
+          loadLogs();
+        }
+      } catch { }
+    });
+  }
+} catch { }
+
 clearBtn.addEventListener('click', () => {
   typeFilter.value = "0";
   setDefaultDates();
@@ -86,16 +103,25 @@ exportBtn.addEventListener('click', async () => {
     }
 
     const userId = localStorage.getItem('userId') || 2;
-    const res = await fetch(`/api/event-log/export?userId=${userId}`);
+    const params = new URLSearchParams({
+      userId,
+      type: typeFilter.value || '',
+      from: fromDate.value || '',
+      to: toDate.value || ''
+    });
+    const res = await fetch(`/api/event-log/export?${params.toString()}`);
     if (!res.ok) throw new Error("Export failed");
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = "eventlog.csv";
+    // Timestamped filename: EventLog_yyyy-MM-dd_HH-mm-ss.csv
+    const d = new Date();
+    const ts = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}-${String(d.getMinutes()).padStart(2,'0')}-${String(d.getSeconds()).padStart(2,'0')}`;
+    a.download = `EventLog_${ts}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
-    showToast('info', 'Export successful');
+    showToast('info', 'Export has been successfully generated and downloaded.');
   } catch (err) {
     logClientError("Export failed", err.stack || "");
     showToast('error', 'Export failed');

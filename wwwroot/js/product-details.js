@@ -44,7 +44,10 @@
   const btnSetMainNote = document.getElementById('btnSetMainNote');
   const noteModal = document.getElementById('noteModal');
   const noteModalTitle = document.getElementById('noteModalTitle');
-  const noteText = document.getElementById('noteText');
+  const noteSubject = document.getElementById('noteSubject');
+  const noteComment = document.getElementById('noteComment');
+  const noteProductId = document.getElementById('noteProductId');
+  const noteContractId = document.getElementById('noteContractId');
   const noteActive = document.getElementById('noteActive');
   const noteSave = document.getElementById('noteSave');
 
@@ -213,8 +216,18 @@
     if (btnDeleteNote) btnDeleteNote.disabled = !hasSel;
     if (btnOpenNote) btnOpenNote.disabled = !hasSel;
     if (btnSetMainNote) btnSetMainNote.disabled = !hasSel;
-    if (menuSetMainNote) menuSetMainNote.classList.toggle('opacity-50', !hasSel);
-    if (menuDeleteNote) menuDeleteNote.classList.toggle('opacity-50', !hasSel);
+    if (menuDeleteNote) {
+      menuDeleteNote.classList.toggle('opacity-50', !hasSel);
+      menuDeleteNote.classList.toggle('pointer-events-none', !hasSel);
+      if (!hasSel) { menuDeleteNote.setAttribute('aria-disabled', 'true'); menuDeleteNote.setAttribute('tabindex', '-1'); }
+      else { menuDeleteNote.removeAttribute('aria-disabled'); menuDeleteNote.removeAttribute('tabindex'); }
+    }
+    if (menuSetMainNote) {
+      menuSetMainNote.classList.toggle('opacity-50', !hasSel);
+      menuSetMainNote.classList.toggle('pointer-events-none', !hasSel);
+      if (!hasSel) { menuSetMainNote.setAttribute('aria-disabled', 'true'); menuSetMainNote.setAttribute('tabindex', '-1'); }
+      else { menuSetMainNote.removeAttribute('aria-disabled'); menuSetMainNote.removeAttribute('tabindex'); }
+    }
   }
 
   function readProductFormIntoState() {
@@ -249,7 +262,6 @@
     variantsTableBody.innerHTML = '';
 
     const all = state.variants || [];
-    const total = all.length;
     const start = (Math.max(1, state.variantsPage) - 1) * state.variantsPageSize;
     const pageItems = all.slice(start, start + state.variantsPageSize);
 
@@ -261,6 +273,8 @@
       td.textContent = 'No variants.';
       tr.appendChild(td);
       variantsTableBody.appendChild(tr);
+      updateVariantsPaginationUI();
+      computeTotalAmount();
       return;
     }
 
@@ -296,6 +310,7 @@
 
       variantsTableBody.appendChild(tr);
     });
+
     updateVariantsPaginationUI();
     computeTotalAmount();
   }
@@ -452,6 +467,7 @@
         lastUpdatedDt: data.lastUpdatedDt ?? '',
         lastModifiedById: data.lastModifiedById ?? null,
         lastModifiedByCode: data.lastModifiedByCode ?? '',
+        stamp: safeInt(data.stamp, 0),
         _tmpNextId: -1
       };
 
@@ -464,7 +480,10 @@
             isActive: !!v.isActive,
             photoFileName: v.photoFileName ?? '',
             qtyStore1: clampInt(v.qtyStore1),
-            qtyStore2: clampInt(v.qtyStore2)
+            qtyStore1Stamp: safeInt(v.qtyStore1Stamp, 0),
+            qtyStore2: clampInt(v.qtyStore2),
+            qtyStore2Stamp: safeInt(v.qtyStore2Stamp, 0),
+            stamp: safeInt(v.stamp, 0)
           }))
         : [];
 
@@ -488,7 +507,8 @@
             isMain: !!n.isMain,
             isActive: !!n.isActive,
             inputDt: n.inputDt ?? '',
-            inputUserCode: n.inputUserCode ?? ''
+            inputUserCode: n.inputUserCode ?? '',
+            stamp: safeInt(n.stamp, 0)
           }));
         } else {
           state.notes = [];
@@ -503,130 +523,233 @@
     }
   }
 
+  // Fetch notes only and merge into current draft state (preserve variants/draft)
+  async function loadNotesOnly() {
+    if (!state.id || state.id === 0) return;
+    try {
+      const resNotes = await fetch(`${apiBase}/${encodeURIComponent(state.id)}/notes?page=1&pageSize=200`, {
+        method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' }
+      });
+      if (!resNotes.ok) return;
+      const dataNotes = await resNotes.json();
+      const items = Array.isArray(dataNotes.items) ? dataNotes.items : [];
+      state.notes = items.map(n => ({
+        id: safeInt(n.id, 0),
+        text: n.text ?? '',
+        isMain: !!n.isMain,
+        isActive: !!n.isActive,
+        inputDt: n.inputDt ?? '',
+        inputUserCode: n.inputUserCode ?? '',
+        stamp: safeInt(n.stamp, 0)
+      }));
+      renderNotes();
+    } catch {
+      // ignore - keep local notes draft as-is
+    }
+  }
+
   function openNoteModal(edit = false) {
     if (!noteModal) return;
     modalEditingNoteId = null;
     if (noteModalTitle) noteModalTitle.textContent = edit ? 'Edit Note' : 'Add Note';
-    if (noteText) noteText.value = '';
+    if (noteSubject) noteSubject.value = '';
+    if (noteComment) noteComment.value = '';
+    if (noteProductId) noteProductId.value = state.id ? String(state.id) : '';
+    if (noteContractId) noteContractId.value = '';
     if (noteActive) noteActive.checked = true;
     if (edit) {
       if (selectedNoteId == null) { try { showToast('warning', 'Select a note first'); } catch {} return; }
       const n = state.notes.find(x => x.id === selectedNoteId);
       if (!n) return;
       modalEditingNoteId = n.id;
-      if (noteText) noteText.value = n.text || '';
+      if (noteSubject) noteSubject.value = n.subject || n.text || '';
+      if (noteComment) noteComment.value = n.comment || n.text || '';
+      if (noteProductId) noteProductId.value = n.productId ? String(n.productId) : (state.id ? String(state.id) : '');
+      if (noteContractId) noteContractId.value = n.contractId ? String(n.contractId) : '';
       if (noteActive) noteActive.checked = !!n.isActive;
     }
     noteModal.showModal();
   }
 
   function addNoteFromModal() {
-    const text = (noteText?.value || '').trim();
+    const subject = (noteSubject?.value || '').trim();
+    const comment = (noteComment?.value || '').trim();
     const active = !!noteActive?.checked;
-    if (!text) { try { showToast('warning', 'Text is required'); } catch {} return; }
+    if (!subject) { try { showToast('warning', 'Subject is required'); } catch {} return; }
 
     if (modalEditingNoteId != null) {
       const n = state.notes.find(x => x.id === modalEditingNoteId);
       if (n) {
-        n.text = text;
+        n.subject = subject;
+        n.comment = comment;
         n.isActive = active;
         selectedNoteId = n.id;
       }
     } else {
       const tmpId = (typeof state.product._tmpNextId === 'number' ? state.product._tmpNextId : -1);
       state.product._tmpNextId = tmpId - 1;
-      state.notes.push({ id: tmpId, text, isActive: active, isMain: false, inputDt: '', inputUserCode: '' });
+      state.notes.push({ id: tmpId, subject, comment, text: comment, isActive: active, isMain: false, inputDt: '', inputUserCode: '' });
       selectedNoteId = tmpId;
     }
     updateNotesToolbar();
     renderNotes();
     try { noteModal.close(); } catch {}
 
-    // If product already exists, persist this single change immediately
+    // If product already exists, persist this single change immediately via /api/notes
     if (!state.isNew) {
-      const payload = { Add: [], Update: [], Delete: [], SetMainId: (state.setMainNoteId || null) };
-      if (modalEditingNoteId != null) {
-        payload.Update.push({ Id: modalEditingNoteId, Comment: (noteText?.value||'').trim(), IsActive: !!noteActive?.checked });
-      } else {
-        payload.Add.push({ Comment: (noteText?.value||'').trim(), IsActive: !!noteActive?.checked });
-      }
+      const payload = { Subject: subject, Comment: comment, ProductId: state.id || null, ContractId: null, IsActive: active };
       (async () => {
         try {
-          const res = await fetch(`${apiBase}/${encodeURIComponent(state.id)}/notes`, {
-            method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          const res = await fetch('/api/notes', {
+            method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify(payload)
           });
           if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
           if (res.status === 403) { window.location.href = '/home'; return; }
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          try { showToast('info', 'Note was saved successfully.'); } catch {}
-          await loadDetails();
+          let resJson = null;
+          try { resJson = await res.json(); } catch {}
+          if (!res.ok || !(resJson && resJson.success)) {
+            const msg = (resJson && resJson.message) ? resJson.message : 'Failed to save the note. Please try again later.';
+            try { showToast('error', msg); } catch {}
+            // Refresh notes only (preserve draft variants)
+            await loadNotesOnly();
+            return;
+          }
+          // Merge returned note metadata into local draft (replace tmp id)
+          try {
+            const createdId = safeInt(resJson.id, 0);
+            const createdStamp = safeInt(resJson.stamp, 0);
+            const inputDt = resJson.inputDt || '';
+            const inputUserCode = resJson.inputUserCode || '';
+            // find temporary note (matching negative id created above)
+            const tmpNoteIndex = state.notes.findIndex(n => n.id <= 0 && (n.text === comment || n.comment === comment || n.subject === subject));
+            if (tmpNoteIndex >= 0) {
+              const tmp = state.notes[tmpNoteIndex];
+              tmp.id = createdId;
+              tmp.stamp = createdStamp;
+              tmp.inputDt = inputDt;
+              tmp.inputUserCode = inputUserCode;
+              tmp.text = comment;
+            } else {
+              state.notes.push({ id: createdId, subject, comment, text: comment, isActive: active, isMain: false, inputDt: inputDt, inputUserCode: inputUserCode, stamp: createdStamp });
+            }
+            renderNotes();
+          } catch {}
+          try { showToast('info', resJson.message || 'Note has been saved successfully.'); } catch {}
+          // Refresh only notes (keeps inventory draft intact)
+          await loadNotesOnly();
         } catch (err) {
-          try { showToast('error', 'Note could not be saved. Please try again.'); } catch {}
+          try { showToast('error', 'Failed to save the note. Please try again later.'); } catch {}
         }
       })();
     }
   }
 
   function deleteSelectedNote() {
-    if (selectedNoteId == null) { try { showToast('warning', 'Please select a note first.'); } catch {} return; }
+    if (selectedNoteId == null) { try { showToast('warning', 'Please select a note before proceeding.'); } catch {} return; }
     const noteId = selectedNoteId;
     const n = state.notes.find(x => x.id === noteId);
     if (!n) return;
-    if (!confirm('Remove the selected note from the grid? It will be deleted from the database when you click Save.')) return;
-    if (noteId > 0) {
-      if (!state.deletedNoteIds.includes(noteId)) state.deletedNoteIds.push(noteId);
+    const dlg = document.getElementById('noteDeleteConfirm');
+    const okBtn = document.getElementById('noteConfirmOk');
+    if (!dlg || !okBtn || !dlg.showModal) {
+      if (!confirm('Remove the selected note from the grid? It will be deleted from the database when you click Save.')) return;
+      proceedDelete();
+    } else {
+      let resolved = false;
+      const onOk = (e) => { e.preventDefault(); resolved = true; try { dlg.close(); } catch {} };
+      okBtn.addEventListener('click', onOk, { once: true });
+      dlg.addEventListener('close', () => {
+        if (!resolved) return;
+        proceedDelete();
+      }, { once: true });
+      try { dlg.showModal(); } catch { dlg.classList.remove('hidden'); if (!confirm('Remove the selected note from the grid? It will be deleted from the database when you click Save.')) return; proceedDelete(); }
     }
-    state.notes = state.notes.filter(x => x.id !== noteId);
-    selectedNoteId = null;
-    updateNotesToolbar();
-    renderNotes();
-    try { showToast('info', 'The note was removed and marked for deletion.'); } catch {}
 
-    if (!state.isNew && noteId > 0) {
-      (async () => {
-        try {
-          const payload = { Add: [], Update: [], Delete: [noteId], SetMainId: (state.setMainNoteId || null) };
-          const res = await fetch(`${apiBase}/${encodeURIComponent(state.id)}/notes`, {
-            method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
-          if (res.status === 403) { window.location.href = '/home'; return; }
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          try { showToast('info', 'Delete saved.'); } catch {}
-          await loadDetails();
-        } catch {
-          try { showToast('error', 'Failed to delete note.'); } catch {}
-        }
-      })();
+    function proceedDelete() {
+      if (noteId > 0) {
+        const existing = state.notes.find(x => x.id === noteId);
+        if (!state.deletedNoteIds.some(x => x && x.id === noteId)) state.deletedNoteIds.push({ id: noteId, stamp: existing ? safeInt(existing.stamp, 0) : 0 });
+      }
+
+      // If deleting the currently-set main note, clear the setMainNoteId so server doesn't attempt to set it
+      if (state.setMainNoteId === noteId) state.setMainNoteId = null;
+
+      state.notes = state.notes.filter(x => x.id !== noteId);
+      selectedNoteId = null;
+      updateNotesToolbar();
+      renderNotes();
+      if (state.isNew) {
+        try { showToast('info', 'The note was removed from the grid and marked for deletion. Click Save to persist changes.'); } catch {}
+        return;
+      }
+
+      if (!state.isNew && noteId > 0) {
+        (async () => {
+          try {
+            const n2 = state.notes.find(x => x.id === noteId);
+            const payload = { Add: [], Update: [], Delete: [{ Id: noteId, Stamp: n2 ? safeInt(n2.stamp, 0) : 0 }], SetMainId: (state.setMainNoteId || null), SetMainStamp: (state.setMainNoteId ? (state.notes.find(x => x.id === state.setMainNoteId)?.stamp ?? 0) : null) };
+            const res = await fetch(`${apiBase}/${encodeURIComponent(state.id)}/notes`, {
+              method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+            if (res.status === 403) { window.location.href = '/home'; return; }
+            let resJson = null;
+            try { resJson = await res.json(); } catch {}
+            if (!res.ok || !(resJson && resJson.success)) {
+              const msg = (resJson && resJson.message) ? resJson.message : 'Failed to delete the note. Please try again later.';
+              try { showToast('error', msg); } catch {}
+              await loadNotesOnly();
+              return;
+            }
+            try { showToast('info', resJson.message || 'Deletion has been saved successfully.'); } catch {}
+            await loadNotesOnly();
+          } catch {
+            try { showToast('error', 'Failed to delete the note. Please try again later.'); } catch {}
+          }
+        })();
+      }
     }
   }
 
   function setMainSelectedNote() {
-    if (selectedNoteId == null) { try { showToast('warning', 'Select a note first'); } catch {} return; }
+    if (selectedNoteId == null) { try { showToast('warning', 'Please select a note before proceeding.'); } catch {} return; }
     const noteId = selectedNoteId;
+    const existing = state.notes.find(x => x.id === noteId);
+    if (existing && existing.isMain) { try { showToast('warning', 'The note is already set as main. No changes were made.'); } catch {} return; }
     state.setMainNoteId = (noteId > 0 ? noteId : null);
     state.notes = state.notes.map(n => ({ ...n, isMain: n.id === noteId }));
     renderNotes();
-    try { showToast('info', 'Selected note marked as main. Click Save to apply.'); } catch {}
+    // For new products, inform user to click Save. For existing products, defer showing
+    // confirmation until server responds so we don't show conflicting messages.
+    if (state.isNew) {
+      try { showToast('info', 'Selected note marked as main. Click Save to apply the change.'); } catch {}
+    }
 
     // Persist set-main immediately for existing products
     if (!state.isNew && noteId > 0) {
       (async () => {
         try {
-          const payload = { Add: [], Update: [], Delete: [], SetMainId: noteId };
+          const target = state.notes.find(x => x.id === noteId);
+          const payload = { Add: [], Update: [], Delete: [], SetMainId: noteId, SetMainStamp: target ? safeInt(target.stamp, 0) : 0 };
           const res = await fetch(`${apiBase}/${encodeURIComponent(state.id)}/notes`, {
             method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify(payload)
           });
           if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
           if (res.status === 403) { window.location.href = '/home'; return; }
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          try { showToast('info', 'Main note set.'); } catch {}
-          await loadDetails();
+          let resJson = null;
+          try { resJson = await res.json(); } catch {}
+          if (!res.ok || !(resJson && resJson.success)) {
+            const msg = (resJson && resJson.message) ? resJson.message : 'Failed to set the main note. Please try again later.';
+            try { showToast('error', msg); } catch {}
+            return;
+          }
+          try { showToast('info', resJson.message || 'Main note has been set successfully.'); } catch {}
+          await loadNotesOnly();
         } catch {
-          try { showToast('error', 'Could not set main note.'); } catch {}
+          try { showToast('error', 'Failed to set the main note. Please try again later.'); } catch {}
         }
       })();
     }
@@ -640,7 +763,10 @@
       amount: safeNumber(v.amount),
       isActive: !!v.isActive,
       qtyStore1: clampInt(v.qtyStore1),
+      qtyStore1Stamp: safeInt(v.qtyStore1Stamp, 0),
       qtyStore2: clampInt(v.qtyStore2),
+      qtyStore2Stamp: safeInt(v.qtyStore2Stamp, 0),
+      stamp: safeInt(v.stamp, 0),
       photoFileName: (v.photoFileName ?? '')
     }));
   }
@@ -690,7 +816,8 @@
         if (state.variants.length > 0) {
           state.id = newId;
           state.isNew = false;
-
+          // Persist variants and notes in one atomic call
+          const notesPayloadNew = buildNotesPayload();
           const res2 = await fetch(`${apiBase}/${encodeURIComponent(newId)}/details`, {
             method: 'PUT',
             credentials: 'include',
@@ -700,26 +827,15 @@
               // description removed
               isActive: !!state.product.isActive,
               variants: buildCleanVariantsPayload(),
-              deletedVariantIds: []
+              deletedVariantIds: [],
+              Notes: notesPayloadNew
             })
           });
 
           if (res2.status === 401) { window.location.href = '/login?mode=login'; return; }
           if (res2.status === 403) { window.location.href = '/home'; return; }
         }
-
-        // Save notes for new product
-        try {
-          const notesPayload = buildNotesPayload();
-          if (notesPayload.Add.length || notesPayload.Delete.length || notesPayload.Update.length || notesPayload.SetMainId) {
-            await fetch(`${apiBase}/${encodeURIComponent(newId)}/notes`, {
-              method: 'PUT',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-              body: JSON.stringify(notesPayload)
-            });
-          }
-        } catch {}
+        // notes have been sent together with details above when present
 
         try {
           sessionStorage.setItem('pendingToast', JSON.stringify({ type: 'info', message: 'Product was successfully created.' }));
@@ -729,7 +845,7 @@
       }
 
       // Update existing product
-      const res = await fetch(`${apiBase}/${encodeURIComponent(state.id)}/details`, {
+        const res = await fetch(`${apiBase}/${encodeURIComponent(state.id)}/details`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -737,8 +853,10 @@
           name: state.product.name,
           // description removed
           isActive: !!state.product.isActive,
-          variants: buildCleanVariantsPayload(),
-          deletedVariantIds: buildDeletedIdsPayload()
+            variants: buildCleanVariantsPayload(),
+            deletedVariantIds: buildDeletedIdsPayload(),
+            stamp: state.product.stamp,
+            Notes: buildNotesPayload()
         })
       });
 
@@ -751,19 +869,7 @@
         try { showToast('error', data?.message || 'Product could not be saved. Please try again.'); } catch {}
         return;
       }
-      // Save notes after product details
-      try {
-        const notesPayload = buildNotesPayload();
-        if (notesPayload.Add.length || notesPayload.Delete.length || notesPayload.Update.length || notesPayload.SetMainId) {
-          const resNotes = await fetch(`${apiBase}/${encodeURIComponent(state.id)}/notes`, {
-            method: 'PUT',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify(notesPayload)
-          });
-          if (!resNotes.ok) throw new Error('Notes save failed');
-        }
-      } catch { /* stay silent but keep product save */ }
+      // Notes have been included in details payload (atomic)
       try { showToast('info', data?.message || 'Product was successfully saved.'); } catch {}
       await loadDetails();
     } catch {
@@ -781,11 +887,20 @@
       if (n.id <= 0) {
         add.push({ Comment: n.text ?? '', IsDeleted: !!n.isDeleted, IsActive: !!n.isActive });
       } else {
-        update.push({ Id: n.id, Comment: n.text ?? '', IsDeleted: !!n.isDeleted, IsActive: !!n.isActive });
+        update.push({ Id: n.id, Comment: n.text ?? '', IsDeleted: !!n.isDeleted, IsActive: !!n.isActive, Stamp: safeInt(n.stamp, 0) });
       }
     });
-    (state.deletedNoteIds || []).forEach(id => { if (id > 0) del.push(id); });
-    return { Add: add, Update: update, Delete: del, SetMainId: (state.setMainNoteId || null) };
+    (state.deletedNoteIds || []).forEach(item => {
+      if (!item) return;
+      if (typeof item === 'number') {
+        if (item > 0) del.push({ Id: item, Stamp: 0 });
+      } else {
+        const iid = safeInt(item.id, 0);
+        if (iid > 0) del.push({ Id: iid, Stamp: safeInt(item.stamp, 0) });
+      }
+    });
+    const setMainStamp = state.setMainNoteId ? (state.notes.find(x => x.id === state.setMainNoteId)?.stamp ?? 0) : null;
+    return { Add: add, Update: update, Delete: del, SetMainId: (state.setMainNoteId || null), SetMainStamp: setMainStamp };
   }
 
   function openVariantModal() {
@@ -876,6 +991,9 @@
         isActive: active,
         qtyStore1: qty1,
         qtyStore2: qty2,
+        qtyStore1Stamp: 0,
+        qtyStore2Stamp: 0,
+        stamp: 0,
         photoFileName: photo
       });
       selectedVariantId = tmpId;
@@ -890,7 +1008,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     renderHeader();
     btnSave?.addEventListener('click', (e) => { e.preventDefault(); save(); });
-    btnAddVariant?.addEventListener('click', (e) => { e.preventDefault(); openVariantModal(); });
+    btnAddVariant?.addEventListener('click', (e) => { e.preventDefault(); selectedVariantId = null; try{ updateVariantToolbar(); }catch{} try{ renderVariants(); }catch{} openVariantModal(); });
     variantAdd?.addEventListener('click', (e) => { e.preventDefault(); addVariantFromModal(); });
 
     btnDeleteVariant?.addEventListener('click', (e) => {
@@ -904,7 +1022,7 @@
     });
     document.getElementById('variantsPrev')?.addEventListener('click', (e) => { e.preventDefault(); state.variantsPage = Math.max(1, state.variantsPage - 1); renderVariants(); });
     document.getElementById('variantsNext')?.addEventListener('click', (e) => { e.preventDefault(); state.variantsPage = state.variantsPage + 1; renderVariants(); });
-  btnAddNote?.addEventListener('click', (e) => { e.preventDefault(); openNoteModal(false); });
+  btnAddNote?.addEventListener('click', (e) => { e.preventDefault(); selectedNoteId = null; try{ updateNotesToolbar(); }catch{} try{ renderNotes(); }catch{} openNoteModal(false); });
   btnOpenNote?.addEventListener('click', (e) => { e.preventDefault(); openNoteModal(true); });
   btnDeleteNote?.addEventListener('click', (e) => { e.preventDefault(); deleteSelectedNote(); });
   btnSetMainNote?.addEventListener('click', (e) => { e.preventDefault(); setMainSelectedNote(); });

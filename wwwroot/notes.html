@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en" data-theme="pastel">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KidzStyle · Notes</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link rel="icon" href="/resources/icons/note.svg" type="image/svg+xml" />
+  <link href="/css/login.css" rel="stylesheet" />
+  <style>.hidden{display:none!important;} main{max-width:1200px;margin:0 auto;} .dropdown .dropdown-content{position:absolute;z-index:10000;}</style>
+</head>
+<body class="bg-base-200 text-base-content">
+  <div class="navbar bg-base-100 shadow sticky top-0 z-50">
+    <div class="flex-1">
+      <a href="/home" class="btn btn-ghost normal-case text-xl"><span class="material-icons mr-2">home</span> Home</a>
+      <a href="/about" class="btn btn-ghost"><span class="material-icons mr-2">info</span> About</a>
+      <a href="/address" class="btn btn-ghost"><span class="material-icons mr-2">location_on</span> Address</a>
+      <a href="/eventlog" class="btn btn-ghost"><span class="material-icons mr-2">bug_report</span> EventLog</a>
+    </div>
+    <div class="flex-none items-center gap-3">
+      <a id="navSignIn" href="/login" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</a>
+      <a id="navLogIn" href="/login" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</a>
+    </div>
+  </div>
+
+  <main class="container mx-auto p-4">
+    <div class="flex items-center justify-between gap-3 mb-3">
+      <div>
+        <h1 class="text-2xl font-bold">Notes</h1>
+        <div class="text-sm text-gray-500">Browse notes</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btnOpen" class="btn btn-sm" disabled><span class="material-icons mr-2">open_in_new</span>Open</button>
+        <button id="btnAddNote" class="btn btn-sm btn-outline"><span class="material-icons mr-2">add</span>Add Note</button>
+      </div>
+    </div>
+
+    <section class="bg-base-100 rounded-xl shadow p-4 mb-2">
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+        <div>
+          <label class="label"><span class="label-text">Contract id</span></label>
+          <input id="fltContractId" class="input input-sm input-bordered w-full" type="text" placeholder="Contract id" />
+        </div>
+        <div>
+          <label class="label"><span class="label-text">Product id</span></label>
+          <input id="fltProductId" class="input input-sm input-bordered w-full" type="text" placeholder="Product id" />
+        </div>
+        <div class="w-full flex gap-2 justify-end md:col-start-5">
+          <button id="btnSearch" class="btn btn-sm btn-primary"><span class="material-icons mr-2">search</span> Search</button>
+          <button id="btnClear" class="btn btn-sm btn-outline"><span class="material-icons mr-2">clear_all</span> Clear</button>
+        </div>
+        <div class="text-sm text-gray-500 col-span-1 md:col-span-5">
+          <span id="emptyState" class="hidden">No data found for selected filters.</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
+      <table id="notesTable" class="table table-zebra w-full" aria-label="Notes">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Contract Id</th>
+            <th>Product Id</th>
+            <th>Subject</th>
+            <th>Input Date</th>
+            <th>Input User Id</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="flex items-center gap-3 mt-3 grid-pagination">
+      <label class="text-sm">Rows per page:</label>
+      <select id="pgSize" class="select select-bordered w-20 select-sm"><option value="10" selected>10</option><option value="20">20</option><option value="50">50</option><option value="100">100</option></select>
+      <button id="pgPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
+      <span id="pgInfo" class="font-semibold"></span>
+      <button id="pgNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
+      <span id="pageCountInfo" class="page-count-info ml-auto"></span>
+    </div>
+  </main>
+
+  <!-- Add Note modal (simple) -->
+  <dialog id="addNoteModal" class="modal">
+    <form method="dialog" class="modal-box">
+      <h3 id="noteModalTitle" class="font-bold text-lg mb-2">Add Note</h3>
+      <input type="hidden" id="editNoteId" />
+      <div class="form-control">
+        <label class="label"><span class="label-text">Subject</span></label>
+        <input id="newSubject" class="input input-bordered w-full" type="text" />
+      </div>
+      <div class="form-control mt-2">
+        <label class="label"><span class="label-text">Contract Id (optional)</span></label>
+        <input id="newContractId" class="input input-bordered w-full" type="number" />
+      </div>
+      <div class="form-control mt-2">
+        <label class="label"><span class="label-text">Product Id (optional)</span></label>
+        <input id="newProductId" class="input input-bordered w-full" type="number" />
+      </div>
+        <div class="form-control mt-2">
+          <label class="label"><span class="label-text">Comment</span></label>
+          <textarea id="newComment" class="textarea textarea-bordered w-full" rows="4"></textarea>
+        </div>
+      <div class="modal-action">
+        <button class="btn">Cancel</button>
+        <button id="addNoteSave" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/js/shared.js"></script>
+  <script src="/js/notes.js"></script>
+</body>
+</html>

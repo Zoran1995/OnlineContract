@@ -25,106 +25,150 @@ Minimal ASP.NET Core app serving static pages from `wwwroot` with a few JSON API
   - Change Store modal opens empty; fields populate after store selection.
   - Working-hours editor uses `input type="time"` with 30‑minute increments; ranges normalized and validated.
 
-- Auth & roles
-  - `POST /api/login` → `{ success, userId, roleId }`.
-  - `POST /api/register` enforces unique username/email and auto‑logs in new users.
-  - `Models/AxUser.cs` maps `[Column("role_id")] int RoleId`.
-  - Privileged roles: Worker=6, Manager=7, Administrator=8.
-  - Navbar and page gating are driven from `GET /whoami` (cookie auth) via `wwwroot/js/shared.js`.
-  - Client consistently passes `userId` to `/api/stores` GET/PUT; server defaults to `2` (system) if missing.
+# OnlineContract — README
 
-- Event Log
-  - `GET /api/event-log` with filters; `GET /api/event-log/export` CSV.
-  - `EventType` values: Information=2, Warning=3, Error=4.
-  - EventLog page gated on the client: non‑privileged users see “Access Denied”.
-  - Filters: Search and Clear aligned to the right; pagination buttons include chevron icons.
-  - Server logs full exception text, including stack traces, tagged with `userId` (fallback `2`).
+This repository contains a minimal ASP.NET Core web application that serves static pages from `wwwroot` together with a set of JSON APIs backed by Entity Framework Core. The frontend is plain HTML/CSS/JavaScript (TailwindCSS + DaisyUI via CDN) and the server is implemented as a minimal API in `Controllers/Program.cs`.
 
-- Users & Teams
-  - Page: `/users` with filters and grid.
-  - Filters: Name (text) + Team (dropdown). Team list is populated from `GET /api/groups?page=1&pageSize=1000` and shows all groups (`is_group = 1`).
-  - Grid: Teams column displays the team’s `ax_user.Code` derived from `owner_id`. Uses `groupName` from `GET /api/users` when present, else owner mapping.
-  - Toolbar: `Open`, `New User`, `New Team`, and a three‑dots menu with `Activate/Deactivate` + `Delete`.
-  - Actions: `POST /api/users/{id}/activate`, `POST /api/users/{id}/deactivate`, `POST /api/users/{id}/delete`.
-  - Modal: Team Code is a dropdown (blank default) matching the Team filter; selecting updates hidden `OwnerId` for the payload.
-  - UX: Three‑dots menu opens on first click and closes on second; also closes on outside click and Escape.
-  - Navbar: Export to CSV is hidden on Users & Teams page.
+This README documents the full set of features and the recent functional changes and fixes applied across the backend and frontend (authentication, users/teams, stores, exports, timestamps, UI/UX improvements, and validation fixes).
 
-- Contracts
-  - Page: `/contracts` (grid + filters + paging) styled like Users/EventLog.
-  - Filters: Contract state + Customer name/code; Search/Clear buttons aligned with filters.
-  - Selection: clicking a row enables the `Open` button; otherwise it stays disabled.
-  - APIs:
-    - `GET /api/contracts?state=&name=&page=&pageSize=` → `{ items, totalCount, totalPages }`
-    - `GET /api/contracts/{id}` → single contract payload
-    - `GET /api/contracts/export?state=&name=` → CSV download (`contracts.csv`)
-  - Data source:
-    - Reads from `dbo.contract` (`contract_id`, `input_dt`, `input_user_id`, `contract_state`, ...)
-    - Only rows where `contract_id > 0` are returned/exported.
-  - Access control:
-    - Guests and `Customer` role are blocked with an inline “Access Denied” screen.
-    - Export button shows a warning toast if the grid is empty.
+---
 
-- Products (privileged management)
-  - Page: `/products` (grid + filters + paging) for Worker/Manager/Administrator.
-  - Filters: Name + Store dropdown.
-    - Store dropdown always includes “All Stores” and store names from `dbo.stores` via `GET /api/stores`.
-  - Grid:
-    - First column is Product ID.
-    - Status is plain text (“Active” / “Inactive”), matching Users.
-    - Row selection is highlighted and enables actions like Open.
-  - Product Details page: `/products/{id}`
-    - Uses tabs for product info, variants, and inventory.
-    - Shows `ax_user.code` (not numeric user ids) for audit fields returned by the API.
-    - Photo upload is optional; server validates image formats (PNG/JPG/JPEG/GIF/WEBP).
-    - Upload destination: `C:\Projects\Build\InstallDocs` (only the filename is stored on the variant).
-  - Auditing: create/update/activate/deactivate/delete actions are logged to `event_log`.
+## High-level summary of recent changes
 
-## Run locally
+- Login & authentication
+  - Added clearer error messages for login failures (invalid credentials, server error).
+  - Detect and return a friendly message when a valid credential pair belongs to a deactivated user: "Your account has been deactivated. If you need it reactivated, please contact our administrator.".
+  - Block team/group accounts from signing in (when `ax_user.IsGroup == true`) — team accounts cannot be used to authenticate. Message returned: "Team accounts cannot be used to sign in. Please use a personal account or contact your administrator for access.".
+  - Persist `LastLoginDt` (server local time) on successful sign-in.
+
+- User create/update behaviour
+  - Create (`POST /api/users`) enforces required fields (email, phone, password for non-group users) and sets audit timestamps.
+  - Update (`PUT /api/users/{id}`) enforces email/phone and optimistic concurrency via `Stamp`.
+  - Password update validation changed: the server only validates and applies a password when the client explicitly intends to change it. Client placeholder values (e.g. `••••••••`) are treated as "no change"; if the user clears the password field (sends empty string), server validation will enforce it (password required).
+  - Success/failure responses standardized: update, activate/deactivate/delete now return descriptive messages (e.g. "User has been updated successfully.").
+
+- Users & Teams dropdown and modal fixes
+  - `GET /api/groups` now returns only groups where `IsGroup == true`, `IsActive == true`, and `IsDeleted == false` so dropdowns and filters only show active teams.
+  - The user edit modal hides or excludes deactivated/ deleted teams from the Team dropdown.
+
+- Exports and CSV
+  - `GET /api/event-log/export` and `GET /api/contracts/export` return CSV files named with a timestamp suffix (e.g. `EventLog_2025-12-28_14-23-02.csv`).
+  - Event type mapping fixed: UI numeric values (1,2,3) map to DB event types (2,3,4) for queries and exports.
+  - Date filtering for exports respects the full datetime value (time part included) when parsing `from`/`to` parameters.
+  - CSV output uses conservative escaping (quotes when needed and doubled internal quotes) to avoid malformed rows.
+
+- Timestamp handling
+  - When creating users and updating password or last-login, timestamps are set using server local time (`DateTime.Now`) to match how timestamps are viewed in the database and avoid a 1-hour offset issue previously reported.
+
+- UI / Frontend improvements
+  - New Change Store page and JavaScript to match Users grid UX (selection, Open, pagination, zebra rows).
+  - Store modal fetches fresh data (cache-busting) and triggers the stores grid to refresh after save.
+  - Notifications and toast behavior improved: user-friendly messages and the notification bell shows newest notifications first.
+  - User dropdown now closes on outside click and Escape.
+  - EventLog page: pressing Enter in filter fields triggers search.
+  - Users modal: team dropdown populated from `GET /api/groups` and maps to `OwnerId`; password field displays a placeholder (`••••••••`) for unchanged passwords.
+
+- Client fixes for password/update flow
+  - The frontend `wwwroot/js/users.js` now sends the `Password` field when the user clears it (empty string) so the server can validate an explicit clear action.
+  - When the placeholder `••••••••` is present, the client does not send that as a password change.
+
+- Messages and logging
+  - Many server responses were expanded into full-sentence messages for better UX.
+  - Event logging remained intact — server logs include full exception stacks for diagnostics.
+
+---
+
+## APIs (not exhaustive) — behavior highlights
+
+- POST /api/login
+  - Validates credentials. If successful and the user is active and not a group account, signs in using cookie auth and returns `{ success:true, userId, roleId }`.
+  - Returns clear messages for: invalid code, invalid password, deactivated account, team-account sign-in attempt, or server error.
+
+- POST /api/register
+  - Creates a new user and sets `PasswordDt` and `CreatedDt` timestamps; returns `userId` and `roleId` on success.
+
+- GET /api/groups?page=1&pageSize=1000
+  - Returns only active, not-deleted groups for dropdowns.
+
+- GET /api/users
+  - Returns paged list of users with `groupName`, `stamp`, `isActive`, etc.
+
+- PUT /api/users/{id}
+  - Validates `Stamp` for optimistic concurrency.
+  - Validates email/phone presence and format.
+  - Password logic:
+    - If the client does not include a `Password` field at all, password is not changed.
+    - If the client includes `Password` with the placeholder value (`••••••••` or `********`), server treats this as "no change" and leaves the password untouched.
+    - If the client includes an empty string for `Password`, server treats this as an explicit attempt to set/clear the password and validation applies (empty is rejected with an explanatory message).
+
+- POST /api/users/{id}/deactivate, activate, delete
+  - Perform the action, increment `Stamp`, write event log, and return a descriptive success message.
+
+- GET /api/event-log/export and GET /api/contracts/export
+  - Accept filters, respect exact datetime `from`/`to` values, and generate a CSV file with a timestamped filename.
+
+---
+
+## Frontend notes & pages
+
+- Users page (`wwwroot/users.html` + `wwwroot/js/users.js`)
+  - Grid selection, Open button enable/disable, team dropdown sourced from `/api/groups`.
+  - Modal behavior:
+    - Placeholder password displayed for unchanged passwords.
+    - If user clears password input and saves, the client sends `Password: ""` so server validation will enforce requirements.
+
+- Change Store page (`wwwroot/changestore.html` + `wwwroot/js/changestore.js`)
+  - Mirrors Users grid behaviour and exposes `window.refreshStores()` for the modal to call after save.
+
+- Shared utilities (`wwwroot/js/shared.js`)
+  - Toasts, notification bell (newest-first), user dropdown handling, and logout helper.
+
+---
+
+## Timestamp & timezone handling
+
+To resolve earlier observed 1-hour offsets in `ax_user.PasswordDt` and `ax_user.LastLoginDt`, timestamps for creation/password updates/last-login are now captured using the server local time (`DateTime.Now`). If you prefer storing UTC times, convert to `DateTimeOffset.UtcNow` and ensure the DB column type preserves offsets.
+
+---
+
+## How to build and test locally
 
 1. Build
-   - VS Code task: “build”
-   - Or PowerShell:
-     ```powershell
-     dotnet build --configuration Debug "c:\Projects\OnlineContract\OnlineContract.csproj"
-     ```
+
+```powershell
+dotnet build --configuration Debug "c:\Projects\OnlineContract\OnlineContract.csproj"
+```
+
 2. Run
-   - VS Code task: “watch-run-https” (no auto‑open)
-   - Or PowerShell:
-     ```powershell
-     dotnet watch run --launch-profile https --configuration Debug
-     ```
-3. Open pages
-  - `/home`, `/about`, `/address`, `/collections`, `/login`, `/eventlog`, `/users`, `/contracts`, `/products`
 
-## Implementation notes
+```powershell
+dotnet run --project "c:\Projects\OnlineContract\OnlineContract.csproj"
+```
 
-- Tailwind/DaisyUI via CDN; Material Icons from Google Fonts.
-- LocalStorage keys: `isLoggedIn`, `userId`, `roleId`.
-- Registration sets `isLoggedIn=true`, `roleId=0` (Customer) by default.
-- Address page’s top Phone/Email cards use the first two stores from `/api/stores`.
-- Cookie auth: API endpoints return 401 (not redirects) and require authorization. `/api/groups` is restricted to Admin/Manager.
- - EF mapping marks `dbo.stores` as having a trigger to avoid `OUTPUT` clause issues.
- - `Store.Last_Modified_User_Id` is set on PUT using the logged‑in `userId` (fallback `2`).
+3. Quick verification scenarios
 
-## Code map
+- Login as admin (example): `admin / passw0rd` → should sign in normally.
+- Attempt to sign in with a team account (`ax_user.IsGroup = 1`) → you should receive: "Team accounts cannot be used to sign in. Please use a personal account or contact your administrator for access.".
+- Edit an existing user without changing password → open Users, select a user, open modal, do not modify the password input, click Save → update succeeds.
+- Clear the password field in the modal (delete characters so it becomes empty) and Save → server will validate and return an explanatory error if empty (password required for that update).
+- Attempt to save a user when Stamp mismatch occurs → server returns a conflict message instructing to refresh.
+- Export EventLog with type and exact datetimes → returned CSV contains only filtered rows and filename includes timestamp.
 
-- `Controllers/LogOn.cs` — endpoints (stores, event log, auth) + rewrites.
-- `Data/AppDbContext.cs` — EF Core context.
-- `Models/AxUser.cs` — user model with `role_id`.
- - `Models/Store.cs` — store model including `Last_Modified_User_Id`.
-- `Helpers/GlobalEnums.cs` — `EventType` and `UserRole` enums.
-- `wwwroot/` — static pages and assets (`home.html`, `about.html`, `address.html`, etc.).
+---
 
-## Cleanups
+## Files & areas to inspect for related logic
 
-- Removed outdated Home promos and footer reaction icons.
-- Removed hardcoded contact info; About/Address now fully DB‑driven.
-- Public “Products” page renamed to `/collections`; privileged `/products` is the management module.
+- Server: `Controllers/Program.cs` (login, users, groups, stores, exports, timestamps) — primary place for recent fixes.
+- Client: `wwwroot/js/users.js`, `wwwroot/js/shared.js`, `wwwroot/js/changestore.js`, `wwwroot/js/eventlog.js`, `wwwroot/js/contracts.js`.
+- Models: `Models/AxUser.cs`, `Models/NoteDtos.cs`, `Models/ProductDtos.cs`.
 
-## Security & quality
+---
 
-- Client-side gating for EventLog (UI only); server-side checks can be added if needed.
-- DOM rendering uses template strings with known data; avoid unsafe injections.
- - All API calls avoid crashes on missing `userId` via server-side defaulting.
+If you want, I can also:
+
+- run the app here and exercise the admin/user/team scenarios;
+- add automated integration tests for the user update and login cases;
+- or revert timestamp handling to UTC instead of local server time.
+
+Work tracked: updated README with comprehensive changelog and usage notes.
 

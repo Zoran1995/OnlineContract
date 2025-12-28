@@ -856,26 +856,27 @@ function ensureNotificationUI() {
         ddLogout._oc_bound = true;
         ddLogout.addEventListener('click', async (e) => {
           e.preventDefault();
-          // Always notify server to clear auth cookie first
-          try { await fetch('/api/logout', { method: 'POST', credentials: 'include', headers: { 'Accept': 'application/json' } }); } catch { }
-          // Clear client state
+          // Perform logout: notify server, clear client state and redirect.
           try {
-            const currentKey = _oc_getNotificationKey();
-            try { localStorage.removeItem(currentKey); } catch { }
-            window.notifications = [];
-            updateNotificationBell();
-            localStorage.removeItem('isLoggedIn');
-            localStorage.removeItem('userId');
-            localStorage.removeItem('lastActivityTs');
-            localStorage.removeItem('roleId');
-            localStorage.removeItem('code');
-            localStorage.removeItem('username');
-            localStorage.removeItem('email');
-          } catch { }
-          // Update navbar view to logged-out
-          try { updateNavbarAuth({ isAuthenticated: false, roleId: 0, code: '' }); } catch { }
-          // Redirect to login page
-          window.location.href = '/login?mode=login';
+            try { await fetch('/api/logout', { method: 'POST', credentials: 'include', headers: { 'Accept': 'application/json' } }); } catch { }
+            try {
+              const currentKey = _oc_getNotificationKey();
+              try { localStorage.removeItem(currentKey); } catch { }
+              window.notifications = [];
+              try { updateNotificationBell(); } catch { }
+              localStorage.removeItem('isLoggedIn');
+              localStorage.removeItem('userId');
+              localStorage.removeItem('lastActivityTs');
+              localStorage.removeItem('roleId');
+              localStorage.removeItem('code');
+              localStorage.removeItem('username');
+              localStorage.removeItem('email');
+            } catch { }
+            try { updateNavbarAuth({ isAuthenticated: false, roleId: 0, code: '' }); } catch { }
+            window.location.href = '/login?mode=login';
+          } catch {
+            try { window.location.href = '/login?mode=login'; } catch { }
+          }
         });
       }
 
@@ -893,6 +894,27 @@ function ensureNotificationUI() {
               const menu = dd.querySelector('.dropdown-content');
               if (menu) menu.classList.toggle('hidden');
             });
+          }
+        } catch { }
+
+        // Close the user dropdown when clicking outside of it
+        try {
+          if (!window._oc_bound_user_dropdown_doc) {
+            window._oc_bound_user_dropdown_doc = true;
+            document.addEventListener('click', (e) => {
+              try {
+                if (window._oc_ignoreNextDocClick) return;
+                const dd = document.getElementById('userDropdown');
+                if (!dd) return;
+                if (!dd.classList.contains('dropdown-open')) return;
+                const tgt = e.target || e.srcElement;
+                if (dd.contains(tgt)) return; // click inside dropdown — ignore
+                // otherwise close dropdown
+                dd.classList.remove('dropdown-open');
+                const menu = dd.querySelector('.dropdown-content');
+                if (menu) menu.classList.add('hidden');
+              } catch { }
+            }, true);
           }
         } catch { }
 
@@ -925,10 +947,11 @@ function ensureNotificationUI() {
             menu.className = 'dropdown-content menu p-2 shadow bg-base-100 rounded-box w-56';
             // start hidden so the activator's first click shows the menu
             menu.classList.add('hidden');
-            menu.innerHTML = `
+              menu.innerHTML = `
               <li><a href="/contracts" id="ddContracts"><span class="material-icons mr-2">receipt</span>Contracts</a></li>
               <li><a href="/products" id="ddProducts"><span class="material-icons mr-2">inventory_2</span>Products</a></li>
-              <li><a href="#" id="ddChangeStore"><span class="material-icons mr-2">edit</span>Change Store Details</a></li>
+              <li><a href="/notes" id="ddNotes"><span class="material-icons mr-2">note</span>Notes</a></li>
+              <li><a href="/changestore" id="ddChangeStore"><span class="material-icons mr-2">store</span>Store Details</a></li>
               <li><a href="/users" id="ddUsersTeams"><span class="material-icons mr-2">group</span>Users &amp; Teams</a></li>
               <li><a href="/eventlog" id="ddEventLog"><span class="material-icons mr-2">list</span>All Events</a></li>
             `;
@@ -964,17 +987,7 @@ function ensureNotificationUI() {
               }
             }
 
-            // Bind Change Store modal open
-            const ddChange = menu.querySelector('#ddChangeStore');
-            if (ddChange && !ddChange._oc_bound) {
-              ddChange._oc_bound = true;
-              ddChange.addEventListener('click', (e) => {
-                e.preventDefault();
-                ensureAdminChangeStoreModal();
-                preloadStoresIntoModal();
-                openAdminChangeStoreModal();
-              });
-            }
+            // Change Store link navigates to /changestore (page implements grid + Open modal)
             // Users & Teams opens dedicated page
             const ddUsersTeams = menu.querySelector('#ddUsersTeams');
             if (ddUsersTeams && !ddUsersTeams._oc_bound) {
@@ -1071,6 +1084,44 @@ function ensureNotificationUI() {
   try {
     const INACTIVITY_MS = 30 * 60 * 1000; // 30 minutes
 
+    // Shared logout helper: call server logout, clear client state, optionally set pending toast, then redirect
+    async function _oc_performLogout(showPendingToast = true) {
+      try {
+        if (window._oc_isLoggingOut) return; // prevent re-entrancy
+        window._oc_isLoggingOut = true;
+        // Notify server to clear auth cookie/session
+        try { await fetch('/api/logout', { method: 'POST', credentials: 'include', headers: { 'Accept': 'application/json' } }); } catch { }
+
+        // Optionally set a pending toast message to show after redirect
+        if (showPendingToast) {
+          try {
+            sessionStorage.setItem('pendingToast', JSON.stringify({ type: 'warning', message: 'You have been logged out due to 30 minutes of inactivity. Please log in again to continue.' }));
+          } catch { }
+        }
+
+        // Clear client-side auth and notification state
+        try {
+          const currentKey = _oc_getNotificationKey();
+          try { localStorage.removeItem(currentKey); } catch { }
+          window.notifications = [];
+          try { updateNotificationBell(); } catch { }
+          localStorage.removeItem('isLoggedIn');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('lastActivityTs');
+          localStorage.removeItem('roleId');
+          localStorage.removeItem('code');
+          localStorage.removeItem('username');
+          localStorage.removeItem('email');
+        } catch { }
+
+        try { updateNavbarAuth({ isAuthenticated: false, roleId: 0, code: '' }); } catch { }
+        // Redirect to login page
+        try { window.location.href = '/login?mode=login'; } catch { }
+      } finally {
+        window._oc_isLoggingOut = false;
+      }
+    }
+
     const markActivity = () => {
       try {
         localStorage.setItem('lastActivityTs', Date.now().toString());
@@ -1094,19 +1145,10 @@ function ensureNotificationUI() {
           const ts = parseInt(localStorage.getItem('lastActivityTs') || '0', 10);
           const now = Date.now();
           if (ts > 0 && (now - ts) >= INACTIVITY_MS) {
-            // Auto-logout
-            localStorage.removeItem('isLoggedIn');
-            localStorage.removeItem('userId');
-            localStorage.removeItem('lastActivityTs');
-            // Optional: show a toast after redirect indicating session timeout
+            // Auto-logout: call server and clear client state, then redirect
             try {
-              sessionStorage.setItem('pendingToast', JSON.stringify({
-                type: 'warning',
-                message: 'You have been logged out due to 30 minutes of inactivity.'
-              }));
-            } catch { }
-            // Redirect to login
-            window.location.href = '/login';
+              _oc_performLogout(true);
+            } catch { try { window.location.href = '/login?mode=login'; } catch {} }
           }
         } catch { }
       }, 15000); // check every 15s
@@ -1327,7 +1369,8 @@ function showToast(type, message) {
     const storeNotification = () => {
       if (stored) return;
       stored = true;
-      window.notifications.push({ type: t, message });
+      // Add newest notifications to the front so the bell panel shows newest first
+      try { window.notifications.unshift({ type: t, message }); } catch { window.notifications.push({ type: t, message }); }
       updateNotificationBell();
       resolve();
     };
@@ -1952,8 +1995,9 @@ function ensureAdminChangeStoreModal() {
           body: JSON.stringify(payload)
         });
         if (res.ok) {
-          showToast('info', 'Store changes saved.');
+          showToast('info', 'Store has been successfully updated.');
           closeAdminChangeStoreModal();
+          try { if (window.refreshStores) window.refreshStores(); } catch {}
         } else {
           // Log error to server event log with full server response text
           try {
@@ -2252,12 +2296,15 @@ function getHoursStringFromEditor() {
 async function preloadStoresIntoModal() {
   try {
     const userId = localStorage.getItem('userId') || 2;
-    const res = await fetch(`/api/stores?userId=${userId}`);
+    // Request fresh data; include no-store cache and a timestamp to avoid cached responses
+    const res = await fetch(`/api/stores?userId=${userId}&t=${Date.now()}`, { cache: 'no-store', credentials: 'include', headers: { 'Accept': 'application/json' } });
     const data = await res.json();
     let items = data.items || [];
     try { items = items.slice().sort((a, b) => (a.id ?? 0) - (b.id ?? 0)); } catch { }
     const sel = document.getElementById('storeSelect');
     if (!sel) return;
+    // Ensure select is enabled for normal operation
+    try { sel.disabled = false; } catch { }
     // Clear and repopulate options
     sel.innerHTML = '<option value="">Select a store...</option>';
     items.forEach(s => {
@@ -2266,12 +2313,14 @@ async function preloadStoresIntoModal() {
       opt.textContent = s.name;
       sel.appendChild(opt);
     });
-    // Bind change to populate fields
+    // Keep latest items available on the select so the change handler always reads fresh data
+    sel._oc_items = items;
+    // Bind change to populate fields; handler references sel._oc_items so it sees updates
     if (!sel._oc_bound) {
       sel._oc_bound = true;
       sel.addEventListener('change', () => {
         const id = parseInt(sel.value || '0', 10);
-        const s = items.find(x => x.id === id);
+        const s = (sel._oc_items || []).find(x => x.id === id);
         document.getElementById('storeName').value = s?.name || '';
         document.getElementById('storeAddress').value = s?.address || '';
         document.getElementById('storePhone').value = s?.phone || '';
@@ -2282,6 +2331,9 @@ async function preloadStoresIntoModal() {
         updateHoursEditorDisabled();
       });
     }
+
+    // Also ensure select has the latest items reference after re-populating
+    sel._oc_items = items;
 
     // Always start with an empty selection and blank fields when opening
     sel.value = '';

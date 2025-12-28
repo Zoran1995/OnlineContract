@@ -18,6 +18,7 @@ namespace OnlineContract.Models
         public int? LastModifiedById { get; set; }
         public string LastModifiedByCode { get; set; } = "";
         public string LastUpdatedDt { get; set; } = "";
+        public int Stamp { get; set; }
     }
 
     public class NoteCreateDto
@@ -37,13 +38,31 @@ namespace OnlineContract.Models
         public bool? IsActive { get; set; }
         public string? Text { get => Comment; set => Comment = value; }
         public bool? IsDeleted { get; set; }
+        public int? Stamp { get; set; }
+    }
+
+    public class NoteDeleteDto
+    {
+        [Required]
+        public int Id { get; set; }
+        public int? Stamp { get; set; }
     }
 
     public class NotesBulkSaveDto
     {
         public List<NoteCreateDto> Add { get; set; } = new();
         public List<NoteUpdateDto> Update { get; set; } = new();
-        public List<int> Delete { get; set; } = new();
+        public List<NoteDeleteDto> Delete { get; set; } = new();
         public int? SetMainId { get; set; }
+        public int? SetMainStamp { get; set; }
+    }
+
+    public class NoteCreateSimpleDto
+    {
+        public string? Subject { get; set; }
+        public string? Comment { get; set; }
+        public int? ContractId { get; set; }
+        public int? ProductId { get; set; }
+        public bool? IsActive { get; set; }
     }
 }

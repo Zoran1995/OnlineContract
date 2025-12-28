@@ -209,19 +209,45 @@
   <dialog id="noteModal" class="modal">
     <form method="dialog" class="modal-box">
       <h3 id="noteModalTitle" class="font-bold text-lg mb-2">Add Note</h3>
-      <div class="form-control">
-        <label class="label"><span class="label-text">Text</span></label>
-        <textarea id="noteText" class="textarea textarea-bordered w-full" rows="6" placeholder="Write a note..."></textarea>
-      </div>
-      <div class="form-control mt-3">
-        <label class="label cursor-pointer gap-3">
-          <span class="label-text">Active</span>
-          <input id="noteActive" type="checkbox" class="toggle toggle-primary" checked />
-        </label>
+      <div class="grid grid-cols-1 gap-3">
+        <div class="form-control">
+          <label class="label"><span class="label-text">Subject</span></label>
+          <input id="noteSubject" class="input input-bordered w-full" type="text" />
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Comment</span></label>
+          <textarea id="noteComment" class="textarea textarea-bordered w-full" rows="4" placeholder="Optional comment..."></textarea>
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Product Id</span></label>
+          <input id="noteProductId" class="input input-bordered w-full" type="text" disabled />
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Contract Id</span></label>
+          <input id="noteContractId" class="input input-bordered w-full" type="text" disabled />
+        </div>
+        <div class="form-control mt-1">
+          <label class="label cursor-pointer gap-3">
+            <span class="label-text">Active</span>
+            <input id="noteActive" type="checkbox" class="toggle toggle-primary" checked />
+          </label>
+        </div>
       </div>
       <div class="modal-action">
         <button id="noteCancel" class="btn">Cancel</button>
         <button id="noteSave" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Confirm delete note modal -->
+  <dialog id="noteDeleteConfirm" class="modal">
+    <form method="dialog" class="modal-box">
+      <h3 class="font-bold text-lg mb-2">Delete Note</h3>
+      <p class="mb-4">Are you sure you want to remove this note? It will be deleted from the database when you click OK.</p>
+      <div class="modal-action">
+        <button class="btn">Cancel</button>
+        <button id="noteConfirmOk" class="btn btn-error">OK</button>
       </div>
     </form>
   </dialog>

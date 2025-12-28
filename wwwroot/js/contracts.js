@@ -285,10 +285,13 @@
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'contracts.csv';
+        // Timestamped filename: Contract_yyyy-MM-dd_HH-mm-ss.csv
+        const d = new Date();
+        const ts = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}-${String(d.getMinutes()).padStart(2,'0')}-${String(d.getSeconds()).padStart(2,'0')}`;
+        a.download = `Contract_${ts}.csv`;
         a.click();
         window.URL.revokeObjectURL(url);
-        try { showToast('info', 'Export successful'); } catch {}
+        try { showToast('info', 'Export has been successfully generated and downloaded.'); } catch {}
       } catch (err) {
         try { showToast('error', 'Export failed'); } catch {}
       }

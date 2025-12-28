@@ -340,7 +340,7 @@
         const userId = localStorage.getItem('userId') ?? 2;
 
         try {
-          if (selectedUserId) {
+            if (selectedUserId) {
             const user = items.find(x => x.id === selectedUserId);
             const updatePayload = {
               Code: payload.Code,
@@ -349,9 +349,12 @@
               Email: payload.Email,
               Phone: payload.Phone,
               RoleId: payload.RoleId,
-              OwnerId: payload.OwnerId
+              OwnerId: payload.OwnerId,
+              Stamp: user ? user.stamp : 0
             };
-            if (payload.Password && payload.Password !== '••••••••') {
+            // If the password field was changed from the placeholder, include it in the update.
+            // This ensures an explicitly-cleared password (empty string) is sent so server validation runs.
+            if (payload.Password !== '••••••••') {
               updatePayload.Password = payload.Password;
             }
 
@@ -364,11 +367,11 @@
             const data = await res.json().catch(() => ({ success: res.ok }));
 
             if (res.ok && data && data.success) {
-              showToast('info', 'User updated');
+              showToast('info', 'User has been updated successfully.');
               try { modal?.close(); } catch { modal?.classList.add('hidden'); }
               await loadUsers();
             } else {
-              const msg = (data && data.message) ? data.message : 'Update failed';
+              const msg = (data && data.message) ? data.message : 'Failed to update user. Please try again later.';
               showToast('error', msg);
             }
           } else {
@@ -381,16 +384,16 @@
             const data = await res.json().catch(() => ({ success: res.ok }));
 
             if (res.ok && data && data.success) {
-              showToast('info', 'User created');
+              showToast('info', 'User has been created successfully.');
               try { modal?.close(); } catch { modal?.classList.add('hidden'); }
               await loadUsers();
             } else {
-              const msg = (data && data.message) ? data.message : 'Create failed';
+              const msg = (data && data.message) ? data.message : 'Failed to create user. Please try again later.';
               showToast('error', msg);
             }
           }
         } catch (err) {
-          showToast('error', 'Save failed');
+          showToast('error', 'Failed to save changes. Please try again later.');
         }
       });
     }
@@ -454,15 +457,15 @@
           const data = await res.json().catch(() => ({ success: res.ok }));
 
           if (res.ok && data && data.success) {
-            showToast('info', 'Team created');
+            showToast('info', 'Team has been created successfully.');
             try { modal?.close(); } catch { modal?.classList.add('hidden'); }
             await loadUsers();
           } else {
-            const msg = (data && data.message) ? data.message : 'Create failed';
+            const msg = (data && data.message) ? data.message : 'Failed to create the team. Please try again later.';
             showToast('error', msg);
           }
         } catch (err) {
-          showToast('error', 'Create team failed');
+          showToast('error', 'Failed to create the team. Please try again later.');
         }
       });
     }
@@ -570,10 +573,17 @@
     document.getElementById('btnDeactivate')?.addEventListener('click', () => { setMenuOpen(false); deactivateSelected(); });
     document.getElementById('btnDelete')?.addEventListener('click',     () => { setMenuOpen(false); deleteSelected(); });
 
-    document.getElementById('btnNewUser')?.addEventListener('click', () => openUserModal(null));
+    document.getElementById('btnNewUser')?.addEventListener('click', () => {
+      // Ensure Add User always opens a blank form and does not reuse any selection
+      selectedUserId = null;
+      try { renderTable(); } catch { }
+      try { updateOpenState(); } catch { }
+      try { updateMenuActionsState(); } catch { }
+      openUserModal(null);
+    });
     document.getElementById('btnNewTeam')?.addEventListener('click', () => openTeamModal());
     document.getElementById('btnOpen')?.addEventListener('click', () => {
-      if (!selectedUserId) { try { showToast('warning', 'Select a user first'); } catch { } return; }
+      if (!selectedUserId) { try { showToast('warning', 'Please select a user before proceeding.'); } catch { } return; }
       const u = items.find(x => x.id === selectedUserId);
       openUserModal(u);
     });
@@ -611,33 +621,33 @@
   });
 
   async function deactivateSelected() {
-    if (!selectedUserId) { showToast('warning', 'Select a user first'); return; }
+    if (!selectedUserId) { showToast('warning', 'Please select a user before proceeding.'); return; }
     const u = items.find(x => x.id === selectedUserId);
-    if (!u) { showToast('error', 'User not found'); return; }
+    if (!u) { showToast('error', 'User not found. Please refresh the list and try again.'); return; }
 
     try {
       const userId = localStorage.getItem('userId') ?? 2;
       const action = u.isActive ? 'deactivate' : 'activate';
-      const res = await fetch(`/api/users/${u.id}/${action}?userId=${userId}`, {
+      const res = await fetch(`/api/users/${u.id}/${action}?userId=${userId}&stamp=${encodeURIComponent(u.stamp ?? 0)}`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
       if (res.ok) {
-        showToast('info', (u.isActive ? 'User deactivated' : 'User activated'));
+        showToast('info', (u.isActive ? 'User has been deactivated successfully.' : 'User has been activated successfully.'));
         await loadUsers();
       } else {
-        showToast('error', 'Failed to change status');
+        showToast('error', 'Failed to change user status. Please try again later.');
       }
     } catch {
-      showToast('error', 'Failed to change status');
+      showToast('error', 'Failed to change user status. Please try again later.');
     }
   }
 
   async function deleteSelected() {
-    if (!selectedUserId) { showToast('warning', 'Select a user first'); return; }
+    if (!selectedUserId) { showToast('warning', 'Please select a user before proceeding.'); return; }
     const u = items.find(x => x.id === selectedUserId);
-    if (!u) { showToast('error', 'User not found'); return; }
+    if (!u) { showToast('error', 'User not found. Please refresh the list and try again.'); return; }
     const dlg = document.getElementById('userDeleteConfirm');
     const okBtn = document.getElementById('userConfirmOk');
     if (!dlg || !okBtn || !dlg.showModal) {

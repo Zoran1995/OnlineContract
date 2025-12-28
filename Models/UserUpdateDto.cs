@@ -14,5 +14,6 @@ namespace OnlineContract.Models
         public string? StreetAddress { get; set; }
         public string? PostalCode { get; set; }
         public string? Password { get; set; }
+        public int? Stamp { get; set; }
     }
 }

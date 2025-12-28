@@ -126,7 +126,7 @@
 
       if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
       if (res.status === 403) {
-        setEmptyState(true, 'Access denied.');
+        setEmptyState(true, 'Access denied. You do not have permission to view this content.');
         items = [];
         totalCount = 0;
         totalPages = 1;
@@ -149,8 +149,8 @@
       renderPager();
       setEmptyState(items.length === 0);
     } catch {
-      setEmptyState(true, 'Products could not be loaded. Please try again.');
-      try { showToast('error', 'Products could not be loaded. Please try again.'); } catch { /* noop */ }
+      setEmptyState(true, 'Products could not be loaded. Please refresh the page or try again later.');
+      try { showToast('error', 'Failed to load products. Please refresh the page or try again later.'); } catch { /* noop */ }
     } finally {
       hideLoading();
     }
@@ -217,26 +217,26 @@
     try {
       const shouldDeactivate = !!selectedItem.isActive;
       const endpoint = shouldDeactivate ? 'deactivate' : 'activate';
-      const res = await fetch(`${apiBase}/${encodeURIComponent(selectedId)}/${endpoint}`, {
+      const res = await fetch(`${apiBase}/${encodeURIComponent(selectedId)}/${endpoint}?stamp=${encodeURIComponent(selectedItem.stamp ?? 0)}`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
 
       if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
-      if (res.status === 403) { try { showToast('error', 'Access denied'); } catch { /* noop */ } return; }
+      if (res.status === 403) { try { showToast('error', 'Access denied. You do not have permission to perform this action.'); } catch { /* noop */ } return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      try { showToast('info', shouldDeactivate ? 'Product was successfully deactivated.' : 'Product was successfully activated.'); } catch { /* noop */ }
+      try { showToast('info', shouldDeactivate ? 'Product has been deactivated successfully.' : 'Product has been activated successfully.'); } catch { /* noop */ }
       await load();
     } catch {
-      try { showToast('error', 'Operation failed. Please try again.'); } catch { /* noop */ }
+      try { showToast('error', 'Operation failed. Please try again later.'); } catch { /* noop */ }
     }
   }
 
   async function doDelete() {
-    if (!selectedId) {
-      try { showToast('warning', 'Please select a product row first.'); } catch { /* noop */ }
+      if (!selectedId) {
+      try { showToast('warning', 'Please select a product row before performing this action.'); } catch { /* noop */ }
       return;
     }
     const dlg = document.getElementById('productDeleteConfirm');
@@ -265,13 +265,13 @@
       });
 
       if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
-      if (res.status === 403) { try { showToast('error', 'Access denied'); } catch { /* noop */ } return; }
+      if (res.status === 403) { try { showToast('error', 'Access denied. You do not have permission to perform this action.'); } catch { /* noop */ } return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      try { showToast('info', 'Product was successfully deleted.'); } catch { /* noop */ }
+      try { showToast('info', 'Product has been deleted successfully.'); } catch { /* noop */ }
       await load();
     } catch {
-      try { showToast('error', 'Product could not be deleted. Please try again.'); } catch { /* noop */ }
+      try { showToast('error', 'Failed to delete product. Please try again later.'); } catch { /* noop */ }
     }
     
     function proceedDelete() {

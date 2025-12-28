@@ -34,29 +34,66 @@
   </div>
 
   <main class="container mx-auto p-6">
-    <section class="bg-base-100 rounded-xl shadow p-8">
+    <section class="bg-base-100 rounded-xl shadow p-4">
       <div id="accessDenied" class="hidden text-center">
         <h1 class="text-3xl font-bold mb-2">Access Denied</h1>
-        <p class="text-gray-700">You must be logged in as Manager or Administrator to change store details.</p>
+        <p class="text-gray-700">You must be logged in as Manager or Administrator to view store details.</p>
       </div>
 
-      <div id="adminContent" class="">
-        <div class="flex items-center justify-center gap-3 mb-6">
-          <span class="material-icons text-emerald-600">edit</span>
-          <h1 class="text-4xl font-extrabold tracking-tight">Change Store Details</h1>
+      <div id="adminContent" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <span class="material-icons text-emerald-600">store</span>
+            <h1 class="text-2xl font-bold">Store Details</h1>
+          </div>
+          <div>
+            <button id="openStoreBtn" class="btn btn-sm" disabled>
+              <span class="material-icons">open_in_new</span>
+              <span>Open</span>
+            </button>
+          </div>
         </div>
 
-        <p class="text-center text-gray-700 mb-6">This page is a stub. Implement store management UI here.</p>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra w-full">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Address</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Last Updated By</th>
+              </tr>
+            </thead>
+            <tbody id="storesTbody">
+              <!-- rows injected by JS -->
+            </tbody>
+          </table>
+        </div>
 
-        <div class="alert alert-info">
-          <span class="material-icons">info</span>
-          <span>Coming soon: edit store name, address, phone, email, and working hours.</span>
+        <div class="flex items-center gap-3 mt-4 grid-pagination">
+          <label class="text-sm">Rows per page:</label>
+          <select id="pageSize" class="select select-bordered w-20 select-sm">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="25">25</option>
+          </select>
+
+          <button id="pgPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
+
+          <div id="pgInfo" class="font-semibold">0–0 of 0 · pages 1</div>
+
+          <button id="pgNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
+
+          <div style="margin-left:auto" id="pageCountInfo" class="text-sm text-gray-600">Total records: 0</div>
         </div>
       </div>
     </section>
   </main>
 
   <script src="/js/shared.js"></script>
+  <script src="/js/changestore.js"></script>
   <script>
     // Client-side gate: show content only to privileged users
     document.addEventListener('DOMContentLoaded', () => {
@@ -67,5 +104,6 @@
       document.getElementById('accessDenied').classList.toggle('hidden', isPrivileged);
     });
   </script>
+  
 </body>
 </html>
