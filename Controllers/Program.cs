@@ -262,6 +262,13 @@ app.MapPost("/api/login", async (AppDbContext db, LoginDto dto, HttpContext http
             return Results.Json(new { success = false, message = "Team accounts cannot be used to sign in. Please use a personal account or contact our administrator for access." });
         }
 
+        // If user must change password, interrupt normal login and prompt client to change it now
+        if (user.IsTempPassword)
+        {
+            await LoggerHelper.LogEventAsync(db, EventType.Warning, "Login blocked - temp password requires change", $"Code={dto.Code}", user.Id);
+            return Results.Json(new { success = false, mustChangePassword = true, message = "Your account requires a password change before you can continue. Please set a new password now.", stamp = user.Stamp });
+        }
+
         // correct credentials but account inactive -> return a friendly, specific message
         if (!user.IsActive)
         {
@@ -300,7 +307,7 @@ app.MapPost("/api/logout", async (HttpContext http) =>
     return Results.Ok(new { success = true, message = "You have been signed out successfully." });
 });
 
-app.MapPost("/api/register", async (AppDbContext db, RegisterDto dto) =>
+app.MapPost("/api/register", async (AppDbContext db, RegisterDto dto, HttpContext http) =>
 {
     try
     {
@@ -334,6 +341,9 @@ app.MapPost("/api/register", async (AppDbContext db, RegisterDto dto) =>
         var (okPhone, normalizedPhone, phoneErr) = OnlineContract.Helpers.PhoneHelper.NormalizeSerbianPhone(dto.Phone);
         if (!okPhone) return Results.Json(new { success = false, message = phoneErr });
 
+        // find owner group (Customers role_id = 5, is_group = 1, active, not deleted)
+        var ownerGroup = await db.AxUsers.FirstOrDefaultAsync(u => u.RoleId == (int)UserRole.Customer && u.IsGroup && u.IsActive && !u.IsDeleted);
+
         var newUser = new AxUser
         {
             FirstName = dto.FirstName ?? "",
@@ -343,10 +353,11 @@ app.MapPost("/api/register", async (AppDbContext db, RegisterDto dto) =>
             Code = username,
             Password = PasswordHelper.HashPassword(dto.Password ?? ""),
             IsGroup = false,
+            IsTempPassword = dto.IsTempPassword,
             IsActive = true,
             IsDeleted = false,
-            OwnerId = 0,
-            CreatedDt = DateTime.UtcNow,
+            OwnerId = ownerGroup != null ? ownerGroup.Id : 0,
+            CreatedDt = DateTime.Now,
             PasswordDt = DateTime.Now,
             LastLoginDt = DateTime.Now,
             City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City?.Trim(),
@@ -355,9 +366,26 @@ app.MapPost("/api/register", async (AppDbContext db, RegisterDto dto) =>
             RoleId = assignedRole
         };
 
+        // Set initial stamp: if temp password was requested, mark change
+        newUser.Stamp = dto.IsTempPassword ? 1 : 0;
+
         db.AxUsers.Add(newUser);
         await db.SaveChangesAsync();
-        await LoggerHelper.LogEventAsync(db, EventType.Information, "New Account successfully created", $"User {username} created.", newUser.Id);
+
+        // Sign in the newly created user immediately
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, newUser.Id.ToString()),
+            new Claim(ClaimTypes.Name, newUser.Code ?? string.Empty),
+            new Claim(ClaimTypes.Role, newUser.RoleId.ToString())
+        };
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var principal = new ClaimsPrincipal(identity);
+
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
+            new AuthenticationProperties { IsPersistent = true, AllowRefresh = true, ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8) });
+
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "New Account successfully created", $"User {username} created and signed in.", newUser.Id);
         return Results.Json(new { success = true, userId = newUser.Id, roleId = newUser.RoleId });
     }
     catch (Exception ex)
@@ -424,6 +452,7 @@ app.MapGet("/api/users", async (AppDbContext db, string? name, string? team, int
                 email = u.Email,
                 phone = u.Phone,
                 roleId = u.RoleId,
+                isTempPassword = u.IsTempPassword,
                 isActive = u.IsActive,
                 isDeleted = u.IsDeleted,
                 isGroup = u.IsGroup,
@@ -449,6 +478,69 @@ app.MapGet("/api/users", async (AppDbContext db, string? name, string? team, int
         return Results.Json(new { items = Array.Empty<object>() });
     }
 }).RequireAuthorization();
+
+// Change temporary password and sign-in (used when is_temp_password = 1)
+app.MapPost("/api/users/change-temp-password", async (AppDbContext db, ChangeTempPasswordDto dto, HttpContext http) =>
+{
+    try
+    {
+        var code = (dto.Code ?? "").Trim();
+        if (string.IsNullOrEmpty(code)) return Results.Json(new { success = false, message = "Username is required. Please enter your username." });
+
+        var u = await db.AxUsers.FirstOrDefaultAsync(x => x.Code == code && !x.IsDeleted);
+        if (u == null) return Results.Json(new { success = false, message = "User not found. Please check your username and try again." });
+
+        if (!u.IsTempPassword)
+            return Results.Json(new { success = false, message = "This account does not require a password change." });
+
+        // Concurrency
+        if (!dto.Stamp.HasValue || dto.Stamp.Value != u.Stamp)
+        {
+            return Results.Json(new { success = false, message = "Your session is out of date. Please retry the password change and try again." });
+        }
+
+        var pw = dto.NewPassword ?? "";
+        var pw2 = dto.ConfirmPassword ?? "";
+        if (string.IsNullOrWhiteSpace(pw)) return Results.Json(new { success = false, message = "Password is required. Please enter a new password." });
+        if (!string.Equals(pw, pw2, System.StringComparison.Ordinal)) return Results.Json(new { success = false, message = "Passwords do not match. Please ensure both entries are identical." });
+        if (pw.Length < 8) return Results.Json(new { success = false, message = "Password must be at least 8 characters long." });
+        if (!System.Text.RegularExpressions.Regex.IsMatch(pw, @"[A-Z]")) return Results.Json(new { success = false, message = "Password must contain at least one uppercase letter." });
+        if (!System.Text.RegularExpressions.Regex.IsMatch(pw, @"\d")) return Results.Json(new { success = false, message = "Password must contain at least one number." });
+
+        // Do not allow reusing the existing password
+        if (PasswordHelper.VerifyPassword(pw, u.Password))
+            return Results.Json(new { success = false, message = "The new password cannot be the same as your current password. Please choose a different password." });
+
+        // Apply password change
+        u.Password = PasswordHelper.HashPassword(pw);
+        u.PasswordDt = DateTime.Now;
+        u.LastLoginDt = DateTime.Now;
+        u.IsTempPassword = false;
+        u.Stamp = u.Stamp + 1;
+        await db.SaveChangesAsync();
+
+        // Sign in
+        var claims = new List<System.Security.Claims.Claim>
+        {
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, u.Id.ToString()),
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, u.Code ?? string.Empty),
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, u.RoleId.ToString())
+        };
+        var identity = new System.Security.Claims.ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var principal = new System.Security.Claims.ClaimsPrincipal(identity);
+
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
+            new AuthenticationProperties { IsPersistent = true, AllowRefresh = true, ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8) });
+
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Temporary password changed and user signed in", $"User {u.Code}", u.Id);
+        return Results.Json(new { success = true, userId = u.Id, roleId = u.RoleId });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Temp password change failed", ex.ToString(), 2);
+        return Results.Json(new { success = false, message = "Failed to change password. Please try again later." });
+    }
+}).AllowAnonymous();
 
 
 app.MapGet("/api/groups", async (AppDbContext db, HttpContext http, string? q, int page, int pageSize) =>
@@ -575,16 +667,17 @@ app.MapPost("/api/users", async (AppDbContext db, UserCreateDto dto, int? userId
             Phone = normalizedCreatePhone ?? "",
             RoleId = dto.RoleId,
             IsGroup = dto.IsGroup,
+            IsTempPassword = dto.IsTempPassword,
             OwnerId = dto.OwnerId,
             City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City?.Trim(),
             StreetAddress = string.IsNullOrWhiteSpace(dto.StreetAddress) ? null : dto.StreetAddress?.Trim(),
             PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode?.Trim(),
             IsActive = true,
             IsDeleted = false,
-            CreatedDt = DateTime.UtcNow,
+            CreatedDt = DateTime.Now,
             PasswordDt = DateTime.Now,
             LastLoginDt = null,
-            Stamp = 0,
+            Stamp = dto.IsTempPassword ? 1 : 0,
             Password = dto.IsGroup ? "" : PasswordHelper.HashPassword(dto.Password ?? ""),
             InputUserId = userId ?? 2
         };
@@ -648,6 +741,8 @@ app.MapPut("/api/users/{id}", async (AppDbContext db, int id, UserUpdateDto dto,
             }
         }
 
+        var changed = false;
+
         if (!string.IsNullOrWhiteSpace(dto.Code))
         {
             var newCode = dto.Code.Trim();
@@ -656,28 +751,90 @@ app.MapPut("/api/users/{id}", async (AppDbContext db, int id, UserUpdateDto dto,
                 var existsCode = await db.AxUsers.AnyAsync(x => x.Code == newCode && x.Id != id);
                 if (existsCode) return Results.Json(new { success = false, message = "Code already exists." });
                 u.Code = newCode;
+                changed = true;
             }
         }
 
-        if (dto.FirstName != null) u.FirstName = dto.FirstName.Trim();
-        if (dto.LastName != null) u.LastName = dto.LastName.Trim();
-        if (dto.Email != null) u.Email = dto.Email.Trim();
+        if (dto.FirstName != null)
+        {
+            u.FirstName = dto.FirstName.Trim();
+            changed = true;
+        }
+        if (dto.LastName != null)
+        {
+            u.LastName = dto.LastName.Trim();
+            changed = true;
+        }
+        if (dto.Email != null)
+        {
+            u.Email = dto.Email.Trim();
+            changed = true;
+        }
         if (dto.Phone != null)
         {
             var (okUpdPhone, normalizedUpdPhone, updErr) = OnlineContract.Helpers.PhoneHelper.NormalizeSerbianPhone(dto.Phone);
             if (!okUpdPhone) return Results.Json(new { success = false, message = updErr });
             u.Phone = normalizedUpdPhone ?? "";
+            changed = true;
         }
-        if (dto.RoleId.HasValue) u.RoleId = dto.RoleId.Value;
-        if (dto.IsActive.HasValue) u.IsActive = dto.IsActive.Value;
-        if (dto.OwnerId.HasValue) u.OwnerId = dto.OwnerId.Value;
-        if (dto.City != null) u.City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City.Trim();
-        if (dto.StreetAddress != null) u.StreetAddress = string.IsNullOrWhiteSpace(dto.StreetAddress) ? null : dto.StreetAddress.Trim();
-        if (dto.PostalCode != null) u.PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode.Trim();
-        // Password was already validated and applied above for non-group users
+        if (dto.RoleId.HasValue)
+        {
+            u.RoleId = dto.RoleId.Value;
+            changed = true;
+        }
+        if (dto.IsActive.HasValue)
+        {
+            u.IsActive = dto.IsActive.Value;
+            changed = true;
+        }
+        if (dto.OwnerId.HasValue)
+        {
+            u.OwnerId = dto.OwnerId.Value;
+            changed = true;
+        }
+        if (dto.City != null)
+        {
+            u.City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City.Trim();
+            changed = true;
+        }
+        if (dto.StreetAddress != null)
+        {
+            u.StreetAddress = string.IsNullOrWhiteSpace(dto.StreetAddress) ? null : dto.StreetAddress.Trim();
+            changed = true;
+        }
+        if (dto.PostalCode != null)
+        {
+            u.PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode.Trim();
+            changed = true;
+        }
 
-        // increment stamp to indicate change
-        u.Stamp = u.Stamp + 1;
+        // Apply IsTempPassword only if client explicitly provided it
+        if (dto.IsTempPassword.HasValue)
+        {
+            if (dto.IsTempPassword.Value != u.IsTempPassword)
+            {
+                u.IsTempPassword = dto.IsTempPassword.Value;
+                changed = true;
+            }
+        }
+
+        // If password was changed above, mark changed as well
+        // (password assignment already performed earlier when dto.Password was present)
+        // Note: when password was applied we didn't set changed; set it here conservatively if password differs
+        // We assume password change happened when dto.Password != null and not placeholder
+        if (!u.IsGroup && dto.Password != null)
+        {
+            var pwd = dto.Password ?? "";
+            if (!(pwd == "••••••••" || pwd == "********"))
+            {
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            u.Stamp = u.Stamp + 1;
+        }
         await db.SaveChangesAsync();
         await LoggerHelper.LogEventAsync(db, EventType.Information, "User updated", $"Code={u.Code}", userId ?? 2);
         return Results.Json(new { success = true, message = "User has been updated successfully." });

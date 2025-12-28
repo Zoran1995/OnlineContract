@@ -12,4 +12,5 @@ public class RegisterDto
     public string? PostalCode { get; set; }
     // Optional desired role; default is Customer when null
     public int? RoleId { get; set; }
+    public bool IsTempPassword { get; set; }
 }

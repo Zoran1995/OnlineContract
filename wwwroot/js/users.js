@@ -268,10 +268,14 @@
         if (pwdCtl) pwdCtl.classList.add('hidden');
         if (teamCtl) teamCtl.classList.add('hidden');
         if (uPassword) uPassword.value = '';
+        const tmpChk = document.getElementById('uIsTempPassword');
+        if (tmpChk) { tmpChk.checked = false; tmpChk._original = false; tmpChk.closest && tmpChk.closest('.form-control') && tmpChk.closest('.form-control').classList.add('hidden'); }
       } else {
         if (pwdCtl) pwdCtl.classList.remove('hidden');
         if (teamCtl) teamCtl.classList.remove('hidden');
         if (uPassword) uPassword.value = '••••••••';
+        const tmpChk = document.getElementById('uIsTempPassword');
+        if (tmpChk) { tmpChk.checked = !!user.isTempPassword; tmpChk._original = !!user.isTempPassword; tmpChk.closest && tmpChk.closest('.form-control') && tmpChk.closest('.form-control').classList.remove('hidden'); }
       }
     } else {
       if (uCode) uCode.value = '';
@@ -283,6 +287,9 @@
       if (uTeamCode) uTeamCode.value = '';
       if (selectedGroupIdEl) selectedGroupIdEl.value = '';
       if (uPassword) uPassword.value = '';
+
+      const tmpChk = document.getElementById('uIsTempPassword');
+      if (tmpChk) { tmpChk.checked = false; tmpChk._original = false; tmpChk.closest && tmpChk.closest('.form-control') && tmpChk.closest('.form-control').classList.remove('hidden'); }
 
       const pwdCtl = uPassword ? uPassword.closest('.form-control') : null;
       const teamCtl = uTeamCode ? uTeamCode.closest('.form-control') : null;
@@ -357,6 +364,12 @@
             if (payload.Password !== '••••••••') {
               updatePayload.Password = payload.Password;
             }
+            // include IsTempPassword only if admin toggled it (explicit change)
+            const tmpChk = document.getElementById('uIsTempPassword');
+            if (tmpChk && typeof tmpChk._original !== 'undefined') {
+              const current = !!tmpChk.checked;
+              if (current !== !!tmpChk._original) updatePayload.IsTempPassword = current;
+            }
 
             const res = await fetch(`/api/users/${user.id}?userId=${userId}`, {
               method: 'PUT',
@@ -379,7 +392,7 @@
               method: 'POST',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-              body: JSON.stringify(payload)
+              body: JSON.stringify(Object.assign({}, payload, { IsTempPassword: (document.getElementById('uIsTempPassword')?.checked ? true : false) }))
             });
             const data = await res.json().catch(() => ({ success: res.ok }));
 

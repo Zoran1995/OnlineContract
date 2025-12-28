@@ -65,6 +65,9 @@ namespace OnlineContract.Models
         [Column("is_group")]
         public bool IsGroup { get; set; }
 
+        [Column("is_temp_password")]
+        public bool IsTempPassword { get; set; }
+
         [Column("owner_id")]
         public int OwnerId { get; set; }
 

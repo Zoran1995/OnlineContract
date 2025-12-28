@@ -74,25 +74,39 @@
         </div>
     </div>
 
+    <!-- Modal: Change temporary password -->
+    <dialog id="changeTempModal" class="modal">
+      <form method="dialog" class="modal-box">
+        <h3 class="font-bold text-lg mb-2">Change Temporary Password</h3>
+        <p class="mb-3 text-sm">Your account requires a password change before you can continue. Please choose a new password now.</p>
+        <div class="form-control mb-2">
+          <label class="label"><span class="label-text">Username (Code)</span></label>
+          <input id="tmpCode" class="input input-bordered" type="text" readonly />
+        </div>
+        <div class="form-control mb-2">
+          <label class="label"><span class="label-text">New Password</span></label>
+          <input id="tmpNewPassword" class="input input-bordered" type="password" />
+        </div>
+        <div class="form-control mb-4">
+          <label class="label"><span class="label-text">Confirm Password</span></label>
+          <input id="tmpConfirmPassword" class="input input-bordered" type="password" />
+        </div>
+        <input id="tmpStamp" type="hidden" />
+        <div class="modal-action">
+          <button id="tmpCancel" class="btn">Cancel</button>
+          <button id="tmpSave" class="btn btn-primary">Set New Password</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Top product preview removed; previews remain below the registration form -->
+
     <!-- Sign In form -->
   <div id="registerFormContainer" class="w-full max-w-6xl mx-auto bg-base-100 shadow rounded-xl p-6 hidden">
     <h2 class="text-2xl font-bold mb-4 text-center">Create Account</h2>
 
-    <!-- Three images row -->
-  <div class="grid md:grid-cols-3 gap-4 mb-6">
-      <div class="rounded-lg overflow-hidden shadow">
-  <img src="/resources/photos/HomePage.jpg" alt="New Arrivals" class="w-full h-full object-cover" loading="lazy" />
-      </div>
-      <div class="rounded-lg overflow-hidden shadow hidden md:block">
-  <img src="/resources/photos/Item1.jpg" alt="Baby & Toddler" class="w-full h-full object-cover" loading="lazy" />
-      </div>
-      <div class="rounded-lg overflow-hidden shadow hidden md:block">
-  <img src="/resources/photos/Item2.jpg" alt="Kids & Teens" class="w-full h-full object-cover" loading="lazy" />
-      </div>
-    </div>
-
-    <!-- Tabbed widget under the images -->
-    <div class="tabs tabs-boxed w-full">
+    <!-- Tabbed widget -->
+    <div class="tabs tabs-lifted w-full">
       <a class="tab tab-active" id="tabPersonal" role="tab" aria-selected="true">Profile</a>
       <a class="tab" id="tabAddress" role="tab" aria-selected="false">Address</a>
     </div>
@@ -143,7 +157,7 @@
         </div>
       </div>
 
-      <div id="panelAddress" role="tabpanel" aria-labelledby="tabAddress" class="hidden">
+        <div id="panelAddress" role="tabpanel" aria-labelledby="tabAddress" class="hidden">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="form-control w-full">
             <label class="label justify-center"><span class="label-text">City (optional)</span></label>
@@ -168,6 +182,19 @@
         <span id="registerLoading" class="hidden"><span class="spinner"></span> Creating...</span>
       </div>
     </form>
+
+      <!-- Product preview images (appear directly below the registration form) -->
+      <div id="authProductImagesRegister" class="grid md:grid-cols-3 gap-4 my-6">
+        <div class="rounded-lg overflow-hidden shadow">
+          <img src="/resources/photos/HomePage.jpg" alt="New Arrivals" class="w-full h-40 object-cover" loading="lazy" />
+        </div>
+        <div class="rounded-lg overflow-hidden shadow hidden md:block">
+          <img src="/resources/photos/Item1.jpg" alt="Baby & Toddler" class="w-full h-40 object-cover" loading="lazy" />
+        </div>
+        <div class="rounded-lg overflow-hidden shadow hidden md:block">
+          <img src="/resources/photos/Item2.jpg" alt="Kids & Teens" class="w-full h-40 object-cover" loading="lazy" />
+        </div>
+      </div>
 
     <div class="mt-4 flex flex-wrap gap-2 justify-center">
       <span class="badge badge-success">Welcome</span>

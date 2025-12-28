@@ -44,6 +44,85 @@ document.getElementById('navSignIn')?.addEventListener('click', (e) => {
   } catch {}
 })();
 
+// Ensure pressing Enter inside the registration form triggers the Create Account action
+(() => {
+  const regForm = document.getElementById('registerForm');
+  const regBtn = document.getElementById('registerBtn');
+  if (!regForm || !regBtn) return;
+  regForm.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      // Prevent accidental double submits and let the submit handler run
+      e.preventDefault();
+      try { regBtn.click(); } catch { if (typeof regForm.requestSubmit === 'function') regForm.requestSubmit(); }
+    }
+  });
+})();
+
+// Change temporary password modal handling
+(() => {
+  const modal = document.getElementById('changeTempModal');
+  const btnCancel = document.getElementById('tmpCancel');
+  const btnSave = document.getElementById('tmpSave');
+  const inpCode = document.getElementById('tmpCode');
+  const inpNew = document.getElementById('tmpNewPassword');
+  const inpConfirm = document.getElementById('tmpConfirmPassword');
+  const inpStamp = document.getElementById('tmpStamp');
+
+  if (btnCancel && !btnCancel._bound) {
+    btnCancel._bound = true;
+    btnCancel.addEventListener('click', (e) => {
+      e.preventDefault();
+      try { modal?.close(); } catch { modal?.classList.add('hidden'); }
+    });
+  }
+
+  if (btnSave && !btnSave._bound) {
+    btnSave._bound = true;
+    btnSave.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const code = (inpCode?.value || '').trim();
+      const pw = (inpNew?.value || '').trim();
+      const pw2 = (inpConfirm?.value || '').trim();
+      const stamp = parseInt(inpStamp?.value || '0', 10) || 0;
+
+      if (!code) { showToast('error', 'Username is required. Please enter your username.'); return; }
+      if (!pw) { showToast('error', 'New password is required. Please provide a new password.'); return; }
+      if (pw !== pw2) { showToast('error', 'Passwords do not match. Please ensure both entries are identical.'); return; }
+      if (pw.length < 8) { showToast('error', 'Password must be at least 8 characters long.'); return; }
+      if (!/[A-Z]/.test(pw)) { showToast('error', 'Password must contain at least one uppercase letter.'); return; }
+      if (!/\d/.test(pw)) { showToast('error', 'Password must contain at least one number.'); return; }
+
+      try {
+        btnSave.disabled = true;
+        const res = await fetch('/api/users/change-temp-password', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ code, newPassword: pw, confirmPassword: pw2, stamp })
+        });
+        const data = await res.json().catch(() => ({ success: res.ok }));
+        if (!data || data.success !== true) {
+          showToast('error', data?.message || 'Failed to change password. Please try again.');
+          return;
+        }
+
+        // Successful: update local session and redirect home
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userId', data.userId || 2);
+        if (typeof data.roleId !== 'undefined') localStorage.setItem('roleId', String(data.roleId));
+        try { if (typeof updateNavbarAuth === 'function') updateNavbarAuth(); } catch {}
+        sessionStorage.setItem('pendingToast', JSON.stringify({ type: 'info', message: 'Password changed and you are now logged in.' }));
+        try { modal?.close(); } catch { modal?.classList.add('hidden'); }
+        location.href = '/home';
+      } catch (err) {
+        showToast('error', 'Failed to change password. Please try again later.');
+      } finally {
+        btnSave.disabled = false;
+      }
+    });
+  }
+})();
+
 document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const code = document.getElementById('code').value.trim();
@@ -68,6 +147,19 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
 
     if (!data || data.success !== true) {
       // Server reports failure (e.g. invalid code/password)
+      if (data && data.mustChangePassword) {
+        // Show modal to force password change
+        try {
+          const modal = document.getElementById('changeTempModal');
+          const tmpCode = document.getElementById('tmpCode');
+          const tmpStamp = document.getElementById('tmpStamp');
+          if (tmpCode) tmpCode.value = code;
+          if (tmpStamp) tmpStamp.value = String(data.stamp ?? '0');
+          try { modal?.showModal(); } catch { modal?.classList.remove('hidden'); }
+        } catch {}
+        showToast('info', data?.message || 'Please change your password to continue.');
+        return;
+      }
       showToast('error', data?.message || 'Login failed');
       return;
     }
@@ -127,22 +219,36 @@ document.getElementById('registerForm')?.addEventListener('submit', async (e) =>
     btn.disabled = true;
     loading.classList.remove('hidden');
 
-    // Client-side validation: email format and postal code
+    // Client-side validation: required fields
+    if (!firstName) { showToast('error', 'First name is required. Please enter your first name.'); return; }
+    if (!lastName) { showToast('error', 'Last name is required. Please enter your last name.'); return; }
+    if (!email) { showToast('error', 'Email is required. Please provide an email address.'); return; }
+    // Email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      showToast('error', 'Please enter a valid email address.');
-      return;
-    }
-    // Postal code must be exactly 5 digits if provided
-    if (postalCode && !/^\d{5}$/.test(postalCode)) {
-      showToast('error', 'Postal code must be exactly 5 digits.');
+    if (!emailRegex.test(email)) { showToast('error', 'Please enter a valid email address.'); return; }
+    if (!username) { showToast('error', 'Username (code) is required. Please choose a username.'); return; }
+    if (!phone) { showToast('error', 'Phone number is required. Please provide a phone number.'); return; }
+    if (!regPassword) { showToast('error', 'Password is required. Please provide a password that meets the strength requirements.'); return; }
+
+    // Normalize phone: client expects country prefix +381 in a readonly input and user provides the rest
+    const phoneRaw = phone.replace(/[^0-9+()\-./\s]/g, '');
+    const fullPhone = '+381' + phoneRaw.replace(/^0+/, '');
+
+    // Password strength: min 8, upper, lower, digit
+    const pwdStrong = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    if (!pwdStrong.test(regPassword)) {
+      showToast('error', 'Password must be at least 8 characters long and include upper and lower case letters and at least one number.');
       return;
     }
 
+    // Postal code must be exactly 5 digits if provided
+    if (postalCode && !/^\d{5}$/.test(postalCode)) { showToast('error', 'Postal code must be exactly 5 digits.'); return; }
+
     const res = await fetch('/api/register', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ firstName, lastName, email, phone, username, password: regPassword, city, streetAddress, postalCode, roleId: desiredRoleId })
+      body: JSON.stringify({ firstName, lastName, email, phone: fullPhone, username, password: regPassword, city, streetAddress, postalCode, roleId: desiredRoleId })
     });
 
     if (!res.ok) throw new Error('Register failed');

@@ -72,6 +72,13 @@ This README documents the full set of features and the recent functional changes
   - The frontend `wwwroot/js/users.js` now sends the `Password` field when the user clears it (empty string) so the server can validate an explicit clear action.
   - When the placeholder `••••••••` is present, the client does not send that as a password change.
 
+- Forced password change (new `is_temp_password` flow)
+  - DB & model: the `ax_user.is_temp_password` BIT column is mapped to `AxUser.IsTempPassword` so the server and client can coordinate forced changes.
+  - Admin UI: the Users modal now includes a checkbox **User must change password at next logon** (`uIsTempPassword`) which admins/managers can set on create or update. The checkbox is only persisted when explicitly changed by the admin.
+  - Login flow: if a user with `is_temp_password = 1` attempts to sign in, the login API returns `{ mustChangePassword:true, stamp }` and the client opens a modal forcing the user to set a new password before continuing.
+  - Change endpoint: added `POST /api/users/change-temp-password` which accepts `{ code, newPassword, confirmPassword, stamp }`, validates the password policy, prevents reusing the current password, enforces optimistic concurrency (`stamp`), clears `is_temp_password`, updates `password_dt` and `last_login_dt` to server local time, increments `stamp`, and signs the user in.
+  - Validations & UX: the modal enforces: non-empty passwords, 8+ characters, at least one uppercase, at least one digit, matching confirmation, and clear messages on failure. Concurrency conflicts return a clear retry message.
+
 - Messages and logging
   - Many server responses were expanded into full-sentence messages for better UX.
   - Event logging remained intact — server logs include full exception stacks for diagnostics.
