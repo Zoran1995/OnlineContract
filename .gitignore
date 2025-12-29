@@ -9,6 +9,9 @@ obj/
 # VS Code
 .vscode/
 
+# Visual Studio
+.vs/
+
 # Logs
 *.log
 logs/
@@ -20,8 +23,16 @@ logs/
 *.nupkg
 packages/
 
-# Local tooling
-/.vs/
-
 # Publish output
 wwwroot/dist/
+
+# Temporary files
+*.tmp
+*.temp
+
+# IDE cache
+.idea/
+
+# OS-specific
+Thumbs.db
+.DS_Store

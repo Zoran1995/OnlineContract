@@ -16,6 +16,7 @@ namespace OnlineContract.Data
         public DbSet<ProductVariant> ProductVariants { get; set; }
         public DbSet<ProductInventory> ProductInventories { get; set; }
         public DbSet<Note> Notes { get; set; }
+        public DbSet<OnlineContract.Models.PasswordResetToken> PasswordResetTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -139,6 +140,21 @@ namespace OnlineContract.Data
                 entity.Property(e => e.LastModifiedById).HasColumnName("last_modified_by_id");
                 entity.Property(e => e.LastUpdatedDt).HasColumnName("last_updated_dt");
                 entity.Property(e => e.Stamp).HasColumnName("stamp");
+            });
+
+            modelBuilder.Entity<OnlineContract.Models.PasswordResetToken>(entity =>
+            {
+                entity.ToTable("password_reset_token", "dbo");
+                entity.HasKey(e => e.Id).HasName("PK_password_reset_token");
+                entity.Property(e => e.Id).HasColumnName("id");
+                entity.Property(e => e.Token).HasColumnName("token").HasMaxLength(200);
+                entity.Property(e => e.UserId).HasColumnName("user_id");
+                entity.Property(e => e.Code).HasColumnName("code").HasMaxLength(50);
+                entity.Property(e => e.Email).HasColumnName("email").HasMaxLength(150);
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.Property(e => e.ExpiresAt).HasColumnName("expires_at");
+                entity.Property(e => e.Used).HasColumnName("used");
+                entity.Property(e => e.UsedAt).HasColumnName("used_at");
             });
         }
     }
