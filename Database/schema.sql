@@ -126,10 +126,10 @@ BEGIN
             ON [PRIMARY]
     ) ON [PRIMARY];
 
-    ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_input_dt]  DEFAULT (sysutcdatetime()) FOR [input_dt];
+    ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_input_dt]  DEFAULT (dbo.GetLocalTime()) FOR [input_dt];
     ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_input_user]  DEFAULT ((0)) FOR [input_user_id];
     ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_last_mod_user]  DEFAULT ((0)) FOR [last_modified_by_id];
-    ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_last_updated_dt]  DEFAULT (sysutcdatetime()) FOR [last_updated_dt];
+    ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_last_updated_dt]  DEFAULT (dbo.GetLocalTime()) FOR [last_updated_dt];
     ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_stamp]  DEFAULT ((0)) FOR [stamp];
     ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_is_active]  DEFAULT ((1)) FOR [is_active];
     ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_is_deleted]  DEFAULT ((0)) FOR [is_deleted];
@@ -243,7 +243,7 @@ BEGIN
             ON [PRIMARY]
     ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY];
 
-    ALTER TABLE [dbo].[event_log] ADD  DEFAULT (getdate()) FOR [input_dt];
+    ALTER TABLE [dbo].[event_log] ADD  DEFAULT (CAST(dbo.GetLocalTime() AS datetime)) FOR [input_dt];
     ALTER TABLE [dbo].[event_log] ADD  DEFAULT ((0)) FOR [stamp];
 
     ALTER TABLE [dbo].[event_log]  WITH CHECK ADD  CONSTRAINT [FK_event_log_lookup_set]
@@ -276,10 +276,10 @@ BEGIN
             ON [PRIMARY]
     ) ON [PRIMARY];
 
-    ALTER TABLE [dbo].[product] ADD  CONSTRAINT [DF_product_input_dt]  DEFAULT (sysutcdatetime()) FOR [input_dt];
+    ALTER TABLE [dbo].[product] ADD  CONSTRAINT [DF_product_input_dt]  DEFAULT (dbo.GetLocalTime()) FOR [input_dt];
     ALTER TABLE [dbo].[product] ADD  CONSTRAINT [DF_product_input_user]  DEFAULT ((0)) FOR [input_user_id];
     ALTER TABLE [dbo].[product] ADD  CONSTRAINT [DF_product_last_mod_user]  DEFAULT ((0)) FOR [last_modified_by_id];
-    ALTER TABLE [dbo].[product] ADD  CONSTRAINT [DF_product_last_upd]     DEFAULT (sysutcdatetime()) FOR [last_updated_dt];
+    ALTER TABLE [dbo].[product] ADD  CONSTRAINT [DF_product_last_upd]     DEFAULT (dbo.GetLocalTime()) FOR [last_updated_dt];
     ALTER TABLE [dbo].[product] ADD  CONSTRAINT [DF_product_is_active]    DEFAULT ((1)) FOR [is_active];
     ALTER TABLE [dbo].[product] ADD  CONSTRAINT [DF_product_is_deleted]   DEFAULT ((0)) FOR [is_deleted];
     ALTER TABLE [dbo].[product] ADD  CONSTRAINT [DF_product_stamp]        DEFAULT ((0)) FOR [stamp];
@@ -328,8 +328,8 @@ BEGIN
             ON [PRIMARY]
     ) ON [PRIMARY];
 
-    ALTER TABLE [dbo].[product_variant] ADD  CONSTRAINT [DF_variant_input_dt]  DEFAULT (sysdatetime()) FOR [input_dt];
-    ALTER TABLE [dbo].[product_variant] ADD  CONSTRAINT [DF_variant_last_upd]   DEFAULT (sysdatetime()) FOR [last_updated_dt];
+    ALTER TABLE [dbo].[product_variant] ADD  CONSTRAINT [DF_variant_input_dt]  DEFAULT (dbo.GetLocalTime()) FOR [input_dt];
+    ALTER TABLE [dbo].[product_variant] ADD  CONSTRAINT [DF_variant_last_upd]   DEFAULT (dbo.GetLocalTime()) FOR [last_updated_dt];
     ALTER TABLE [dbo].[product_variant] ADD  CONSTRAINT [DF_variant_is_active]  DEFAULT ((1)) FOR [is_active];
     ALTER TABLE [dbo].[product_variant] ADD  CONSTRAINT [DF_variant_is_deleted] DEFAULT ((0)) FOR [is_deleted];
     ALTER TABLE [dbo].[product_variant] ADD  CONSTRAINT [DF_variant_stamp]      DEFAULT ((0)) FOR [stamp];
@@ -378,8 +378,8 @@ BEGIN
             ON [PRIMARY]
     ) ON [PRIMARY];
 
-    ALTER TABLE [dbo].[stores] ADD DEFAULT (sysutcdatetime()) FOR [created_at];
-    ALTER TABLE [dbo].[stores] ADD DEFAULT (sysutcdatetime()) FOR [updated_at];
+    ALTER TABLE [dbo].[stores] ADD DEFAULT (dbo.GetLocalTime()) FOR [created_at];
+    ALTER TABLE [dbo].[stores] ADD DEFAULT (dbo.GetLocalTime()) FOR [updated_at];
 
     ALTER TABLE [dbo].[stores]  WITH CHECK ADD  CONSTRAINT [FK_stores_ax_user]
         FOREIGN KEY([last_modified_user_id]) REFERENCES [dbo].[ax_user] ([ax_user_id]) ON UPDATE CASCADE;
@@ -414,10 +414,10 @@ BEGIN
     ) ON [PRIMARY];
 
     ALTER TABLE [dbo].[product_inventory] ADD  CONSTRAINT [DF_inventory_qoh]        DEFAULT ((0)) FOR [qty_on_hand];
-    ALTER TABLE [dbo].[product_inventory] ADD  CONSTRAINT [DF_inventory_input_dt]   DEFAULT (sysutcdatetime()) FOR [input_dt];
+    ALTER TABLE [dbo].[product_inventory] ADD  CONSTRAINT [DF_inventory_input_dt]   DEFAULT (dbo.GetLocalTime()) FOR [input_dt];
     ALTER TABLE [dbo].[product_inventory] ADD  CONSTRAINT [DF_inventory_input_user] DEFAULT ((0)) FOR [input_user_id];
     ALTER TABLE [dbo].[product_inventory] ADD  CONSTRAINT [DF_inventory_last_mod_user] DEFAULT ((0)) FOR [last_modified_by_id];
-    ALTER TABLE [dbo].[product_inventory] ADD  CONSTRAINT [DF_inventory_last_upd]   DEFAULT (sysutcdatetime()) FOR [last_updated_dt];
+    ALTER TABLE [dbo].[product_inventory] ADD  CONSTRAINT [DF_inventory_last_upd]   DEFAULT (dbo.GetLocalTime()) FOR [last_updated_dt];
     ALTER TABLE [dbo].[product_inventory] ADD  CONSTRAINT [DF_inventory_is_active]  DEFAULT ((1)) FOR [is_active];
     ALTER TABLE [dbo].[product_inventory] ADD  CONSTRAINT [DF_inventory_is_deleted] DEFAULT ((0)) FOR [is_deleted];
     ALTER TABLE [dbo].[product_inventory] ADD  CONSTRAINT [DF_inventory_stamp]      DEFAULT ((0)) FOR [stamp];
@@ -473,8 +473,8 @@ BEGIN
     ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY];
 
     ALTER TABLE [dbo].[note] ADD  CONSTRAINT [DF_note_is_main]           DEFAULT ((0)) FOR [is_main];
-    ALTER TABLE [dbo].[note] ADD  CONSTRAINT [DF_note_input_dt]          DEFAULT (sysutcdatetime()) FOR [input_dt];
-    ALTER TABLE [dbo].[note] ADD  CONSTRAINT [DF_note_last_update_dt]    DEFAULT (sysutcdatetime()) FOR [last_updated_dt];
+    ALTER TABLE [dbo].[note] ADD  CONSTRAINT [DF_note_input_dt]          DEFAULT (dbo.GetLocalTime()) FOR [input_dt];
+    ALTER TABLE [dbo].[note] ADD  CONSTRAINT [DF_note_last_update_dt]    DEFAULT (dbo.GetLocalTime()) FOR [last_updated_dt];
     ALTER TABLE [dbo].[note] ADD  CONSTRAINT [DF_note_stamp]             DEFAULT ((0)) FOR [stamp];
     ALTER TABLE [dbo].[note] ADD  CONSTRAINT [DF_note_is_deleted]        DEFAULT ((0)) FOR [is_deleted];
     ALTER TABLE [dbo].[note] ADD  CONSTRAINT [DF_note_comment]           DEFAULT ('') FOR [comment];

@@ -2465,9 +2465,11 @@ app.MapGet("/api/notes", async (AppDbContext db, int? contractId, int? productId
                               id = n.Id,
                               contractId = n.ContractId,
                               productId = n.ProductId,
+                              isActive = n.IsActive,
                               subject = n.Subject ?? "",
                               inputDt = n.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
                               inputUserId = n.InputUserId,
+                              inputUserCode = (from u in db.AxUsers.AsNoTracking() where u.Id == n.InputUserId select u.Code).FirstOrDefault(),
                               status = n.IsActive ? "Active" : "Inactive"
                           })
                           .ToListAsync();
@@ -2490,6 +2492,10 @@ app.MapGet("/api/notes/{id:int}", async (AppDbContext db, int id) =>
         var n = await db.Notes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (n == null) return Results.NotFound(new { message = "Note not found. The note may have been removed." });
 
+        // resolve related user codes for display
+        var inputUserCode = await db.AxUsers.Where(u => u.Id == n.InputUserId).Select(u => u.Code).FirstOrDefaultAsync();
+        var lastModifiedByCode = await db.AxUsers.Where(u => u.Id == n.LastModifiedById).Select(u => u.Code).FirstOrDefaultAsync();
+
         return Results.Json(new
         {
             id = n.Id,
@@ -2498,7 +2504,15 @@ app.MapGet("/api/notes/{id:int}", async (AppDbContext db, int id) =>
             contractId = n.ContractId,
             productId = n.ProductId,
             isActive = n.IsActive,
-            stamp = n.Stamp
+            isMain = n.IsMain,
+            inputDt = n.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
+            inputUserId = n.InputUserId,
+            inputUserCode = inputUserCode ?? "",
+            lastModifiedById = n.LastModifiedById,
+            lastModifiedByCode = lastModifiedByCode ?? "",
+            lastUpdatedDt = n.LastUpdatedDt.HasValue ? n.LastUpdatedDt.Value.ToString("yyyy-MM-dd HH:mm:ss") : "",
+            stamp = n.Stamp,
+            isDeleted = n.IsDeleted
         });
     }
     catch (Exception ex)
@@ -2514,18 +2528,51 @@ app.MapPost("/api/notes", async (AppDbContext db, NoteCreateSimpleDto dto, HttpC
     try
     {
         var uid = GetCurrentUserId(http);
+        // Validate required fields
+        var subj = (dto.Subject ?? "").Trim();
+        var comm = (dto.Comment ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(subj) || string.IsNullOrWhiteSpace(comm))
+        {
+            return Results.BadRequest(new { success = false, message = "Subject and Comment are required. Please provide both before saving the note." });
+        }
+        // require at least one of contractId or productId
+        var hasContract = dto.ContractId.HasValue && dto.ContractId.Value > 0;
+        var hasProduct = dto.ProductId.HasValue && dto.ProductId.Value > 0;
+        if (!hasContract && !hasProduct)
+        {
+            return Results.BadRequest(new { success = false, message = "Please provide either a Contract Id or a Product Id. Enter a numeric id from the Contracts or Products list." });
+        }
+        // disallow specifying both at once
+        if (hasContract && hasProduct)
+        {
+            return Results.BadRequest(new { success = false, message = "Please provide only one target: either a Contract Id or a Product Id, not both." });
+        }
+        // validate referenced contract/product existence and active status
+        if (hasContract)
+        {
+            var contractIdCheck = dto.ContractId!.Value;
+            var existsC = await db.Contracts.AsNoTracking().AnyAsync(c => c.Id == contractIdCheck && c.IsActive && !c.IsDeleted);
+            if (!existsC) return Results.BadRequest(new { success = false, message = $"Please provide a valid Contract Id. Contract {contractIdCheck} was not found or is no longer active." });
+        }
+        if (hasProduct)
+        {
+            var productIdCheck = dto.ProductId!.Value;
+            var existsP = await db.Products.AsNoTracking().AnyAsync(p => p.Id == productIdCheck && p.IsActive && !p.IsDeleted);
+            if (!existsP) return Results.BadRequest(new { success = false, message = $"Please provide a valid Product Id. Product {productIdCheck} was not found or is no longer active." });
+        }
+
         var note = new OnlineContract.Models.Note
         {
             ContractId = (dto.ContractId.HasValue && dto.ContractId.Value > 0) ? dto.ContractId : null,
             ProductId = (dto.ProductId.HasValue && dto.ProductId.Value > 0) ? dto.ProductId : null,
-            Comment = (dto.Comment ?? dto.Subject) ?? string.Empty,
-            Subject = dto.Subject ?? dto.Comment ?? string.Empty,
+            Comment = comm,
+            Subject = subj,
             IsActive = dto.IsActive ?? true,
             IsDeleted = false,
-            InputDt = DateTime.UtcNow,
+            InputDt = DateTime.Now,
             InputUserId = uid,
             LastModifiedById = uid,
-            LastUpdatedDt = DateTime.UtcNow,
+            LastUpdatedDt = DateTime.Now,
             Stamp = 0
         };
         db.Notes.Add(note);
@@ -2540,6 +2587,111 @@ app.MapPost("/api/notes", async (AppDbContext db, NoteCreateSimpleDto dto, HttpC
         return Results.Json(new { success = false });
     }
 }).RequireAuthorization();
+
+// API: update single note (simple edit)
+app.MapPut("/api/notes/{id:int}", async (AppDbContext db, int id, NoteCreateSimpleDto dto, HttpContext http) =>
+{
+    if (id <= 0) return Results.NotFound(new { message = "Note not found. Please verify the note ID and try again." });
+    try
+    {
+        var n = await db.Notes.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (n == null) return Results.NotFound(new { message = "Note not found. The note may have been removed." });
+
+        var uid = GetCurrentUserId(http);
+
+        // Prepare values (preserve existing when client omitted)
+        var newSubject = dto.Subject != null ? dto.Subject.Trim() : n.Subject ?? string.Empty;
+        var newComment = dto.Comment != null ? dto.Comment.Trim() : n.Comment ?? string.Empty;
+        int? newContractId = dto.ContractId.HasValue ? ((dto.ContractId.Value > 0) ? dto.ContractId : null) : n.ContractId;
+        int? newProductId = dto.ProductId.HasValue ? ((dto.ProductId.Value > 0) ? dto.ProductId : null) : n.ProductId;
+
+        var now = DateTime.Now; // use server local time for last_updated_dt
+
+        // Use direct SQL update to avoid EF OUTPUT clause when table has triggers
+        // Do not set `stamp` here — let any DB-side trigger or logic increment it by exactly 1.
+        var updSql = $@"UPDATE dbo.note SET comment = @pComment, subject = @pSubject, contract_id = @pContract, product_id = @pProduct, is_main = @pMain, is_active = @pIsActive, last_modified_by_id = @pUid, last_updated_dt = @pNow WHERE note_id = @pNid;";
+        var pComment = new Microsoft.Data.SqlClient.SqlParameter("@pComment", System.Data.SqlDbType.NVarChar, -1) { Value = (object)(newComment ?? string.Empty) };
+        var pSubject = new Microsoft.Data.SqlClient.SqlParameter("@pSubject", System.Data.SqlDbType.NVarChar, 250) { Value = (object)(newSubject ?? string.Empty) };
+        var pContract = new Microsoft.Data.SqlClient.SqlParameter("@pContract", System.Data.SqlDbType.Int) { Value = (object?)newContractId ?? DBNull.Value };
+        var pProduct = new Microsoft.Data.SqlClient.SqlParameter("@pProduct", System.Data.SqlDbType.Int) { Value = (object?)newProductId ?? DBNull.Value };
+        var pUid = new Microsoft.Data.SqlClient.SqlParameter("@pUid", System.Data.SqlDbType.Int) { Value = uid };
+        var pNow = new Microsoft.Data.SqlClient.SqlParameter("@pNow", System.Data.SqlDbType.DateTime2) { Value = now };
+        var pIsActive = new Microsoft.Data.SqlClient.SqlParameter("@pIsActive", System.Data.SqlDbType.Bit) { Value = (object?)DBNull.Value };
+        // main flag parameter
+        var pMain = new Microsoft.Data.SqlClient.SqlParameter("@pMain", System.Data.SqlDbType.Int) { Value = DBNull.Value };
+        var pNid = new Microsoft.Data.SqlClient.SqlParameter("@pNid", System.Data.SqlDbType.Int) { Value = id };
+
+        // Validate referenced contract/product existence when client provided them
+        if (newContractId.HasValue)
+        {
+            var newContractIdCheck = newContractId.Value;
+            var existsC = await db.Contracts.AsNoTracking().AnyAsync(c => c.Id == newContractIdCheck && c.IsActive && !c.IsDeleted);
+            if (!existsC) return Results.BadRequest(new { success = false, message = $"Contract with id {newContractIdCheck} was not found or is not active. Please provide a valid, active Contract Id from the Contracts list." });
+        }
+        if (newProductId.HasValue)
+        {
+            var existsP = await db.Products.AsNoTracking().AnyAsync(p => p.Id == newProductId.Value && p.IsActive && !p.IsDeleted);
+            if (!existsP) return Results.BadRequest(new { success = false, message = $"Product with id {newProductId.Value} was not found or is not active. Please provide a valid, active Product Id from the Products list." });
+        }
+
+        // Determine active flag: preserve existing when client omitted
+        bool newIsActive;
+        if (dto.IsActive.HasValue)
+        {
+            newIsActive = dto.IsActive.Value;
+        }
+        else
+        {
+            newIsActive = n.IsActive;
+        }
+        pIsActive.Value = newIsActive;
+
+        // Determine main flag: if client provided IsMain, validate it's only allowed for product-linked notes
+        int mainVal;
+        if (dto.IsMain.HasValue)
+        {
+            mainVal = dto.IsMain.Value ? 1 : 0;
+            var targetHasProduct = newProductId.HasValue || (n.ProductId.HasValue && n.ProductId.Value > 0);
+            if (dto.IsMain.Value && !targetHasProduct)
+            {
+                return Results.BadRequest(new { success = false, message = "A note can be marked as 'Main' only when it is linked to a product. Please set Product Id first." });
+            }
+            pMain.Value = mainVal;
+        }
+        else
+        {
+            // preserve existing value
+            mainVal = n.IsMain ? 1 : 0;
+            pMain.Value = mainVal;
+        }
+
+        var affected = await db.Database.ExecuteSqlRawAsync(updSql, pComment, pSubject, pContract, pProduct, pMain, pIsActive, pUid, pNow, pNid);
+        if (affected == 0)
+        {
+            return Results.Json(new { success = false, message = "The note could not be updated (it may have been changed by another user)." });
+        }
+        // Read back the actual stamp and last_updated_dt from the database (ensure we return authoritative values)
+        var refreshed = await db.Notes.AsNoTracking().Where(x => x.Id == id).Select(x => new { x.Stamp, x.LastUpdatedDt }).FirstOrDefaultAsync();
+        var lastModifiedByCode = await db.AxUsers.Where(u => u.Id == uid).Select(u => u.Code).FirstOrDefaultAsync();
+
+        return Results.Json(new
+        {
+            success = true,
+            id = id,
+            stamp = refreshed?.Stamp ?? 0,
+            lastUpdatedDt = (refreshed?.LastUpdatedDt.HasValue == true)
+                ? DateTime.SpecifyKind(refreshed.LastUpdatedDt.Value, DateTimeKind.Utc).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                : now.ToString("yyyy-MM-dd HH:mm:ss"),
+            lastModifiedByCode = lastModifiedByCode ?? ""
+        });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Note update failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.Json(new { success = false, message = "Failed to save the note. Please try again later." });
+    }
+}).RequireAuthorization();
+
 app.MapGet("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext http, int id, string? q, int page, int pageSize) =>
 {
     if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);

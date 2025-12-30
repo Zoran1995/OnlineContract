@@ -48,5 +48,11 @@ namespace OnlineContract.Models
 
         [Column("stamp")]
         public int Stamp { get; set; }
+
+        [Column("is_active")]
+        public bool IsActive { get; set; } = true;
+
+        [Column("is_deleted")]
+        public bool IsDeleted { get; set; } = false;
     }
 }

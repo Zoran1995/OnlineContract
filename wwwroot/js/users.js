@@ -200,7 +200,9 @@
   function updateOpenState() {
     const btn = document.getElementById('btnOpen');
     if (!btn) return;
-    btn.disabled = !selectedUserId;
+    // Disable Open when no selection OR when selected user is inactive
+    const u = selectedUserId ? items.find(x => x.id === selectedUserId) : null;
+    btn.disabled = !(selectedUserId && u && !!u.isActive);
   }
 
   function updateMenuActionsState() {

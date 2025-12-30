@@ -51,12 +51,26 @@
     }
     items.forEach(it => {
       const tr = document.createElement('tr');
-      tr.addEventListener('click', () => { Array.from(tbl.querySelectorAll('tr.active')).forEach(r=>r.classList.remove('active')); tr.classList.add('active'); selectedId = it.id; updateOpenState(); });
-      const cells = [ String(it.id ?? ''), String(it.contractId ?? ''), String(it.productId ?? ''), String(it.subject ?? ''), String(it.inputDt ?? ''), String(it.inputUserId ?? ''), String(it.status ?? '') ];
+      tr.addEventListener('click', () => {
+        Array.from(tbl.querySelectorAll('tr.active')).forEach(r=>r.classList.remove('active'));
+        tr.classList.add('active');
+        selectedId = it.id;
+        selectedRow = it;
+        updateOpenState();
+        updateMenuState();
+      });
+      const cells = [ String(it.id ?? ''), String(it.contractId ?? ''), String(it.productId ?? ''), String(it.subject ?? ''), String(it.inputDt ?? ''), String(it.inputUserCode ?? it.inputUserId ?? ''), String(it.status ?? '') ];
       cells.forEach(text => { const td = document.createElement('td'); td.textContent = text; tr.appendChild(td); });
       tbl.appendChild(tr);
     });
+    // If the previously selected row no longer exists in the newly loaded items, clear selection
+    if (selectedId) {
+      const found = items.find(x => String(x.id) === String(selectedId) || x.id === selectedId);
+      if (!found) { selectedId = null; selectedRow = null; Array.from(tbl.querySelectorAll('tr.active')).forEach(r=>r.classList.remove('active')); updateOpenState(); }
+    }
     updatePager();
+    // Keep menu state in sync after render
+    updateMenuState();
     // Update header sort indicators and make headers clickable for server-side sorting
     try {
       const keys = ['id','contractId','productId','subject','inputDt','inputUserId','status'];
@@ -78,7 +92,53 @@
     } catch {}
   }
 
-  function updateOpenState(){ if (btnOpen) btnOpen.disabled = !selectedId; }
+  function updateOpenState(){
+    if (!btnOpen) return;
+    // Disable Open when no selection OR when selected note is inactive
+    btnOpen.disabled = !(selectedId && selectedRow && !!selectedRow.isActive);
+  }
+
+    function updateMenuState(){
+    const btnMoreEl = document.getElementById('btnMore');
+    const mDeactivate = document.getElementById('notesMenuDeactivate');
+    const mDelete = document.getElementById('notesMenuDelete');
+    const mSetMain = document.getElementById('notesMenuSetMain');
+    // Three-dots button should always be enabled (per Users toolbar behavior)
+    if (btnMoreEl) btnMoreEl.disabled = false;
+    const hasSelection = !!selectedId && !!selectedRow;
+    const setItemState = (el, enabled) => {
+      if (!el) return;
+      if (enabled) { el.classList.remove('opacity-50'); el.classList.remove('pointer-events-none'); el.removeAttribute('aria-disabled'); }
+      else { el.classList.add('opacity-50'); el.classList.add('pointer-events-none'); el.setAttribute('aria-disabled','true'); }
+    };
+    // Delete enabled only when a row is selected
+    setItemState(mDelete, hasSelection);
+    // Set Main only for product-linked AND active notes when a row is selected
+    setItemState(mSetMain, hasSelection && selectedRow && Number(selectedRow.productId) > 0 && (selectedRow.isActive === undefined || selectedRow.isActive === null ? true : !!selectedRow.isActive));
+    // Deactivate/Activate enabled only when a row is selected
+    setItemState(mDeactivate, hasSelection);
+    // Update Deactivate/Activate icon + label
+    if (mDeactivate) {
+      const active = selectedRow?.isActive;
+      const icon = (active === false) ? 'check_circle' : 'block';
+      const label = (active === false) ? 'Activate' : 'Deactivate';
+      mDeactivate.innerHTML = `<span class="material-icons mr-2">${icon}</span>${label}`;
+    }
+    // Ensure Delete and SetMain have icons
+    if (mDelete) mDelete.innerHTML = `<span class="material-icons mr-2">delete</span>Delete`;
+    if (mSetMain) mSetMain.innerHTML = `<span class="material-icons mr-2">star</span>Set as Main`;
+  }
+
+  function closeMenu(){
+    const btnMoreEl = document.getElementById('btnMore');
+    const dd = btnMoreEl?.closest('.dropdown');
+    if (dd && dd.classList.contains('dropdown-open')) {
+      dd.classList.remove('dropdown-open');
+      btnMoreEl?.setAttribute('aria-expanded','false');
+      const menu = dd.querySelector('.dropdown-content');
+      if (menu) menu.classList.add('hidden');
+    }
+  }
   function updatePager(){
     const total = Number(totalCount) || 0;
     const pages = Math.max(1, Number(totalPages) || Math.ceil(total / pageSize));
@@ -121,12 +181,27 @@
         const cEl = document.getElementById('newContractId');
         const pEl = document.getElementById('newProductId');
         const titleEl = document.getElementById('noteModalTitle');
+        const inputDtEl = document.getElementById('noteInputDt');
+        const inputUserEl = document.getElementById('noteInputUser');
+        const lastUpdEl = document.getElementById('noteLastUpdatedDt');
+        const lastModByEl = document.getElementById('noteLastModifiedBy');
+
         if (editIdEl) editIdEl.value = String(data.id ?? '');
         if (subjEl) subjEl.value = data.subject ?? '';
         if (commEl) commEl.value = data.comment ?? '';
-        if (cEl) cEl.value = data.contractId ?? '';
-        if (pEl) pEl.value = data.productId ?? '';
+        // contract/product should not be editable when opening existing note
+        if (cEl) { cEl.value = data.contractId ?? ''; cEl.disabled = true; }
+        if (pEl) { pEl.value = data.productId ?? ''; pEl.disabled = true; }
         if (titleEl) titleEl.textContent = 'Edit Note';
+
+        // metadata fields (best-effort)
+        if (inputDtEl) inputDtEl.value = data.inputDt ?? '';
+        if (inputUserEl) inputUserEl.value = data.inputUserCode ?? (data.inputUserId ? String(data.inputUserId) : '');
+        if (lastUpdEl) lastUpdEl.value = data.lastUpdatedDt ?? '';
+        if (lastModByEl) lastModByEl.value = data.lastModifiedByCode ?? (data.lastModifiedById ? String(data.lastModifiedById) : '');
+
+        // Active/Main are managed via the actions menu; modal does not expose controls.
+
         const dlg = document.getElementById('addNoteModal');
         try{ dlg.showModal(); } catch { if (dlg) dlg.classList.remove('hidden'); }
       } catch (e) { try { showToast('error','Failed to load note.'); } catch {} }
@@ -136,12 +211,13 @@
       selectedId = null;
       try { render(); } catch {}
       try { updateOpenState(); } catch {}
-      // clear modal inputs for new note
+      // clear modal inputs for new note and enable contract/product inputs
       document.getElementById('editNoteId').value = '';
       document.getElementById('newSubject').value = '';
       document.getElementById('newComment').value = '';
-      document.getElementById('newContractId').value = '';
-      document.getElementById('newProductId').value = '';
+      const cIn = document.getElementById('newContractId'); if (cIn) { cIn.value = ''; cIn.disabled = false; }
+      const pIn = document.getElementById('newProductId'); if (pIn) { pIn.value = ''; pIn.disabled = false; }
+      // Modal does not expose Active/Main controls; keep contract/product editable on Add.
       document.getElementById('noteModalTitle').textContent = 'Add Note';
       const dlg = document.getElementById('addNoteModal');
       try{ dlg.showModal(); }catch{ dlg.classList.remove('hidden'); }
@@ -164,9 +240,18 @@
       const comment = document.getElementById('newComment')?.value || '';
       const contractIdVal = document.getElementById('newContractId')?.value || '';
       const productIdVal = document.getElementById('newProductId')?.value || '';
+      // client-side validation: subject & comment required
+      if (!subject.trim() || !comment.trim()) { try{ showToast('warning', 'Both Subject and Comment are required. Please provide values for these fields before saving.'); }catch{}; return; }
+      // require at least one of contractId or productId
+      if (!contractIdVal.trim() && !productIdVal.trim()) { try{ showToast('warning', 'Please provide either a Contract Id or a Product Id. Enter a numeric id from the Contracts or Products list.'); }catch{}; return; }
+      // do not allow both to be filled at the same time
+      if (contractIdVal.trim() && productIdVal.trim()) { try{ showToast('warning', 'Please provide only one target: either a Contract Id or a Product Id, not both.'); }catch{}; return; }
       const contractId = contractIdVal === '' ? null : Number(contractIdVal);
       const productId = productIdVal === '' ? null : Number(productIdVal);
       const editId = (document.getElementById('editNoteId')?.value || '').trim();
+      // ensure numeric ids when provided
+      if (contractIdVal.trim() && (Number.isNaN(contractId) || !Number.isInteger(contractId) || contractId <= 0)) { try{ showToast('warning','Contract Id must be a positive integer (enter an existing Contract Id).'); }catch{}; return; }
+      if (productIdVal.trim() && (Number.isNaN(productId) || !Number.isInteger(productId) || productId <= 0)) { try{ showToast('warning','Product Id must be a positive integer (enter an existing Product Id).'); }catch{}; return; }
       try {
         const payload = { Subject: subject, Comment: comment, ContractId: contractId, ProductId: productId };
         let res;
@@ -175,9 +260,126 @@
         } else {
           res = await fetch('/api/notes', { method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(payload)});
         }
-        if (res && res.ok) { try{ showToast('info', editId ? 'Note updated.' : 'Note has been added successfully.'); }catch{}; const dlg = document.getElementById('addNoteModal'); try{ dlg.close(); }catch{}; await load(); }
-        else { try{ showToast('error','Failed to save the note. Please try again later.'); }catch{} }
+        if (res) {
+          if (res.ok) {
+            try{ const msg = editId ? 'Note has been successfully updated.' : 'Note has been added successfully.'; showToast('info', msg); }catch{};
+            const dlg = document.getElementById('addNoteModal'); try{ dlg.close(); }catch{}; await load();
+          } else {
+            // Try to show a helpful message returned by the server (BadRequest etc.)
+            try {
+              const ct = res.headers.get('content-type') || '';
+              if (ct.indexOf('application/json') !== -1) {
+                const data = await res.json();
+                const msg = data?.message || data?.Message || (data?.message_text ?? null) || null;
+                if (msg) { showToast('warning', msg); }
+                else { showToast('error', 'Failed to save the note. Please try again later.'); }
+              } else {
+                showToast('error', 'Failed to save the note. Please try again later.');
+              }
+            } catch (ee) { try{ showToast('error','Failed to save the note. Please try again later.'); }catch{} }
+          }
+        }
       } catch { try{ showToast('error','Failed to save note'); }catch{} }
+    });
+
+    // Actions menu handlers (Deactivate/Delete/Set as Main)
+    const btnMore = document.getElementById('btnMore');
+    const menuDeactivate = document.getElementById('notesMenuDeactivate');
+    const menuDelete = document.getElementById('notesMenuDelete');
+    const menuSetMain = document.getElementById('notesMenuSetMain');
+
+    // Initialize menu state and wire open/close behavior
+    try {
+      updateMenuState();
+      btnMore?.addEventListener('click', (ev) => {
+        try { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } catch {}
+        try { window._oc_ignoreNextDocClick = true; } catch {}
+        setTimeout(() => { try { window._oc_ignoreNextDocClick = false; } catch {} }, 250);
+        const dd = btnMore.closest('.dropdown');
+        if (!dd) return;
+        const menu = dd.querySelector('.dropdown-content');
+        const open = dd.classList.toggle('dropdown-open');
+        if (menu) menu.classList.toggle('hidden', !open);
+        btnMore.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      // Close the menu when clicking outside (respect ignore flag)
+      if (!window._oc_bound_notes_menu_doc) {
+        window._oc_bound_notes_menu_doc = true;
+        document.addEventListener('click', (ev) => {
+          try {
+            if (window._oc_ignoreNextDocClick) return;
+            const dd = btnMore?.closest('.dropdown');
+            if (!dd) return;
+            if (!dd.classList.contains('dropdown-open')) return;
+            const tgt = ev.target || ev.srcElement;
+            if (dd.contains(tgt)) return;
+            closeMenu();
+          } catch {}
+        }, true);
+      }
+    } catch {}
+
+    async function fetchNoteMeta(id) {
+      try {
+        const r = await fetch(`${apiBase}/${id}`, { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' } });
+        if (!r.ok) return null;
+        return await r.json();
+      } catch { return null; }
+    }
+
+    menuDeactivate?.addEventListener('click', async (e) => {
+      closeMenu();
+      if (!selectedId) { try { showToast('warning', 'Please select a note first.'); } catch {} return; }
+      try {
+        const meta = await fetchNoteMeta(selectedId);
+        if (!meta) { try { showToast('error','Failed to retrieve note info.'); } catch {} return; }
+        const newActive = !meta.isActive;
+        const res = await fetch(`${apiBase}/${selectedId}`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify({ IsActive: newActive }) });
+        if (res && res.ok) { try { showToast('info', newActive ? 'Note has been activated.' : 'Note has been deactivated.'); } catch {} await load(); updateMenuState(); }
+        else { try { showToast('error','Failed to change active state.'); } catch {} }
+      } catch (e) { try { showToast('error','Failed to change active state.'); } catch {} }
+    });
+
+    menuDelete?.addEventListener('click', async (e) => {
+      closeMenu();
+      if (!selectedId) { try { showToast('warning', 'Please select a note first.'); } catch {} return; }
+      try {
+        const meta = await fetchNoteMeta(selectedId);
+        if (!meta) { try { showToast('error','Failed to retrieve note info.'); } catch {} return; }
+        // Decide whether note is product or contract linked
+        if (meta.productId && Number(meta.productId) > 0) {
+          const body = { Delete: [{ Id: selectedId, Stamp: meta.stamp }] };
+          const r = await fetch(`/api/products/${meta.productId}/notes`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body) });
+          if (r && r.ok) { try { showToast('info','Note has been deleted.'); } catch {} await load(); updateMenuState(); } else { try { showToast('error','Failed to delete note.'); } catch {} }
+        } else if (meta.contractId && Number(meta.contractId) > 0) {
+          const body = { Delete: [{ Id: selectedId, Stamp: meta.stamp }] };
+          const r = await fetch(`/api/contracts/${meta.contractId}/notes`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body) });
+          if (r && r.ok) { try { showToast('info','Note has been deleted.'); } catch {} await load(); updateMenuState(); } else { try { showToast('error','Failed to delete note.'); } catch {} }
+        } else {
+          try { showToast('error','Note is not linked to a product or contract; cannot delete.'); } catch {}
+        }
+      } catch (e) { try { showToast('error','Failed to delete note.'); } catch {} }
+    });
+
+    menuSetMain?.addEventListener('click', async (e) => {
+      closeMenu();
+      if (!selectedId) { try { showToast('warning', 'Please select a note first.'); } catch {} return; }
+      try {
+        const meta = await fetchNoteMeta(selectedId);
+        if (!meta) { try { showToast('error','Failed to retrieve note info.'); } catch {} return; }
+        if (meta.isMain) { try { showToast('info','This note is already set as main.'); } catch {} return; }
+        if (meta.productId && Number(meta.productId) > 0) {
+          const body = { SetMainId: selectedId, SetMainStamp: meta.stamp };
+          const r = await fetch(`/api/products/${meta.productId}/notes`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body) });
+          if (r && r.ok) { try { showToast('info','Note has been set as main.'); } catch {} await load(); updateMenuState(); } else { try { showToast('error','Failed to set note as main.'); } catch {} }
+        } else if (meta.contractId && Number(meta.contractId) > 0) {
+          const body = { SetMainId: selectedId, SetMainStamp: meta.stamp };
+          const r = await fetch(`/api/contracts/${meta.contractId}/notes`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body) });
+          if (r && r.ok) { try { showToast('info','Note has been set as main.'); } catch {} await load(); updateMenuState(); } else { try { showToast('error','Failed to set note as main.'); } catch {} }
+        } else {
+          try { showToast('error','Note is not linked to a product or contract; cannot set as main.'); } catch {}
+        }
+      } catch (e) { try { showToast('error','Failed to set note as main.'); } catch {} }
     });
 
     // Initial page open: do NOT perform automatic search; start with empty grid.

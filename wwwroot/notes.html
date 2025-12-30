@@ -34,6 +34,16 @@
       <div class="flex items-center gap-2">
         <button id="btnOpen" class="btn btn-sm" disabled><span class="material-icons mr-2">open_in_new</span>Open</button>
         <button id="btnAddNote" class="btn btn-sm btn-outline"><span class="material-icons mr-2">add</span>Add Note</button>
+        <div id="notesToolbarMenu" class="dropdown dropdown-end" tabindex="0">
+          <button id="btnMore" class="btn btn-sm btn-ghost" tabindex="0" aria-haspopup="menu" aria-expanded="false">
+            <span class="material-icons">more_vert</span>
+          </button>
+          <ul id="notesMoreMenu" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-40" role="menu" aria-label="Row actions">
+            <li><a id="notesMenuDeactivate" role="menuitem"><span class="material-icons mr-2">block</span>Deactivate</a></li>
+            <li><a id="notesMenuDelete" role="menuitem"><span class="material-icons mr-2">delete</span>Delete</a></li>
+            <li><a id="notesMenuSetMain" role="menuitem"><span class="material-icons mr-2">star</span>Set as Main</a></li>
+          </ul>
+        </div>
       </div>
     </div>
 
@@ -66,7 +76,7 @@
             <th>Product Id</th>
             <th>Subject</th>
             <th>Input Date</th>
-            <th>Input User Id</th>
+            <th>Input User</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -93,13 +103,31 @@
         <label class="label"><span class="label-text">Subject</span></label>
         <input id="newSubject" class="input input-bordered w-full" type="text" />
       </div>
-      <div class="form-control mt-2">
-        <label class="label"><span class="label-text">Contract Id (optional)</span></label>
-        <input id="newContractId" class="input input-bordered w-full" type="number" />
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+        <div class="form-control">
+          <label class="label"><span class="label-text">Input Date</span></label>
+          <input id="noteInputDt" class="input input-bordered w-full" type="text" disabled />
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Input User</span></label>
+          <input id="noteInputUser" class="input input-bordered w-full" type="text" disabled />
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Last Updated</span></label>
+          <input id="noteLastUpdatedDt" class="input input-bordered w-full" type="text" disabled />
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Last Modified By</span></label>
+          <input id="noteLastModifiedBy" class="input input-bordered w-full" type="text" disabled />
+        </div>
       </div>
       <div class="form-control mt-2">
-        <label class="label"><span class="label-text">Product Id (optional)</span></label>
-        <input id="newProductId" class="input input-bordered w-full" type="number" />
+        <label class="label"><span class="label-text">Contract Id</span></label>
+        <input id="newContractId" class="input input-bordered w-full" type="number" disabled />
+      </div>
+      <div class="form-control mt-2">
+        <label class="label"><span class="label-text">Product Id</span></label>
+        <input id="newProductId" class="input input-bordered w-full" type="number" disabled />
       </div>
         <div class="form-control mt-2">
           <label class="label"><span class="label-text">Comment</span></label>
