@@ -2,6 +2,7 @@
   const apiBase = '/api/notes';
   let page = 1, pageSize = 10, totalPages = 1, totalCount = 0;
   let selectedId = null, selectedRow = null, items = [];
+  let sortBy = '', sortDir = '';
 
   const tbl = document.querySelector('#notesTable tbody');
   const fltContract = document.getElementById('fltContractId');
@@ -29,6 +30,8 @@
       if (c) q.set('contractId', c);
       if (p) q.set('productId', p);
 
+      if (sortBy) q.set('sortBy', sortBy);
+      if (sortDir) q.set('sortDir', sortDir);
       const res = await fetch(`${apiBase}?${q.toString()}`, { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' }});
       if (!res.ok) { items = []; render(); return; }
       const data = await res.json();
@@ -54,6 +57,25 @@
       tbl.appendChild(tr);
     });
     updatePager();
+    // Update header sort indicators and make headers clickable for server-side sorting
+    try {
+      const keys = ['id','contractId','productId','subject','inputDt','inputUserId','status'];
+      document.querySelectorAll('#notesTable thead th').forEach((th, idx) => {
+        th.style.cursor = 'pointer';
+        // remove existing indicator
+        const ex = th.querySelector('.sort-indicator'); if (ex) ex.remove();
+        const key = keys[idx] || '';
+        const span = document.createElement('span'); span.className = 'sort-indicator ml-2';
+        if (key && key === sortBy) { span.textContent = sortDir === 'desc' ? ' ▼' : ' ▲'; }
+        th.appendChild(span);
+        th.onclick = () => {
+          if (!key) return;
+          if (sortBy === key) sortDir = (sortDir === 'desc' ? 'asc' : 'desc');
+          else { sortBy = key; sortDir = 'asc'; }
+          page = 1; load();
+        };
+      });
+    } catch {}
   }
 
   function updateOpenState(){ if (btnOpen) btnOpen.disabled = !selectedId; }
@@ -71,33 +93,43 @@
   document.addEventListener('DOMContentLoaded', () => {
     // Do not trigger a load on initial page open — start with an empty grid
     pageSizeSel?.addEventListener('change', (e)=>{ pageSize = Number(e.target.value)||10; page=1; load(); });
-    btnSearch?.addEventListener('click', (e)=>{ 
-      e.preventDefault(); 
-      // require at least one filter
-      const c = (fltContract?.value || '').trim();
-      const p = (fltProduct?.value || '').trim();
-      if (!c && !p) { try { showToast('warning', 'Provide more search criteria before proceeding.'); } catch {} return; }
-      page=1; load(); 
-    });
+
+    // Perform a search; when requireFilter=true, at least one filter must be provided (same behavior as UI button)
+    const performSearch = (requireFilter = true) => {
+      try {
+        const c = (fltContract?.value || '').trim();
+        const p = (fltProduct?.value || '').trim();
+        if (requireFilter && !c && !p) { try { showToast('warning', 'Provide more search criteria before proceeding.'); } catch {} return; }
+        page = 1; load();
+      } catch (e) { /* noop */ }
+    };
+
+    btnSearch?.addEventListener('click', (e)=>{ e.preventDefault(); performSearch(true); });
     btnClear?.addEventListener('click', (e)=>{ e.preventDefault(); if(fltContract) fltContract.value=''; if(fltProduct) fltProduct.value=''; page=1; items = []; render(); });
     pgPrev?.addEventListener('click', ()=>{ if(page>1){ page--; load(); } });
     pgNext?.addEventListener('click', ()=>{ if(page<totalPages){ page++; load(); } });
     btnOpen?.addEventListener('click', async ()=>{
-      if (!selectedId) return;
+      if (!selectedId) { try { showToast('warning','Please select a row first.'); } catch {} return; }
       try {
         const res = await fetch(`${apiBase}/${selectedId}`, { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' }});
-        if (!res.ok) return;
+        if (!res.ok) { try { showToast('error', `Failed to load note (${res.status}).`); } catch {} return; }
         const data = await res.json();
-        // populate modal for editing
-        document.getElementById('editNoteId').value = String(data.id || '');
-        document.getElementById('newSubject').value = data.subject ?? '';
-        document.getElementById('newComment').value = data.comment ?? '';
-        document.getElementById('newContractId').value = data.contractId ?? '';
-        document.getElementById('newProductId').value = data.productId ?? '';
-        document.getElementById('noteModalTitle').textContent = 'Edit Note';
+        // populate modal for editing (guard elements)
+        const editIdEl = document.getElementById('editNoteId');
+        const subjEl = document.getElementById('newSubject');
+        const commEl = document.getElementById('newComment');
+        const cEl = document.getElementById('newContractId');
+        const pEl = document.getElementById('newProductId');
+        const titleEl = document.getElementById('noteModalTitle');
+        if (editIdEl) editIdEl.value = String(data.id ?? '');
+        if (subjEl) subjEl.value = data.subject ?? '';
+        if (commEl) commEl.value = data.comment ?? '';
+        if (cEl) cEl.value = data.contractId ?? '';
+        if (pEl) pEl.value = data.productId ?? '';
+        if (titleEl) titleEl.textContent = 'Edit Note';
         const dlg = document.getElementById('addNoteModal');
-        try{ dlg.showModal(); } catch { dlg.classList.remove('hidden'); }
-      } catch (e) { }
+        try{ dlg.showModal(); } catch { if (dlg) dlg.classList.remove('hidden'); }
+      } catch (e) { try { showToast('error','Failed to load note.'); } catch {} }
     });
     btnAdd?.addEventListener('click', ()=>{
       // Ensure Add always creates a new note regardless of current selection
@@ -113,6 +145,15 @@
       document.getElementById('noteModalTitle').textContent = 'Add Note';
       const dlg = document.getElementById('addNoteModal');
       try{ dlg.showModal(); }catch{ dlg.classList.remove('hidden'); }
+    });
+
+    // Trigger search when Enter is pressed in any filter input (behaves like clicking Search)
+    [fltContract, fltProduct].forEach(inp => {
+      try {
+        inp?.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') { ev.preventDefault(); performSearch(true); }
+        });
+      } catch {}
     });
 
     // Add note save
@@ -139,6 +180,7 @@
       } catch { try{ showToast('error','Failed to save note'); }catch{} }
     });
 
-    load();
+    // Initial page open: do NOT perform automatic search; start with empty grid.
+    // User must click Search (or press Enter in a filter) to populate results.
   });
 })();

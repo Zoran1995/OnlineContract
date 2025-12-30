@@ -85,6 +85,10 @@
     setMainNoteId: null
   };
 
+  // Sorting state for variants (inventory)
+  let variantsSortBy = '';
+  let variantsSortDir = '';
+
   function setLoading(isLoading) {
     loadingOverlay?.classList.toggle('hidden', !isLoading);
   }
@@ -310,9 +314,21 @@
 
       variantsTableBody.appendChild(tr);
     });
+      try {
+        const keys = ['size','color','amount','','qtyStore1','qtyStore2','isActive'];
+        document.querySelectorAll('#variantsTable thead th').forEach((th, idx) => {
+          th.style.cursor = 'pointer';
+          const ex = th.querySelector('.sort-indicator'); if (ex) ex.remove();
+          const key = keys[idx] || '';
+          const span = document.createElement('span'); span.className = 'sort-indicator ml-2';
+          if (key && key === variantsSortBy) { span.textContent = variantsSortDir === 'desc' ? ' ▼' : ' ▲'; }
+          th.appendChild(span);
+          th.onclick = () => { if (!key) return; if (variantsSortBy === key) variantsSortDir = (variantsSortDir === 'desc' ? 'asc' : 'desc'); else { variantsSortBy = key; variantsSortDir = 'asc'; } state.variantsPage = 1; loadDetails(); };
+        });
+      } catch {}
 
-    updateVariantsPaginationUI();
-    computeTotalAmount();
+      updateVariantsPaginationUI();
+      computeTotalAmount();
   }
 
   function renderNotes() {
@@ -444,8 +460,17 @@
     hideNotFound();
 
     try {
-      const res = await fetch(`${apiBase}/${encodeURIComponent(state.id)}`, {
+      // Include variant sorting parameters when loading product details
+      const sortParts = [];
+      // cache-buster to avoid stale cached responses
+      sortParts.push(`t=${Date.now()}`);
+      if (variantsSortBy) sortParts.push(`sortBy=${encodeURIComponent(variantsSortBy)}`);
+      if (variantsSortDir) sortParts.push(`sortDir=${encodeURIComponent(variantsSortDir)}`);
+      const suffix = sortParts.length ? `?${sortParts.join('&')}` : '';
+      try { console.debug('Loading product details with variant sort', variantsSortBy, variantsSortDir); } catch {}
+      const res = await fetch(`${apiBase}/${encodeURIComponent(state.id)}${suffix}`, {
         method: 'GET',
+        cache: 'no-store',
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
