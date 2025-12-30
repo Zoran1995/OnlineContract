@@ -44,7 +44,7 @@
   }
 
   function updateOpenState() {
-    if (btnOpen) btnOpen.disabled = !selectedId;
+    if (btnOpen) btnOpen.disabled = !selectedId || (selectedItem && !selectedItem.isActive);
 
     const hasSelection = !!selectedId;
     const deactivateItem = btnDeactivate ? btnDeactivate.closest('li') : null;
@@ -342,7 +342,9 @@
       page = 1; load();
     });
 
-    fltStore?.addEventListener('change', () => { page = 1; load(); });
+    // Do not auto-trigger search when the store dropdown changes.
+    // User must click the Search button explicitly.
+    fltStore?.addEventListener('change', () => { page = 1; });
 
     btnOpen?.addEventListener('click', () => {
       if (!selectedId) {

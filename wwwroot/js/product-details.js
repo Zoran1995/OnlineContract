@@ -6,7 +6,7 @@
   const pageSubtitle = document.getElementById('pageSubtitle');
 
   const prodName = document.getElementById('prodName');
-  const prodActive = document.getElementById('prodActive');
+  // product-level Active toggle removed from details; managed from Products grid toolbar
   // Notes UI will be implemented later; remove legacy description.
 
   const prodId = document.getElementById('prodId');
@@ -33,7 +33,7 @@
   const vPhotoFileName = document.getElementById('vPhotoFileName');
   const vQty1 = document.getElementById('vQty1');
   const vQty2 = document.getElementById('vQty2');
-  const vActive = document.getElementById('vActive');
+  // Variant active checkbox removed from modal; activation handled via toolbar menu
   const variantAdd = document.getElementById('variantAdd');
 
   // Notes UI
@@ -208,7 +208,40 @@
   function updateVariantToolbar() {
     const hasSel = selectedVariantId != null;
     if (btnDeleteVariant) btnDeleteVariant.disabled = !hasSel;
-    if (btnOpenVariant) btnOpenVariant.disabled = !hasSel;
+    if (btnOpenVariant) {
+      if (!hasSel) btnOpenVariant.disabled = true;
+      else {
+        const v = state.variants.find(x => x.id === selectedVariantId);
+        // Disable Open when either the product is inactive or the selected variant is inactive
+        const productActive = !!(state.product && state.product.isActive);
+        btnOpenVariant.disabled = !(v && v.isActive && productActive);
+      }
+    }
+    // Update dropdown menu items state for variants
+    const menuActivate = document.getElementById('menuActivateVariant');
+    const menuDeactivate = document.getElementById('menuDeactivateVariant');
+    const menuDelete = document.getElementById('menuDeleteVariant');
+    if (!hasSel) {
+      if (menuActivate) { menuActivate.classList.add('hidden'); menuActivate.setAttribute('aria-hidden','true'); }
+      if (menuDeactivate) { menuDeactivate.classList.add('hidden'); menuDeactivate.setAttribute('aria-hidden','true'); }
+      if (menuDelete) { menuDelete.classList.add('opacity-50'); menuDelete.classList.add('pointer-events-none'); menuDelete.setAttribute('aria-disabled', 'true'); menuDelete.setAttribute('tabindex', '-1'); }
+      return;
+    }
+
+    const v = state.variants.find(x => x.id === selectedVariantId);
+    if (!v) return;
+    // Show only the appropriate action: Activate for inactive rows, Deactivate for active rows
+    if (menuActivate) {
+      if (v.isActive) { menuActivate.classList.add('hidden'); menuActivate.setAttribute('aria-hidden','true'); }
+      else { menuActivate.classList.remove('hidden'); menuActivate.removeAttribute('aria-hidden'); }
+    }
+    if (menuDeactivate) {
+      if (v.isActive) { menuDeactivate.classList.remove('hidden'); menuDeactivate.removeAttribute('aria-hidden'); }
+      else { menuDeactivate.classList.add('hidden'); menuDeactivate.setAttribute('aria-hidden','true'); }
+    }
+    if (menuDelete) {
+      menuDelete.classList.remove('opacity-50'); menuDelete.classList.remove('pointer-events-none'); menuDelete.removeAttribute('aria-disabled'); menuDelete.removeAttribute('tabindex');
+    }
   }
 
   // menu items for notes overflow
@@ -236,7 +269,6 @@
 
   function readProductFormIntoState() {
     state.product.name = (prodName?.value || '').trim();
-    state.product.isActive = !!prodActive?.checked;
   }
 
   function renderHeader() {
@@ -251,7 +283,7 @@
 
   function renderBasic() {
     if (prodName) prodName.value = state.product.name || '';
-    if (prodActive) prodActive.checked = !!state.product.isActive;
+    // Active toggle removed from details UI
     // description removed
 
     if (prodId) prodId.textContent = state.isNew ? '—' : String(state.product.id ?? state.id);
@@ -329,6 +361,8 @@
 
       updateVariantsPaginationUI();
       computeTotalAmount();
+        // update toolbar state (Open/Delete/menu) after rendering
+        try { updateVariantToolbar(); } catch {}
   }
 
   function renderNotes() {
@@ -943,7 +977,7 @@
     if (vPhotoRemoveBtn) vPhotoRemoveBtn.disabled = true;
     if (vQty1) vQty1.value = '0';
     if (vQty2) vQty2.value = '0';
-    if (vActive) vActive.checked = true;
+    // active defaults to true for new variants; activation managed via toolbar
     variantModal.showModal();
   }
 
@@ -965,7 +999,7 @@
     if (vAmount) vAmount.value = formatAmount2(v.amount);
     if (vQty1) vQty1.value = String(clampInt(v.qtyStore1));
     if (vQty2) vQty2.value = String(clampInt(v.qtyStore2));
-    if (vActive) vActive.checked = !!v.isActive;
+    // preserve isActive but do not expose toggle in modal
 
     if (vPhotoFileName) {
       vPhotoFileName.textContent = (modalUploadedPhotoFileName || '');
@@ -983,7 +1017,7 @@
     const qty1 = clampInt(vQty1?.value);
     const qty2 = clampInt(vQty2?.value);
     const photo = (modalUploadedPhotoFileName || '').trim();
-    const active = !!vActive?.checked;
+    const active = modalEditingVariantId != null ? (state.variants.find(x=>x.id===modalEditingVariantId)?.isActive ?? true) : true;
 
     // Required fields (qty can be 0)
     if (!size) { try { showToast('warning', 'Size is required'); } catch {} return; }
@@ -999,7 +1033,7 @@
         v.amount = amount;
         v.qtyStore1 = qty1;
         v.qtyStore2 = qty2;
-        v.isActive = active;
+        // do not change existing isActive from modal (activation via toolbar)
         v.photoFileName = photo;
         selectedVariantId = v.id;
       }
@@ -1013,7 +1047,7 @@
         size,
         color,
         amount,
-        isActive: active,
+        isActive: true,
         qtyStore1: qty1,
         qtyStore2: qty2,
         qtyStore1Stamp: 0,
@@ -1038,7 +1072,136 @@
 
     btnDeleteVariant?.addEventListener('click', (e) => {
       e.preventDefault();
+      // close menu if open
+      try { const mc = document.getElementById('variantsMenuContent'); if (mc) mc.classList.add('hidden'); } catch {}
       deleteSelectedVariant();
+    });
+
+    // Wire up variants toolbar menu (three-dots)
+    const variantsMenuButton = document.getElementById('variantsMenuButton');
+    const variantsMenuContent = document.getElementById('variantsMenuContent');
+    const variantsMenuContainer = document.getElementById('variantsMenu');
+    const menuActivate = document.getElementById('menuActivateVariant');
+    const menuDeactivate = document.getElementById('menuDeactivateVariant');
+    const menuDelete = document.getElementById('menuDeleteVariant');
+
+    function setVariantsMenuOpen(open) {
+      if (!variantsMenuContainer || !variantsMenuButton || !variantsMenuContent) return;
+      variantsMenuContainer.classList.toggle('dropdown-open', !!open);
+      variantsMenuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+      variantsMenuContent.classList.toggle('hidden', !open);
+    }
+
+    variantsMenuButton?.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const isOpen = variantsMenuButton.getAttribute('aria-expanded') === 'true';
+      setVariantsMenuOpen(!isOpen);
+    });
+
+    document.addEventListener('pointerdown', (e) => {
+      if (!variantsMenuContainer) return;
+      if (!variantsMenuContainer.contains(e.target)) setVariantsMenuOpen(false);
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setVariantsMenuOpen(false); });
+    variantsMenuContent?.addEventListener('click', () => setVariantsMenuOpen(false));
+
+    // Menu item actions
+    menuActivate?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      setVariantsMenuOpen(false);
+      if (selectedVariantId == null) { try { showToast('warning', 'Please select an inventory row first.'); } catch {} return; }
+      const v = state.variants.find(x => x.id === selectedVariantId);
+      if (!v) return;
+      const url = `/api/product-variants/${encodeURIComponent(v.id)}/activate`;
+      try {
+        setLoading(true);
+        const res = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Accept': 'application/json' } });
+        if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+        if (res.status === 403) { window.location.href = '/home'; return; }
+        let resJson = null;
+        try { resJson = await res.json(); } catch {}
+        if (!res.ok) {
+          const msg = (resJson && resJson.message) ? resJson.message : 'Failed to activate inventory. Please try again.';
+          try { showToast('error', msg); } catch {}
+          await loadDetails();
+          return;
+        }
+        try { showToast('info', resJson?.message || 'Product Inventory has been successfully activated.'); } catch {}
+        await loadDetails();
+      } catch (err) {
+        try { showToast('error', 'Failed to activate inventory. Please try again later.'); } catch {}
+      } finally { setLoading(false); }
+    });
+
+    menuDeactivate?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      setVariantsMenuOpen(false);
+      if (selectedVariantId == null) { try { showToast('warning', 'Please select an inventory row first.'); } catch {} return; }
+      const v = state.variants.find(x => x.id === selectedVariantId);
+      if (!v) return;
+      const url = `/api/product-variants/${encodeURIComponent(v.id)}/deactivate`;
+      try {
+        setLoading(true);
+        const res = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Accept': 'application/json' } });
+        if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+        if (res.status === 403) { window.location.href = '/home'; return; }
+        let resJson = null;
+        try { resJson = await res.json(); } catch {}
+        if (!res.ok) {
+          const msg = (resJson && resJson.message) ? resJson.message : 'Failed to deactivate inventory. Please try again.';
+          try { showToast('error', msg); } catch {}
+          await loadDetails();
+          return;
+        }
+        try { showToast('info', resJson?.message || 'Product Inventory has been successfully deactivated.'); } catch {}
+        await loadDetails();
+      } catch (err) {
+        try { showToast('error', 'Failed to deactivate inventory. Please try again later.'); } catch {}
+      } finally { setLoading(false); }
+    });
+
+    menuDelete?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      setVariantsMenuOpen(false);
+      if (selectedVariantId == null) { try { showToast('warning', 'Please select an inventory row first.'); } catch {} return; }
+      const variantId = selectedVariantId;
+      const dlg = document.getElementById('variantDeleteConfirm');
+      const okBtn = document.getElementById('variantConfirmOk');
+      const performDelete = async () => {
+        try {
+          setLoading(true);
+          const res = await fetch(`/api/product-variants/${encodeURIComponent(variantId)}/delete`, { method: 'POST', credentials: 'include', headers: { 'Accept': 'application/json' } });
+          if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+          if (res.status === 403) { window.location.href = '/home'; return; }
+          let resJson = null;
+          try { resJson = await res.json(); } catch {}
+          if (!res.ok) {
+            const msg = (resJson && resJson.message) ? resJson.message : 'Failed to delete inventory. Please try again.';
+            try { showToast('error', msg); } catch {}
+            await loadDetails();
+            return;
+          }
+          try { showToast('info', resJson?.message || 'Product Inventory has been successfully deleted.'); } catch {}
+          await loadDetails();
+        } catch (err) {
+          try { showToast('error', 'Failed to delete inventory. Please try again later.'); } catch {}
+        } finally { setLoading(false); }
+      };
+
+      if (!dlg || !okBtn || !dlg.showModal) {
+        if (!confirm('Are you sure you want to remove this inventory row? This action cannot be undone.')) return;
+        await performDelete();
+        return;
+      }
+
+      let resolved = false;
+      const onOk = (ev) => { ev.preventDefault(); resolved = true; try { dlg.close(); } catch {} };
+      okBtn.addEventListener('click', onOk, { once: true });
+      dlg.addEventListener('close', async () => {
+        if (!resolved) return;
+        await performDelete();
+      }, { once: true });
+      try { dlg.showModal(); } catch { if (!confirm('Are you sure you want to remove this inventory row? This action cannot be undone.')) return; await performDelete(); }
     });
 
     btnOpenVariant?.addEventListener('click', (e) => {

@@ -1,4 +1,3 @@
-
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Rewrite;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -191,6 +190,96 @@ app.MapGet("/contracts/{id:int}", (HttpContext context, int id) =>
     // HTML shell is static; data loads via /api/contracts/{id}
     var filePath = Path.Combine(app.Environment.WebRootPath, "contract-details.html");
     return Results.File(filePath, "text/html");
+}).RequireAuthorization();
+
+// --- Variant-level actions: activate / deactivate / delete ---
+app.MapPost("/api/product-variants/{id:int}/activate", async (AppDbContext db, HttpContext http, int id) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    try
+    {
+        var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (v == null) return Results.NotFound(new { message = "Inventory row not found. It may have been removed." });
+        var uid = GetCurrentUserId(http);
+        v.IsActive = true;
+        v.LastModifiedById = uid;
+        v.LastUpdatedDt = DateTime.Now;
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Inventory activated", $"VariantId={v.Id}; ProductId={v.ProductId}", uid);
+        return Results.Ok(new { success = true, message = "Product Inventory has been successfully activated." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Activate inventory failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+app.MapPost("/api/product-variants/{id:int}/deactivate", async (AppDbContext db, HttpContext http, int id) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    try
+    {
+        var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (v == null) return Results.NotFound(new { message = "Inventory row not found. It may have been removed." });
+        var uid = GetCurrentUserId(http);
+        v.IsActive = false;
+        v.LastModifiedById = uid;
+        v.LastUpdatedDt = DateTime.Now;
+        // Also deactivate related inventory rows for this variant
+        var inventories = await db.ProductInventories.Where(i => i.ProductVariantId == v.Id && !i.IsDeleted).ToListAsync();
+        foreach (var inv in inventories)
+        {
+            inv.IsActive = false;
+            inv.LastModifiedById = uid;
+            inv.LastUpdatedDt = DateTime.Now;
+        }
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Inventory deactivated", $"VariantId={v.Id}; ProductId={v.ProductId}", uid);
+        return Results.Ok(new { success = true, message = "Product Inventory has been successfully deactivated." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Deactivate inventory failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+app.MapPost("/api/product-variants/{id:int}/delete", async (AppDbContext db, HttpContext http, int id) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    await using var tx = await db.Database.BeginTransactionAsync();
+    try
+    {
+        var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (v == null) return Results.NotFound(new { message = "Inventory row not found. It may have been removed." });
+        var uid = GetCurrentUserId(http);
+        // Mark variant deleted and inactive
+        v.IsActive = false;
+        v.IsDeleted = true;
+        v.LastModifiedById = uid;
+        v.LastUpdatedDt = DateTime.Now;
+
+        // Mark related inventory rows deleted/inactive
+        var inventories = await db.ProductInventories.Where(i => i.ProductVariantId == v.Id && !i.IsDeleted).ToListAsync();
+        foreach (var inv in inventories)
+        {
+            inv.IsActive = false;
+            inv.IsDeleted = true;
+            inv.LastModifiedById = uid;
+            inv.LastUpdatedDt = DateTime.Now;
+        }
+
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Inventory deleted", $"VariantId={v.Id}; ProductId={v.ProductId}", uid);
+        return Results.Ok(new { success = true, message = "Product Inventory has been successfully deleted." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Delete inventory failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
 }).RequireAuthorization();
 
 // Products pages (Admin/Manager/Worker)
@@ -970,7 +1059,7 @@ app.MapPost("/api/users/{id}/delete", async (AppDbContext db, int id, int? userI
 }).RequireAuthorization();
 
 // -------------------------
-// EventLog + Stores (as before)
+// EventLog + Store (as before)
 // -------------------------
 
 app.MapGet("/api/event-log", async (AppDbContext db, int userId, int type, DateTime? from, DateTime? to, int page, int pageSize, string? sortBy, string? sortDir) =>
@@ -1484,7 +1573,6 @@ static bool IsValidEmail(string? email)
 }
 
 // Phone normalization now handled by OnlineContract.Helpers.PhoneHelper.NormalizeSerbianPhone
-
 app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q, int? storeId, int page, int pageSize, string? sortBy, string? sortDir) =>
 {
     if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
@@ -1496,7 +1584,7 @@ app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q,
 
         IQueryable<Product> products = db.Products
             .AsNoTracking()
-            .Where(p => p.Id > 0 && !p.IsDeleted && p.IsActive);
+            .Where(p => p.Id > 0 && !p.IsDeleted);
 
         if (!string.IsNullOrWhiteSpace(q))
         {
@@ -1811,10 +1899,10 @@ app.MapPost("/api/products", async (AppDbContext db, HttpContext http, ProductCr
             Name = name,
             IsActive = dto.IsActive,
             IsDeleted = false,
-            InputDt = DateTime.UtcNow,
+            InputDt = DateTime.Now,
             InputUserId = uid,
             LastModifiedById = uid,
-            LastUpdatedDt = DateTime.UtcNow,
+            LastUpdatedDt = DateTime.Now,
             Stamp = 0
         };
         db.Products.Add(p);
@@ -1849,7 +1937,7 @@ app.MapPut("/api/products/{id:int}", async (AppDbContext db, HttpContext http, i
 
         var uid = GetCurrentUserId(http);
         p.LastModifiedById = uid;
-        p.LastUpdatedDt = DateTime.UtcNow;
+        p.LastUpdatedDt = DateTime.Now;
 
         p.Stamp = p.Stamp + 1;
         await db.SaveChangesAsync();
@@ -1862,8 +1950,6 @@ app.MapPut("/api/products/{id:int}", async (AppDbContext db, HttpContext http, i
         return Results.Json(new { success = false, message = "Failed to update the product. Please try again later." });
     }
 }).RequireAuthorization();
-
-
 
 app.MapPut("/api/products/{id:int}/details",
 async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
@@ -1932,14 +2018,12 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
             await LoggerHelper.LogEventAsync(db, EventType.Warning, "Product details save conflict - stamp mismatch", $"ProductId={id}", uid);
             return Results.Json(new { success = false, message = $"Your changes to product {id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
         }
-        
-        
 
         // Basic product fields
         if (dto.Name is not null)        p.Name = dto.Name.Trim();
         if (dto.IsActive.HasValue)       p.IsActive = dto.IsActive.Value;
         p.LastModifiedById = uid;
-        p.LastUpdatedDt    = DateTime.UtcNow;
+        p.LastUpdatedDt    = DateTime.Now;
 
         // Delete variants by id (>0)
         var deletedIds = (dto.DeletedVariantIds ?? new List<int>()).Where(x => x > 0).ToList();
@@ -1954,7 +2038,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                 v.IsDeleted        = true;
                 v.IsActive         = false;
                 v.LastModifiedById = uid;
-                v.LastUpdatedDt    = DateTime.UtcNow;
+                v.LastUpdatedDt    = DateTime.Now;
 
                 var invs = await db.ProductInventories
                     .Where(i => i.ProductVariantId == v.Id && !i.IsDeleted)
@@ -1965,7 +2049,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                     inv.IsDeleted        = true;
                     inv.IsActive         = false;
                     inv.LastModifiedById = uid;
-                    inv.LastUpdatedDt    = DateTime.UtcNow;
+                    inv.LastUpdatedDt    = DateTime.Now;
                 }
             }
         }
@@ -1996,10 +2080,10 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                     PhotoFileName    = photo,
                     IsActive         = isActive,
                     IsDeleted        = false,
-                    InputDt          = DateTime.UtcNow,
+                    InputDt          = DateTime.Now,
                     InputUserId      = uid,
                     LastModifiedById = uid,
-                    LastUpdatedDt    = DateTime.UtcNow,
+                    LastUpdatedDt    = DateTime.Now,
                     Stamp            = 0
                 };
                 db.ProductVariants.Add(v);
@@ -2027,7 +2111,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                 v.PhotoFileName    = photo;
                 v.IsActive         = isActive;
                 v.LastModifiedById = uid;
-                v.LastUpdatedDt    = DateTime.UtcNow;
+                v.LastUpdatedDt    = DateTime.Now;
                 // bump variant stamp
                 v.Stamp = v.Stamp + 1;
             }
@@ -2047,10 +2131,10 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                         QtyOnHand        = Clamp(qty),
                         IsActive         = true,
                         IsDeleted        = false,
-                        InputDt          = DateTime.UtcNow,
+                        InputDt          = DateTime.Now,
                         InputUserId      = uid,
                         LastModifiedById = uid,
-                        LastUpdatedDt    = DateTime.UtcNow,
+                        LastUpdatedDt    = DateTime.Now,
                         Stamp            = 0
                     };
                     db.ProductInventories.Add(inv);
@@ -2068,7 +2152,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                     inv.QtyOnHand        = Clamp(qty);
                     inv.IsActive         = true;
                     inv.LastModifiedById = uid;
-                    inv.LastUpdatedDt    = DateTime.UtcNow;
+                    inv.LastUpdatedDt    = DateTime.Now;
                     inv.Stamp = inv.Stamp + 1;
                 }
             }
@@ -2247,7 +2331,7 @@ app.MapPost("/api/products/upload-photo", async (AppDbContext db, HttpContext ht
         {
             var nameNoExt = Path.GetFileNameWithoutExtension(originalName);
             var existingExt = Path.GetExtension(originalName);
-            var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+            var stamp = DateTime.Now.ToString("yyyyMMddHHmmssfff");
             originalName = $"{nameNoExt}_{stamp}{existingExt}";
             targetPath = Path.Combine(uploadDir, originalName);
         }
@@ -2295,11 +2379,11 @@ app.MapPost("/api/products/{id:int}/deactivate", async (AppDbContext db, HttpCon
         p.IsActive = false;
         p.Stamp = p.Stamp + 1;
         p.LastModifiedById = uid;
-        p.LastUpdatedDt = DateTime.UtcNow;
+        p.LastUpdatedDt = DateTime.Now;
 
         // Deactivate and mark as inactive the product variants
         var variants = await db.ProductVariants.Where(v => v.ProductId == id && !v.IsDeleted).ToListAsync();
-        var now = DateTime.UtcNow;
+        var now = DateTime.Now;
         var variantIds = new List<int>();
         foreach (var v in variants)
         {
@@ -2351,7 +2435,7 @@ app.MapPost("/api/products/{id:int}/activate", async (AppDbContext db, HttpConte
         p.IsActive = true;
         p.Stamp = p.Stamp + 1;
         p.LastModifiedById = uid;
-        p.LastUpdatedDt = DateTime.UtcNow;
+        p.LastUpdatedDt = DateTime.Now;
         await db.SaveChangesAsync();
         await LoggerHelper.LogEventAsync(db, EventType.Information, "Product activated", $"ProductId={p.Id}", uid);
         return Results.Ok(new { success = true, message = "Product has been activated successfully." });
@@ -2378,11 +2462,11 @@ app.MapPost("/api/products/{id:int}/delete", async (AppDbContext db, HttpContext
         p.IsActive = false;
         p.IsDeleted = true;
         p.LastModifiedById = uid;
-        p.LastUpdatedDt = DateTime.UtcNow;
+        p.LastUpdatedDt = DateTime.Now;
 
         // Find variants for this product and mark them deleted/deactivated
         var variants = await db.ProductVariants.Where(v => v.ProductId == id && !v.IsDeleted).ToListAsync();
-        var now = DateTime.UtcNow;
+        var now = DateTime.Now;
         var variantIds = new List<int>();
         foreach (var v in variants)
         {
@@ -2979,8 +3063,7 @@ app.MapGet("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
             InputUserCode = r.inputUserCode,
             LastModifiedById = null,
             LastModifiedByCode = r.lastModifiedByCode,
-            LastUpdatedDt = r.LastUpdatedDt?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
-            ,
+            LastUpdatedDt = r.LastUpdatedDt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
             Stamp = r.Stamp
         });
 

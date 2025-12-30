@@ -1,8 +1,5 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using OnlineContract.Data;
-using OnlineContract.Models;
 using System.Net;
 
 namespace OnlineContract.Helpers

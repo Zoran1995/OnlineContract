@@ -17,9 +17,18 @@ GO
 USE [OnlineContract];
 GO
 
-/* 1. DDL: create tables in dependency order */
+/* 1. Functions (must come first) */
+CREATE OR ALTER FUNCTION [dbo].[GetLocalTime]()
+RETURNS datetime2
+AS
+BEGIN
+    RETURN CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Central European Standard Time' AS datetime2);
+END;
+GO
 
-/* 1.1 lookup_set */
+/* 2. DDL: create tables in dependency order */
+
+/* 2.1 lookup_set */
 IF OBJECT_ID(N'dbo.lookup_set', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON;
@@ -36,7 +45,7 @@ BEGIN
 END
 GO
 
-/* 1.2 ax_user */
+/* 2.2 ax_user */
 IF OBJECT_ID(N'dbo.ax_user', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON;
@@ -101,7 +110,7 @@ BEGIN
 END
 GO
 
-/* 1.3 contract */
+/* 2.3 contract */
 IF OBJECT_ID(N'dbo.contract', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -165,7 +174,7 @@ BEGIN
 END
 GO
 
-/* 1.4 contract_state */
+/* 2.4 contract_state */
 IF OBJECT_ID(N'dbo.contract_state', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -193,7 +202,7 @@ BEGIN
 END
 GO
 
-/* 1.5 contract_state_transition */
+/* 2.5 contract_state_transition */
 IF OBJECT_ID(N'dbo.contract_state_transition', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -225,7 +234,7 @@ BEGIN
 END
 GO
 
-/* 1.6 event_log */
+/* 2.6 event_log */
 IF OBJECT_ID(N'dbo.event_log', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -256,7 +265,7 @@ BEGIN
 END
 GO
 
-/* 1.7 product */
+/* 2.7 product */
 IF OBJECT_ID(N'dbo.product', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -298,7 +307,7 @@ BEGIN
 END
 GO
 
-/* 1.8 product_variant */
+/* 2.8 product_variant */
 IF OBJECT_ID(N'dbo.product_variant', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -358,11 +367,11 @@ BEGIN
 END
 GO
 
-/* 1.9 stores */
-IF OBJECT_ID(N'dbo.stores', N'U') IS NULL
+/* 2.9 store */
+IF OBJECT_ID(N'dbo.store', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
-    CREATE TABLE [dbo].[stores](
+    CREATE TABLE [dbo].[store](
         [store_id] [int] IDENTITY(1,1) NOT NULL,
         [name] [nvarchar](100) NOT NULL,
         [address] [nvarchar](255) NOT NULL,
@@ -372,22 +381,22 @@ BEGIN
         [created_at] [datetime2](0) NOT NULL,
         [updated_at] [datetime2](0) NOT NULL,
         [last_modified_user_id] [int] NOT NULL,
-        CONSTRAINT [PK_stores] PRIMARY KEY CLUSTERED ([store_id] ASC)
+        CONSTRAINT [PK_store] PRIMARY KEY CLUSTERED ([store_id] ASC)
             WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
                   ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
             ON [PRIMARY]
     ) ON [PRIMARY];
 
-    ALTER TABLE [dbo].[stores] ADD DEFAULT (dbo.GetLocalTime()) FOR [created_at];
-    ALTER TABLE [dbo].[stores] ADD DEFAULT (dbo.GetLocalTime()) FOR [updated_at];
+    ALTER TABLE [dbo].[store] ADD DEFAULT (dbo.GetLocalTime()) FOR [created_at];
+    ALTER TABLE [dbo].[store] ADD DEFAULT (dbo.GetLocalTime()) FOR [updated_at];
 
-    ALTER TABLE [dbo].[stores]  WITH CHECK ADD  CONSTRAINT [FK_stores_ax_user]
+    ALTER TABLE [dbo].[store]  WITH CHECK ADD  CONSTRAINT [FK_store_ax_user]
         FOREIGN KEY([last_modified_user_id]) REFERENCES [dbo].[ax_user] ([ax_user_id]) ON UPDATE CASCADE;
-    ALTER TABLE [dbo].[stores] CHECK CONSTRAINT [FK_stores_ax_user];
+    ALTER TABLE [dbo].[store] CHECK CONSTRAINT [FK_store_ax_user];
 END
 GO
 
-/* 1.10 product_inventory */
+/* 2.10 product_inventory */
 IF OBJECT_ID(N'dbo.product_inventory', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -431,7 +440,7 @@ BEGIN
     ALTER TABLE [dbo].[product_inventory] CHECK CONSTRAINT [FK_inventory_last_mod_user];
 
     ALTER TABLE [dbo].[product_inventory]  WITH CHECK ADD  CONSTRAINT [FK_inventory_store]
-        FOREIGN KEY([store_id]) REFERENCES [dbo].[stores] ([store_id]);
+        FOREIGN KEY([store_id]) REFERENCES [dbo].[store] ([store_id]);
     ALTER TABLE [dbo].[product_inventory] CHECK CONSTRAINT [FK_inventory_store];
 
     ALTER TABLE [dbo].[product_inventory]  WITH CHECK ADD  CONSTRAINT [FK_inventory_variant]
@@ -448,7 +457,7 @@ BEGIN
 END
 GO
 
-/* 1.11 note */
+/* 2.11 note */
 IF OBJECT_ID(N'dbo.note', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -502,7 +511,7 @@ BEGIN
 END
 GO
 
-/* 1.12 password_reset_token */
+/* 2.12 password_reset_token */
 IF OBJECT_ID(N'dbo.password_reset_token', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -524,15 +533,7 @@ BEGIN
 END
 GO
 
-/* 2. Functions */
-CREATE OR ALTER FUNCTION [dbo].[GetLocalTime]()
-RETURNS datetime2
-AS
-BEGIN
-    RETURN CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Central European Standard Time' AS datetime2);
-END;
-GO
-
+/* 3. Functions */
 CREATE OR ALTER FUNCTION [dbo].[fn_get_lookup_value] (@lookup_set_id INT)
 RETURNS NVARCHAR(100)
 AS
@@ -598,7 +599,7 @@ SELECT
     inv.qty_on_hand
 FROM dbo.product_variant   AS pv
 JOIN dbo.product_inventory AS inv ON inv.product_variant_id = pv.product_variant_id
-JOIN dbo.stores            AS s   ON s.store_id = inv.store_id
+JOIN dbo.store             AS s   ON s.store_id = inv.store_id
 WHERE pv.product_id = @product_id
   AND pv.is_active = 1 AND pv.is_deleted = 0
   AND inv.is_active = 1 AND inv.is_deleted = 0

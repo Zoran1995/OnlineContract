@@ -219,12 +219,12 @@ END
 
 IF @is_identity_contract = 1 SET IDENTITY_INSERT dbo.contract OFF;
 
-/* stores seed (last_modified_user_id = 2 to satisfy FK) */
-DECLARE @is_identity_stores BIT =
-    CASE WHEN COLUMNPROPERTY(OBJECT_ID('dbo.stores'), 'store_id', 'IsIdentity') = 1 THEN 1 ELSE 0 END;
-IF @is_identity_stores = 1 SET IDENTITY_INSERT dbo.stores ON;
+/* store seed (last_modified_user_id = 2 to satisfy FK) */
+DECLARE @is_identity_store BIT =
+    CASE WHEN COLUMNPROPERTY(OBJECT_ID('dbo.store'), 'store_id', 'IsIdentity') = 1 THEN 1 ELSE 0 END;
+IF @is_identity_store = 1 SET IDENTITY_INSERT dbo.store ON;
 
-MERGE dbo.stores AS tgt
+MERGE dbo.store AS tgt
 USING (
     VALUES
     (1, N'Knez Mihajlova', N'Knez Mihailova 12, 11000 Beograd', N'+381 62 123 4567', N'beograd.kidstyle@gmail.com',
@@ -251,9 +251,9 @@ WHEN MATCHED AND (
     updated_at = src.updated_at,
     last_modified_user_id = src.last_modified_user_id;
 
-IF @is_identity_stores = 1 SET IDENTITY_INSERT dbo.stores OFF;
+IF @is_identity_store = 1 SET IDENTITY_INSERT dbo.store OFF;
 
 COMMIT TRAN;
 
-PRINT 'Base data seeded (lookup_set, contract_state, transitions, ax_user: 0,1,2,3; product/contract defaults; stores).';
+PRINT 'Base data seeded (lookup_set, contract_state, transitions, ax_user: 0,1,2,3; product/contract defaults; store).';
 GO
