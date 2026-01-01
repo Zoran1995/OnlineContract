@@ -59,8 +59,6 @@ builder.Services.AddMemoryCache();
 
 // Email services: register the SMTP MailKit sender and adapter to the existing IEmailService helper
 builder.Services.AddScoped<OnlineContract.Services.IEmailService, OnlineContract.Services.EmailService>();
-builder.Services.AddScoped<OnlineContract.Helpers.IEmailService>(sp =>
-    new OnlineContract.Helpers.EmailServiceAdapter(sp.GetRequiredService<OnlineContract.Services.IEmailService>()));
 
 // Cookie Authentication + Authorization
 builder.Services
@@ -347,7 +345,7 @@ app.MapPost("/api/login", async (AppDbContext db, LoginDto dto, HttpContext http
 });
 
 // Forgot password endpoints (initiate, validate token, perform reset)
-app.MapPost("/api/auth/forgot-password", async (AppDbContext db, HttpContext http, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, OnlineContract.Helpers.IEmailService emailService) =>
+app.MapPost("/api/auth/forgot-password", async (AppDbContext db, HttpContext http, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, OnlineContract.Services.IEmailService emailService) =>
 {
     try
     {

@@ -1,10 +1,8 @@
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Moq;
 using OnlineContract.Data;
-using OnlineContract.Helpers;
 using OnlineContract.Models;
 using OnlineContract.Services;
 using Xunit;
@@ -27,12 +25,12 @@ namespace OnlineContract.Tests
         {
             var db = CreateDb();
             var cache = new MemoryCache(new MemoryCacheOptions());
-            var mockEmail = new Mock<OnlineContract.Helpers.IEmailService>();
+            var mockEmail = new Mock<OnlineContract.Services.IEmailService>();
             var svc = new ForgotPasswordService(Configuration);
 
             var (status, message) = await svc.HandleAsync(db, "not-an-email", "127.0.0.1", cache, mockEmail.Object);
             Assert.Equal(400, status);
-            Assert.Equal("Invalid email.", message);
+            Assert.Equal("Please enter a valid email address.", message);
         }
 
         [Fact]
@@ -40,13 +38,13 @@ namespace OnlineContract.Tests
         {
             var db = CreateDb();
             var cache = new MemoryCache(new MemoryCacheOptions());
-            var mockEmail = new Mock<OnlineContract.Helpers.IEmailService>();
+            var mockEmail = new Mock<OnlineContract.Services.IEmailService>();
             var svc = new ForgotPasswordService(Configuration);
 
             var (status, message) = await svc.HandleAsync(db, "missing@example.com", "127.0.0.1", cache, mockEmail.Object);
             Assert.Equal(404, status);
             Assert.Equal("Account with this email doesn't exist. Please create a new account.", message);
-            mockEmail.Verify(m => m.SendResetEmailAsync(It.IsAny<IConfiguration>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+            mockEmail.Verify(m => m.SendResetEmailAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<System.Threading.CancellationToken>()), Times.Never);
         }
 
         [Fact]
@@ -57,14 +55,14 @@ namespace OnlineContract.Tests
             await db.SaveChangesAsync();
 
             var cache = new MemoryCache(new MemoryCacheOptions());
-            var mockEmail = new Mock<OnlineContract.Helpers.IEmailService>();
-            mockEmail.Setup(m => m.SendResetEmailAsync(It.IsAny<IConfiguration>(), It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync((true, (string?)null));
+            var mockEmail = new Mock<OnlineContract.Services.IEmailService>();
+            mockEmail.Setup(m => m.SendResetEmailAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<System.Threading.CancellationToken>())).Returns(Task.CompletedTask);
 
             var svc = new ForgotPasswordService(Configuration);
             var (status, message) = await svc.HandleAsync(db, " user@example.com ", "127.0.0.1", cache, mockEmail.Object);
             Assert.Equal(200, status);
             Assert.Equal("We sent reset instructions to your email.", message);
-            mockEmail.Verify(m => m.SendResetEmailAsync(It.IsAny<IConfiguration>(), "user@example.com", It.IsAny<string>()), Times.Once);
+            mockEmail.Verify(m => m.SendResetEmailAsync("user@example.com", null, It.IsAny<string?>(), It.IsAny<System.Threading.CancellationToken>()), Times.Once);
         }
     }
 }

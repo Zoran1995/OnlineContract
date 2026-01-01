@@ -28,6 +28,16 @@ document.getElementById('navSignIn')?.addEventListener('click', (e) => {
       regC.classList.add('hidden');
     }
 
+    // If URL hash requests the forgot modal, open it (e.g. /login#forgot)
+    try {
+      if (window.location.hash === '#forgot') {
+        const modal = document.getElementById('forgotModal');
+        const email = document.getElementById('forgotEmail');
+        if (email) email.value = '';
+        try { modal?.showModal(); } catch { modal?.classList.remove('hidden'); }
+      }
+    } catch {}
+
     // Show role selector only for Admin (8) or Manager (7)
     try {
       const currentRole = parseInt(localStorage.getItem('roleId') || '0', 10);

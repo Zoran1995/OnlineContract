@@ -1,10 +1,5 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using MailKit.Net.Smtp;
 using MailKit.Security;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
 using MimeKit;
 
 namespace OnlineContract.Services
@@ -41,11 +36,16 @@ namespace OnlineContract.Services
                 var urls = config["ASPNETCORE_URLS"] ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(urls)) origin = urls.Split(';', StringSplitOptions.RemoveEmptyEntries)[0];
             }
-            if (string.IsNullOrWhiteSpace(origin)) origin = "https://localhost:52616";
-            // Ensure scheme present
+            if (string.IsNullOrWhiteSpace(origin)) origin = "http://localhost:5261";
+            // Ensure scheme present and prefer http (user requested links without S)
             if (!origin.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !origin.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
-                origin = "https://" + origin.Trim();
+                origin = "http://" + origin.Trim();
+            }
+            // If origin was https, convert to http to produce links without S
+            if (origin.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                origin = "http://" + origin.Substring(8);
             }
             // If multiple urls separated by ;, keep first
             if (origin.Contains(';')) origin = origin.Split(';', StringSplitOptions.RemoveEmptyEntries)[0];

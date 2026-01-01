@@ -79,20 +79,15 @@ class Program
         return failed == 0 ? 0 : 2;
     }
 
-    class FakeEmailService : OnlineContract.Helpers.IEmailService
+    class FakeEmailService : OnlineContract.Services.IEmailService
     {
         public int SentCount { get; private set; }
-        public Task<(bool success, string? error)> SendResetEmailAsync(IConfiguration cfg, string email, string token)
+        public Task SendResetEmailAsync(string to, string? code = null, string? token = null, System.Threading.CancellationToken ct = default)
         {
             SentCount++;
-            return Task.FromResult((true, (string?)null));
+            return Task.CompletedTask;
         }
 
-        // Unused by tests
-        public Task<(bool success, string? error)> SendEmailAsync(IConfiguration cfg, string to, string subject, string body)
-        {
-            SentCount++;
-            return Task.FromResult((true, (string?)null));
-        }
+        public Task<bool> HealthAsync(System.Threading.CancellationToken ct = default) => Task.FromResult(true);
     }
 }

@@ -1,10 +1,6 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Configuration;
 using OnlineContract.Data;
 using Microsoft.EntityFrameworkCore;
-using OnlineContract.Helpers;
 using OnlineContract.Models;
 
 namespace OnlineContract.Services
@@ -17,13 +13,13 @@ namespace OnlineContract.Services
             _config = config;
         }
 
-        public async Task<(int StatusCode, string Message)> HandleAsync(AppDbContext db, string rawEmail, string ip, IMemoryCache cache, OnlineContract.Helpers.IEmailService emailService)
+        public async Task<(int StatusCode, string Message)> HandleAsync(AppDbContext db, string rawEmail, string ip, IMemoryCache cache, OnlineContract.Services.IEmailService emailService)
         {
             // Normalize and validate
             var email = (rawEmail ?? "").Trim();
             if (string.IsNullOrWhiteSpace(email) || !System.Text.RegularExpressions.Regex.IsMatch(email, @"^\S+@\S+\.\S+$"))
             {
-                return (400, "Invalid email.");
+                return (400, "Please enter a valid email address.");
             }
 
             // Rate limiting (preserve existing behavior)
@@ -101,12 +97,12 @@ namespace OnlineContract.Services
                 return (500, "Failed to create password reset token. Please try again later.");
             }
 
-            // Send email
-            var appOrigin = _config["AppOrigin"] ?? "";
-            var resetLink = appOrigin.TrimEnd('/') + "/reset-password.html?token=" + System.Net.WebUtility.UrlEncode(token);
-            var (sent, err) = await emailService.SendResetEmailAsync(_config, user.Email ?? "", resetLink);
-            // If sending failed, surface an explicit 502 to the client while logging the failure
-            if (!sent)
+            // Send email via Services.IEmailService (passes token; implementation builds link)
+            try
+            {
+                await emailService.SendResetEmailAsync(user.Email ?? string.Empty, null, token);
+            }
+            catch
             {
                 return (502, "Failed to send reset email.");
             }
