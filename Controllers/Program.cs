@@ -200,6 +200,12 @@ app.MapPost("/api/product-variants/{id:int}/activate", async (AppDbContext db, H
     {
         var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (v == null) return Results.NotFound(new { message = "Inventory row not found. It may have been removed." });
+            // Prevent variant/inventory changes when parent product is inactive or deleted
+            var parentProduct = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == v.ProductId);
+            if (parentProduct == null || !parentProduct.IsActive || parentProduct.IsDeleted)
+            {
+                return Results.BadRequest(new { success = false, message = "Product Inventory for this product cannot be changed because this product is deactivated or deleted." });
+            }
         var uid = GetCurrentUserId(http);
         v.IsActive = true;
         v.LastModifiedById = uid;
@@ -222,6 +228,12 @@ app.MapPost("/api/product-variants/{id:int}/deactivate", async (AppDbContext db,
     {
         var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (v == null) return Results.NotFound(new { message = "Inventory row not found. It may have been removed." });
+            // Prevent variant/inventory changes when parent product is inactive or deleted
+            var parentProduct = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == v.ProductId);
+            if (parentProduct == null || !parentProduct.IsActive || parentProduct.IsDeleted)
+            {
+                return Results.BadRequest(new { success = false, message = "Product Inventory for this product cannot be changed because this product is deactivated or deleted." });
+            }
         var uid = GetCurrentUserId(http);
         v.IsActive = false;
         v.LastModifiedById = uid;
@@ -253,6 +265,12 @@ app.MapPost("/api/product-variants/{id:int}/delete", async (AppDbContext db, Htt
     {
         var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (v == null) return Results.NotFound(new { message = "Inventory row not found. It may have been removed." });
+        // Prevent variant/inventory changes when parent product is inactive or deleted
+        var parentProduct = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == v.ProductId);
+        if (parentProduct == null || !parentProduct.IsActive || parentProduct.IsDeleted)
+        {
+            return Results.BadRequest(new { success = false, message = "Product Inventory for this product cannot be changed because this product is deactivated or deleted." });
+        }
         var uid = GetCurrentUserId(http);
         // Mark variant deleted and inactive
         v.IsActive = false;
@@ -281,6 +299,7 @@ app.MapPost("/api/product-variants/{id:int}/delete", async (AppDbContext db, Htt
         return Results.StatusCode(500);
     }
 }).RequireAuthorization();
+        
 
 // Products pages (Admin/Manager/Worker)
 static bool CanManageProducts(HttpContext http)
@@ -2019,6 +2038,15 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
             return Results.Json(new { success = false, message = $"Your changes to product {id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
         }
 
+        // If the product is currently inactive/deleted, disallow changes to variants/inventories/notes.
+        // The only allowed change while inactive is activating the product itself (dto.IsActive = true).
+        if (!p.IsActive && !(dto.IsActive.HasValue && dto.IsActive.Value))
+        {
+            await tx.RollbackAsync();
+            await LoggerHelper.LogEventAsync(db, EventType.Warning, "Product details save blocked - product inactive", $"ProductId={id}", uid);
+            return Results.BadRequest(new { success = false, message = "This product is deactivated or deleted. Activate the product before modifying its variants, inventories or notes." });
+        }
+
         // Basic product fields
         if (dto.Name is not null)        p.Name = dto.Name.Trim();
         if (dto.IsActive.HasValue)       p.IsActive = dto.IsActive.Value;
@@ -2375,41 +2403,17 @@ app.MapPost("/api/products/{id:int}/deactivate", async (AppDbContext db, HttpCon
         }
         var uid = GetCurrentUserId(http);
 
-        // Deactivate product
-        p.IsActive = false;
-        p.Stamp = p.Stamp + 1;
-        p.LastModifiedById = uid;
-        p.LastUpdatedDt = DateTime.Now;
-
-        // Deactivate and mark as inactive the product variants
-        var variants = await db.ProductVariants.Where(v => v.ProductId == id && !v.IsDeleted).ToListAsync();
+        // Use atomic SQL updates to ensure stamp is incremented exactly by 1 at the DB level
         var now = DateTime.Now;
-        var variantIds = new List<int>();
-        foreach (var v in variants)
-        {
-            v.IsActive = false;
-            v.LastModifiedById = uid;
-            v.LastUpdatedDt = now;
-            variantIds.Add(v.Id);
-        }
+        var updatedProduct = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+        var updatedVariants = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_variant SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+        var updatedInventories = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_inventory SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_variant_id IN (SELECT product_variant_id FROM dbo.product_variant WHERE product_id = {id} AND is_deleted = 0) AND is_deleted = 0;");
+        var updatedNotes = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.note SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
 
-        // Deactivate related inventory rows
-        if (variantIds.Count > 0)
-        {
-            var inventories = await db.ProductInventories.Where(i => variantIds.Contains(i.ProductVariantId) && !i.IsDeleted).ToListAsync();
-            foreach (var inv in inventories)
-            {
-                inv.IsActive = false;
-                inv.LastModifiedById = uid;
-                inv.LastUpdatedDt = now;
-            }
-        }
-
-        await db.SaveChangesAsync();
         await tx.CommitAsync();
 
-        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deactivated", $"ProductId={p.Id}; variants={variantIds.Count}", uid);
-        return Results.Ok(new { success = true, message = "Product has been deactivated successfully.", variantCount = variantIds.Count });
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deactivated", $"ProductId={p.Id}; variantsUpdated={updatedVariants}; inventoriesUpdated={updatedInventories}; notesUpdated={updatedNotes}", uid);
+        return Results.Ok(new { success = true, message = "Product has been deactivated successfully.", variantsUpdated = updatedVariants, inventoriesUpdated = updatedInventories, notesUpdated = updatedNotes });
     }
     catch (Exception ex)
     {
@@ -2423,22 +2427,28 @@ app.MapPost("/api/products/{id:int}/activate", async (AppDbContext db, HttpConte
     if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     try
     {
+        await using var tx = await db.Database.BeginTransactionAsync();
         var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (p == null) return Results.NotFound(new { message = "Product not found. The product may have been removed." });
         var uid = GetCurrentUserId(http);
         // optimistic concurrency: require client to supply current stamp
         if (!stamp.HasValue || stamp.Value != p.Stamp)
         {
+            await tx.RollbackAsync();
             await LoggerHelper.LogEventAsync(db, EventType.Warning, "Product activate conflict - stamp mismatch", $"ProductId={id}", uid);
             return Results.Json(new { success = false, message = $"Your changes to product {id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
         }
-        p.IsActive = true;
-        p.Stamp = p.Stamp + 1;
-        p.LastModifiedById = uid;
-        p.LastUpdatedDt = DateTime.Now;
-        await db.SaveChangesAsync();
-        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product activated", $"ProductId={p.Id}", uid);
-        return Results.Ok(new { success = true, message = "Product has been activated successfully." });
+
+        var now = DateTime.Now;
+        // Use atomic SQL updates to ensure stamp increments by exactly 1
+        var updatedProduct = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+        var updatedVariants = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_variant SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+        var updatedInventories = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_inventory SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_variant_id IN (SELECT product_variant_id FROM dbo.product_variant WHERE product_id = {id} AND is_deleted = 0) AND is_deleted = 0;");
+        var updatedNotes = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.note SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+
+        await tx.CommitAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product activated", $"ProductId={p.Id}; variantsUpdated={updatedVariants}; inventoriesUpdated={updatedInventories}; notesUpdated={updatedNotes}", uid);
+        return Results.Ok(new { success = true, message = "Product has been activated successfully.", variantsUpdated = updatedVariants, inventoriesUpdated = updatedInventories, notesUpdated = updatedNotes });
     }
     catch (Exception ex)
     {
@@ -2457,44 +2467,18 @@ app.MapPost("/api/products/{id:int}/delete", async (AppDbContext db, HttpContext
         var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (p == null) return Results.NotFound(new { message = "Product not found. The product may have been removed." });
         var uid = GetCurrentUserId(http);
-
-        // Deactivate and mark as deleted the product itself
-        p.IsActive = false;
-        p.IsDeleted = true;
-        p.LastModifiedById = uid;
-        p.LastUpdatedDt = DateTime.Now;
-
-        // Find variants for this product and mark them deleted/deactivated
-        var variants = await db.ProductVariants.Where(v => v.ProductId == id && !v.IsDeleted).ToListAsync();
         var now = DateTime.Now;
-        var variantIds = new List<int>();
-        foreach (var v in variants)
-        {
-            v.IsActive = false;
-            v.IsDeleted = true;
-            v.LastModifiedById = uid;
-            v.LastUpdatedDt = now;
-            variantIds.Add(v.Id);
-        }
 
-        // Find related inventory rows and mark them deleted/deactivated
-        if (variantIds.Count > 0)
-        {
-            var inventories = await db.ProductInventories.Where(i => variantIds.Contains(i.ProductVariantId) && !i.IsDeleted).ToListAsync();
-            foreach (var inv in inventories)
-            {
-                inv.IsActive = false;
-                inv.IsDeleted = true;
-                inv.LastModifiedById = uid;
-                inv.LastUpdatedDt = now;
-            }
-        }
+        // Perform atomic SQL updates to mark product, variants, inventories and notes deleted/inactive and increment stamps by 1
+        var updatedProduct = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+        var updatedVariants = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_variant SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+        var updatedInventories = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_inventory SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_variant_id IN (SELECT product_variant_id FROM dbo.product_variant WHERE product_id = {id} AND is_deleted = 0) AND is_deleted = 0;");
+        var updatedNotes = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.note SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
 
-        await db.SaveChangesAsync();
         await tx.CommitAsync();
 
-        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deleted", $"ProductId={p.Id}; variants={variantIds.Count}", uid);
-        return Results.Ok(new { success = true, message = "Product has been deleted successfully.", variantCount = variantIds.Count });
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deleted", $"ProductId={p.Id}; variantsUpdated={updatedVariants}; inventoriesUpdated={updatedInventories}; notesUpdated={updatedNotes}", uid);
+        return Results.Ok(new { success = true, message = "Product has been deleted successfully.", variantsUpdated = updatedVariants, inventoriesUpdated = updatedInventories, notesUpdated = updatedNotes });
     }
     catch (Exception ex)
     {
@@ -2680,6 +2664,16 @@ app.MapPut("/api/notes/{id:int}", async (AppDbContext db, int id, NoteCreateSimp
     {
         var n = await db.Notes.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (n == null) return Results.NotFound(new { message = "Note not found. The note may have been removed." });
+
+        // If note is linked to a product that is inactive/deleted, disallow modifications
+        if (n.ProductId.HasValue)
+        {
+            var parent = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == n.ProductId.Value);
+            if (parent == null || !parent.IsActive || parent.IsDeleted)
+            {
+                return Results.BadRequest(new { success = false, message = "Note for this product cannot be changed because this product is deactivated or deleted." });
+            }
+        }
 
         var uid = GetCurrentUserId(http);
 

@@ -131,16 +131,25 @@
             <tbody></tbody>
           </table>
         </div>
-        <div class="flex items-center justify-between mt-2 grid-pagination">
-          <div class="flex items-center gap-2">
-            <button id="variantsPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
-            <button id="variantsNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
-            <span class="text-sm text-gray-600 ml-2">Page: <span id="variantsPage">1</span></span>
-          </div>
-          <div class="text-sm">
-            <span class="text-gray-600 mr-2">Total amount:</span>
-            <span id="totalAmount" class="font-semibold">0.00</span>
-          </div>
+        <div class="flex items-center gap-3 mt-3 grid-pagination">
+          <label class="text-sm">Rows per page:</label>
+          <select id="variantsPageSizeSel" class="select select-bordered w-20 select-sm">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+
+          <button id="variantsPrev" class="btn btn-outline btn-sm">
+            <span class="material-icons mr-2">chevron_left</span>
+            Previous
+          </button>
+          <span id="variantsPageInfo" class="font-semibold">Page 1 of 1</span>
+          <button id="variantsNext" class="btn btn-outline btn-sm">
+            Next <span class="material-icons ml-2">chevron_right</span>
+          </button>
+
+          <span id="variantsPageCountInfo" class="page-count-info ml-auto">Total records: 0</span>
         </div>
       </div>
 
@@ -181,13 +190,25 @@
             <tbody></tbody>
           </table>
         </div>
-        <div class="flex items-center justify-between mt-2 grid-pagination">
-          <div class="flex items-center gap-2">
-            <button id="notesPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
-            <button id="notesNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
-            <span class="text-sm text-gray-600 ml-2">Page: <span id="notesPage">1</span></span>
-          </div>
-          <div class="text-sm text-gray-600">&nbsp;</div>
+        <div class="flex items-center gap-3 mt-3 grid-pagination">
+          <label class="text-sm">Rows per page:</label>
+          <select id="notesPageSizeSel" class="select select-bordered w-20 select-sm">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+
+          <button id="notesPrev" class="btn btn-outline btn-sm">
+            <span class="material-icons mr-2">chevron_left</span>
+            Previous
+          </button>
+          <span id="notesPageInfo" class="font-semibold">Page 1 of 1</span>
+          <button id="notesNext" class="btn btn-outline btn-sm">
+            Next <span class="material-icons ml-2">chevron_right</span>
+          </button>
+
+          <span id="notesPageCountInfo" class="page-count-info ml-auto">Total records: 0</span>
         </div>
       </div>
     </div>

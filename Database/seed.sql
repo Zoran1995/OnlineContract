@@ -177,7 +177,7 @@ BEGIN
         is_temp_password)
     VALUES (
         1, N'Administrator', N'', N'Admin', N'jw4vduIrQ+KFUYmHfn3B4efZjCJsldskfNHVR5KDNKk=',
-        1, 0, N'zoranmilinkovic@gmail.com', CAST('1900-01-01T00:00:00' AS DATETIME), 0,
+        1, 0, N'zoranmilinkovic95@gmail.com', CAST('1900-01-01T00:00:00' AS DATETIME), 0,
         N'+381643863857', 0, 3, CAST('2025-11-25T00:00:00' AS DATETIME), CAST('2025-11-25T00:00:00' AS DATETIME),
         NULL, NULL, NULL,
         8, 0, 0);

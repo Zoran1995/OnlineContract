@@ -171,6 +171,8 @@
     const page = Math.min(Math.max(1, state.variantsPage), pages);
     state.variantsPage = page;
     const el = document.getElementById('variantsPage'); if (el) el.textContent = String(page);
+    const pageInfo = document.getElementById('variantsPageInfo'); if (pageInfo) pageInfo.textContent = `Page ${page} of ${pages}`;
+    const pageCount = document.getElementById('variantsPageCountInfo'); if (pageCount) pageCount.textContent = `Total records: ${total}`;
     const prev = document.getElementById('variantsPrev');
     const next = document.getElementById('variantsNext');
     if (prev) {
@@ -191,6 +193,8 @@
     const page = Math.min(Math.max(1, state.notesPage), pages);
     state.notesPage = page;
     const el = document.getElementById('notesPage'); if (el) el.textContent = String(page);
+    const pageInfo = document.getElementById('notesPageInfo'); if (pageInfo) pageInfo.textContent = `Page ${page} of ${pages}`;
+    const pageCount = document.getElementById('notesPageCountInfo'); if (pageCount) pageCount.textContent = `Total records: ${total}`;
     const prev = document.getElementById('notesPrev');
     const next = document.getElementById('notesNext');
     if (prev) {
@@ -1210,6 +1214,7 @@
     });
     document.getElementById('variantsPrev')?.addEventListener('click', (e) => { e.preventDefault(); state.variantsPage = Math.max(1, state.variantsPage - 1); renderVariants(); });
     document.getElementById('variantsNext')?.addEventListener('click', (e) => { e.preventDefault(); state.variantsPage = state.variantsPage + 1; renderVariants(); });
+    document.getElementById('variantsPageSizeSel')?.addEventListener('change', (e) => { state.variantsPageSize = parseInt(e.target.value,10) || 10; state.variantsPage = 1; renderVariants(); });
   btnAddNote?.addEventListener('click', (e) => { e.preventDefault(); selectedNoteId = null; try{ updateNotesToolbar(); }catch{} try{ renderNotes(); }catch{} openNoteModal(false); });
   btnOpenNote?.addEventListener('click', (e) => { e.preventDefault(); openNoteModal(true); });
   btnDeleteNote?.addEventListener('click', (e) => { e.preventDefault(); deleteSelectedNote(); });
@@ -1218,6 +1223,7 @@
   menuSetMainNote?.addEventListener('click', (e) => { e.preventDefault(); if (selectedNoteId == null) return; setMainSelectedNote(); });
   document.getElementById('notesPrev')?.addEventListener('click', (e) => { e.preventDefault(); state.notesPage = Math.max(1, state.notesPage - 1); renderNotes(); });
   document.getElementById('notesNext')?.addEventListener('click', (e) => { e.preventDefault(); state.notesPage = state.notesPage + 1; renderNotes(); });
+  document.getElementById('notesPageSizeSel')?.addEventListener('change', (e) => { state.notesPageSize = parseInt(e.target.value,10) || 10; state.notesPage = 1; renderNotes(); });
   noteSave?.addEventListener('click', (e) => { e.preventDefault(); addNoteFromModal(); });
 
     vPhotoUploadBtn?.addEventListener('click', async (e) => {
