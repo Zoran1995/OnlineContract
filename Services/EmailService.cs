@@ -17,6 +17,7 @@ namespace OnlineContract.Services
         private readonly ILogger<EmailService> _logger;
         private readonly string _user;
         private readonly string _pass;
+        private readonly string _appOriginFull;
 
         public EmailService(ILogger<EmailService> logger, Microsoft.Extensions.Configuration.IConfiguration config)
         {
@@ -28,6 +29,29 @@ namespace OnlineContract.Services
             {
                 _logger.LogWarning("Email credentials not found in configuration or environment variables. Email sending will fail until configured.");
             }
+
+            // Resolve application origin for reset links. Preference order:
+            // 1) configuration key "AppOrigin"
+            // 2) environment variable "APP_ORIGIN"
+            // 3) ASPNETCORE_URLS (first entry)
+            // 4) fallback to https://localhost:52616 (developer-friendly default)
+            string origin = config["AppOrigin"] ?? Environment.GetEnvironmentVariable("APP_ORIGIN") ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(origin))
+            {
+                var urls = config["ASPNETCORE_URLS"] ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(urls)) origin = urls.Split(';', StringSplitOptions.RemoveEmptyEntries)[0];
+            }
+            if (string.IsNullOrWhiteSpace(origin)) origin = "https://localhost:52616";
+            // Ensure scheme present
+            if (!origin.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !origin.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                origin = "https://" + origin.Trim();
+            }
+            // If multiple urls separated by ;, keep first
+            if (origin.Contains(';')) origin = origin.Split(';', StringSplitOptions.RemoveEmptyEntries)[0];
+            // Normalize
+            try { var u = new Uri(origin); _appOriginFull = u.GetLeftPart(UriPartial.Authority); }
+            catch { _appOriginFull = origin.TrimEnd('/'); }
         }
 
         /// <summary>
@@ -53,10 +77,27 @@ namespace OnlineContract.Services
             }
             else
             {
-                // Token/link scenario
-                var link = token != null ? $"https://{GetAppDomain()}/reset?token={Uri.EscapeDataString(token)}" : "";
-                builder.TextBody = $"Open the following link to reset your password:\n{link}\nIf the link is not clickable, copy-paste it into your browser.";
-                builder.HtmlBody = $"<p>Click the link to reset your password:</p><p><a href=\"{link}\">Reset password</a></p><p>If the link does not work, copy-paste this URL into your browser:</p><p>{link}</p>";
+                // Token/link scenario — make the email copy more descriptive and friendly
+                    var link = token != null ? $"{_appOriginFull.TrimEnd('/')}/reset?token={Uri.EscapeDataString(token)}" : "";
+                builder.TextBody =
+$"You (or someone using this email address) recently requested to reset the password for your Online Contracts account.\n\n" +
+"To choose a new password, open the link below within 15 minutes:\n\n" +
+$"{link}\n\n" +
+                    $"If the link does not open, copy and paste the full URL into your browser. If you did not request a password reset, you can safely ignore this message — no changes will be made to your account.\n\n" +
+                    $"This is an automated email - please do not reply to this message. If you need help, contact your administrator.";
+
+                builder.HtmlBody =
+                    $"<div style=\"font-family:Arial,Helvetica,sans-serif;color:#222;line-height:1.4\">" +
+                    $"<h2 style=\"color:#1f2937;margin:0 0 8px\">Password reset requested</h2>" +
+                    $"<p style=\"margin:0 0 12px\">You (or someone using this email address) recently requested to reset the password for your <strong>Online Contracts</strong> account.</p>" +
+                    $"<p style=\"margin:0 0 12px\">To choose a new password, click the button below within <strong>15 minutes</strong>:</p>" +
+                    $"<p style=\"margin:0 0 18px\"><a href=\"{link}\" style=\"display:inline-block;padding:10px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none\">Reset password</a></p>" +
+                    $"<p style=\"margin:0 0 8px;font-size:13px;color:#444\">If the button does not work, copy and paste this URL into your browser:</p>" +
+                    $"<p style=\"word-break:break-all;font-size:13px;color:#0b1220\">{link}</p>" +
+                    $"<hr style=\"border:none;border-top:1px solid #eee;margin:18px 0\">" +
+                    $"<p style=\"font-size:12px;color:#6b7280;margin:0\">If you did not request a password reset, please ignore this email. No changes will be made to your account.</p>" +
+                        $"<p style=\"font-size:12px;color:#6b7280;margin:8px 0 0\"><em>This is an automated email — please do not reply.</em></p>" +
+                        $"</div>";
             }
 
             message.Body = builder.ToMessageBody();
@@ -124,21 +165,7 @@ namespace OnlineContract.Services
             }
         }
 
-        private static string GetAppDomain()
-        {
-            // Prefer ASPNETCORE_... or fallback to localhost: use env var APP_ORIGIN if present
-            var origin = Environment.GetEnvironmentVariable("APP_ORIGIN");
-            if (!string.IsNullOrWhiteSpace(origin))
-            {
-                try
-                {
-                    var u = new Uri(origin);
-                    return u.Host + (u.IsDefaultPort ? "" : ":" + u.Port);
-                }
-                catch { }
-            }
-            return "localhost";
-        }
+        // GetAppDomain removed; EmailService now uses the configured _appOriginFull set in the constructor.
 
         private static string MaskDomain(string email)
         {

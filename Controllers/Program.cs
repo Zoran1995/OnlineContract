@@ -8,6 +8,41 @@ using System.Security.Claims;
 using OnlineContract.Data;
 using OnlineContract.Helpers;
 using OnlineContract.Models;
+// Load local .env into process environment (development only).
+// This avoids hard-coding secrets while allowing local dev to store values in a .env file.
+try
+{
+    var aspEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+    if (string.Equals(aspEnv, "Development", StringComparison.OrdinalIgnoreCase))
+    {
+        var dotEnvPath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
+        if (File.Exists(dotEnvPath))
+        {
+            foreach (var raw in File.ReadAllLines(dotEnvPath))
+            {
+                var line = raw?.Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+                if (line.StartsWith("#")) continue;
+                var idx = line.IndexOf('=');
+                if (idx <= 0) continue;
+                var key = line.Substring(0, idx).Trim();
+                var val = line.Substring(idx + 1).Trim();
+                if ((val.StartsWith("\"") && val.EndsWith("\"")) || (val.StartsWith("'") && val.EndsWith("'")))
+                {
+                    val = val.Substring(1, val.Length - 2);
+                }
+                // Unescape common escaped newline sequences
+                val = val.Replace("\\n", "\n");
+                // Only set if not already present in environment (do not overwrite)
+                if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+                {
+                    Environment.SetEnvironmentVariable(key, val, EnvironmentVariableTarget.Process);
+                }
+            }
+        }
+    }
+}
+catch { }
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +53,14 @@ var builder = WebApplication.CreateBuilder(args);
 // DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Memory cache (used by ForgotPasswordService for rate limiting)
+builder.Services.AddMemoryCache();
+
+// Email services: register the SMTP MailKit sender and adapter to the existing IEmailService helper
+builder.Services.AddScoped<OnlineContract.Services.IEmailService, OnlineContract.Services.EmailService>();
+builder.Services.AddScoped<OnlineContract.Helpers.IEmailService>(sp =>
+    new OnlineContract.Helpers.EmailServiceAdapter(sp.GetRequiredService<OnlineContract.Services.IEmailService>()));
 
 // Cookie Authentication + Authorization
 builder.Services
@@ -105,15 +148,17 @@ var app = builder.Build();
 // -------------------------
 
 var rewriteOptions = new RewriteOptions()
-     .AddRewrite("(?i)^login$", "login.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^home$", "home.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^eventlog$", "eventlog.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^about$", "about.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^address$", "address.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^login$", "login.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^home$", "home.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^eventlog$", "eventlog.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^about$", "about.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^address$", "address.html", skipRemainingRules: true)
     .AddRewrite("(?i)^collections$", "collections.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^changestore$", "changestore.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^users$", "users.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^contracts$", "contracts.html", true);
+    .AddRewrite("(?i)^changestore$", "changestore.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^users$", "users.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^contracts$", "contracts.html", true)
+    // Map /reset -> reset-password.html so email links like /reset?token=... load the SPA reset page
+    .AddRewrite("(?i)^reset$", "reset-password.html", skipRemainingRules: true);
 
 app.UseRewriter(rewriteOptions);
 
@@ -300,6 +345,96 @@ app.MapPost("/api/login", async (AppDbContext db, LoginDto dto, HttpContext http
         return Results.Json(new { success = false, message = "Login failed due to a server error. Please try again later." });
     }
 });
+
+// Forgot password endpoints (initiate, validate token, perform reset)
+app.MapPost("/api/auth/forgot-password", async (AppDbContext db, HttpContext http, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, OnlineContract.Helpers.IEmailService emailService) =>
+{
+    try
+    {
+        var body = await http.Request.ReadFromJsonAsync<System.Collections.Generic.Dictionary<string, string>>();
+        var rawEmail = body != null && body.TryGetValue("email", out var e) ? e : "";
+        var ip = http.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        var svc = new OnlineContract.Services.ForgotPasswordService(app.Configuration);
+        var (status, message) = await svc.HandleAsync(db, rawEmail, ip, cache, emailService);
+        return Results.Json(new { message }, statusCode: status);
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Forgot-password endpoint exception", ex.ToString(), 2);
+        return Results.Json(new { message = "Failed to process forgot-password request." }, statusCode: 500);
+    }
+}).AllowAnonymous();
+
+app.MapGet("/api/auth/reset-token/{token}", async (AppDbContext db, string token) =>
+{
+    try
+    {
+        var now = DateTime.Now;
+        var pr = await db.PasswordResetTokens.FirstOrDefaultAsync(p => p.Token == token && !p.Used && p.ExpiresAt > now);
+        if (pr == null) return Results.Json(new { success = false, message = "This reset link is invalid or has expired. Please request a new password reset." });
+        return Results.Json(new { success = true, code = pr.Code, email = pr.Email });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Reset-token check failed", ex.ToString(), 2);
+        return Results.Json(new { success = false, message = "Failed to validate reset token." }, statusCode: 500);
+    }
+}).AllowAnonymous();
+
+app.MapPost("/api/auth/reset-password", async (AppDbContext db, HttpContext http) =>
+{
+    try
+    {
+        var dto = await http.Request.ReadFromJsonAsync<System.Collections.Generic.Dictionary<string, string>>();
+        var token = dto != null && dto.TryGetValue("token", out var t) ? t : "";
+        var newPw = dto != null && dto.TryGetValue("newPassword", out var n) ? n : "";
+        var conf = dto != null && dto.TryGetValue("confirmPassword", out var c) ? c : "";
+
+        if (string.IsNullOrWhiteSpace(token)) return Results.Json(new { success = false, message = "Token is required." });
+        if (string.IsNullOrWhiteSpace(newPw) || newPw != conf) return Results.Json(new { success = false, message = "Passwords do not match or are empty." });
+        if (newPw.Length < 8 || !System.Text.RegularExpressions.Regex.IsMatch(newPw, "[A-Z]") || !System.Text.RegularExpressions.Regex.IsMatch(newPw, "\\d"))
+            return Results.Json(new { success = false, message = "Password must be at least 8 characters, include one uppercase letter and one number." });
+
+        var now = DateTime.Now;
+        var pr = await db.PasswordResetTokens.FirstOrDefaultAsync(p => p.Token == token && !p.Used && p.ExpiresAt > now);
+        if (pr == null) return Results.Json(new { success = false, message = "This reset link is invalid or has expired." });
+
+        if (!pr.UserId.HasValue) return Results.Json(new { success = false, message = "No user associated with this token." });
+        var user = await db.AxUsers.FirstOrDefaultAsync(u => u.Id == pr.UserId.Value && !u.IsDeleted);
+        if (user == null) return Results.Json(new { success = false, message = "User account not found." });
+
+        user.Password = PasswordHelper.HashPassword(newPw);
+        user.PasswordDt = DateTime.Now;
+        user.IsTempPassword = false;
+        user.LastLoginDt = DateTime.Now;
+        user.Stamp = user.Stamp + 1;
+
+        pr.Used = true;
+        pr.UsedAt = DateTime.Now;
+
+        await db.SaveChangesAsync();
+
+        // Sign in the user
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Name, user.Code ?? string.Empty),
+            new Claim(ClaimTypes.Role, user.RoleId.ToString())
+        };
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var principal = new ClaimsPrincipal(identity);
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
+            new AuthenticationProperties { IsPersistent = true, AllowRefresh = true, ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8) });
+
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Password reset completed", $"UserId={user.Id}", user.Id);
+        return Results.Json(new { success = true, userId = user.Id, roleId = user.RoleId });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Reset-password failed", ex.ToString(), 2);
+        return Results.Json(new { success = false, message = "Failed to reset password. Please try again later." });
+    }
+}).AllowAnonymous();
 
 app.MapPost("/api/logout", async (HttpContext http) =>
 {

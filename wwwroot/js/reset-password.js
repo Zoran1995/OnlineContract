@@ -10,7 +10,8 @@
     const submit = document.getElementById('rpSubmit');
 
     if (!token) {
-      if (msgEl) msgEl.textContent = 'This reset link is invalid or has expired. Please request a new password reset.';
+      if (msgEl) msgEl.classList.add('hidden');
+      const exp = document.getElementById('expiredView'); if (exp) exp.classList.remove('hidden');
       return;
     }
 
@@ -18,7 +19,14 @@
     const res = await fetch('/api/auth/reset-token/' + encodeURIComponent(token));
     const data = await res.json();
     if (!data || data.success !== true) {
-      if (msgEl) msgEl.textContent = data?.message || 'This reset link is invalid or has expired. Please request a new password reset.';
+      if (msgEl) msgEl.classList.add('hidden');
+      const exp = document.getElementById('expiredView'); if (exp) {
+        // show message if provided
+        const txt = data?.message || 'This reset link is invalid or has expired. Please request a new password reset.';
+        const inner = exp.querySelector('div div:nth-child(2)');
+        try { if (inner) inner.textContent = txt; } catch {}
+        exp.classList.remove('hidden');
+      }
       return;
     }
 
