@@ -9,6 +9,7 @@
   let pageSize = 10;
   let totalPages = 1;
   let totalCount = 0;
+  let sortBy = '', sortDir = '';
 
   function roleName(id) {
     switch (id) {
@@ -85,7 +86,15 @@
       if (sizeEl) pageSize = parseInt(sizeEl.value || pageSize, 10) || pageSize;
 
       const userId = localStorage.getItem('userId') ?? 2;
-      const res = await fetch(`/api/users?name=${encodeURIComponent(name)}&team=${encodeURIComponent(team)}&page=${page}&pageSize=${pageSize}&userId=${userId}`, {
+      const qs = new URLSearchParams();
+      qs.set('name', name);
+      qs.set('team', team);
+      qs.set('page', String(page));
+      qs.set('pageSize', String(pageSize));
+      qs.set('userId', String(userId));
+      if (sortBy) qs.set('sortBy', sortBy);
+      if (sortDir) qs.set('sortDir', sortDir);
+      const res = await fetch(`/api/users?${qs.toString()}`, {
         method: 'GET',
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
@@ -168,13 +177,32 @@
         tr.appendChild(td);
       });
     });
-    try { if (window.attachTableSort) window.attachTableSort('#usersTable'); } catch {}
+    try {
+      const keys = ['id','code','name','roleId','groupName','status'];
+      document.querySelectorAll('#usersTable thead th').forEach((th, idx) => {
+        th.style.cursor = 'pointer';
+        const ex = th.querySelector('.sort-indicator'); if (ex) ex.remove();
+        const key = keys[idx] || '';
+        const span = document.createElement('span'); span.className = 'sort-indicator ml-2';
+        if (key && key === sortBy) { span.textContent = sortDir === 'desc' ? ' ▼' : ' ▲'; }
+        th.appendChild(span);
+        th.onclick = () => {
+          if (!key) return;
+          // map displayed 'name' to firstName sort, 'status' to isActive
+          const mapKey = key === 'name' ? 'firstName' : key === 'status' ? 'isActive' : key;
+          if (sortBy === mapKey) sortDir = (sortDir === 'desc' ? 'asc' : 'desc'); else { sortBy = mapKey; sortDir = 'asc'; }
+          page = 1; loadUsers();
+        };
+      });
+    } catch {}
   }
 
   function updateOpenState() {
     const btn = document.getElementById('btnOpen');
     if (!btn) return;
-    btn.disabled = !selectedUserId;
+    // Disable Open when no selection OR when selected user is inactive
+    const u = selectedUserId ? items.find(x => x.id === selectedUserId) : null;
+    btn.disabled = !(selectedUserId && u && !!u.isActive);
   }
 
   function updateMenuActionsState() {

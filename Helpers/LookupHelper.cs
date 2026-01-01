@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using OnlineContract.Data;
-using System.Threading.Tasks;
 
 namespace OnlineContract.Helpers
 {

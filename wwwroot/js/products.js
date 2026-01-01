@@ -11,6 +11,7 @@
   let selectedRow = null;
   let selectedItem = null;
   let items = [];
+  let sortBy = '', sortDir = '';
 
   const tbody = document.querySelector('#grid tbody');
   const emptyState = document.getElementById('emptyState');
@@ -43,7 +44,7 @@
   }
 
   function updateOpenState() {
-    if (btnOpen) btnOpen.disabled = !selectedId;
+    if (btnOpen) btnOpen.disabled = !selectedId || (selectedItem && !selectedItem.isActive);
 
     const hasSelection = !!selectedId;
     const deactivateItem = btnDeactivate ? btnDeactivate.closest('li') : null;
@@ -75,6 +76,8 @@
     const storeId = (fltStore?.value ?? '').trim();
     if (q) qs.set('q', q);
     if (storeId) qs.set('storeId', storeId);
+    if (sortBy) qs.set('sortBy', sortBy);
+    if (sortDir) qs.set('sortDir', sortDir);
     return `?${qs.toString()}`;
   }
 
@@ -118,8 +121,11 @@
       selectedItem = null;
       updateOpenState();
 
+      // Add cache: 'no-store' and debug logging to avoid stale responses when sorting by qty
+      try { console.debug('Loading products with sort', sortBy, sortDir); } catch {}
       const res = await fetch(`${apiBase}${buildQuery()}`, {
         method: 'GET',
+        cache: 'no-store',
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
@@ -195,7 +201,18 @@
       tbody.appendChild(tr);
     });
 
-    try { if (window.attachTableSort) window.attachTableSort('#grid'); } catch { /* noop */ }
+    try {
+      const keys = ['id','name','inputDt','qtyStore1','qtyStore2','isActive'];
+      document.querySelectorAll('#grid thead th').forEach((th, idx) => {
+        th.style.cursor = 'pointer';
+        const ex = th.querySelector('.sort-indicator'); if (ex) ex.remove();
+        const key = keys[idx] || '';
+        const span = document.createElement('span'); span.className = 'sort-indicator ml-2';
+        if (key && key === sortBy) { span.textContent = sortDir === 'desc' ? ' ▼' : ' ▲'; }
+        th.appendChild(span);
+        th.onclick = () => { if (!key) return; if (sortBy === key) sortDir = (sortDir === 'desc' ? 'asc' : 'desc'); else { sortBy = key; sortDir = 'asc'; } page = 1; load(); };
+      });
+    } catch {}
   }
 
   function renderPager() {
@@ -325,7 +342,9 @@
       page = 1; load();
     });
 
-    fltStore?.addEventListener('change', () => { page = 1; load(); });
+    // Do not auto-trigger search when the store dropdown changes.
+    // User must click the Search button explicitly.
+    fltStore?.addEventListener('change', () => { page = 1; });
 
     btnOpen?.addEventListener('click', () => {
       if (!selectedId) {

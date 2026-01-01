@@ -8,6 +8,7 @@
   let totalCount = 0;
   let selectedId = null;
   let items = [];
+  let sortBy = '', sortDir = '';
 
   const ddlState = document.getElementById("ddlState");
   const txtName = document.getElementById("txtName");
@@ -73,6 +74,8 @@
     if (nm) qs.set("name", nm);
     if (from) qs.set('fromDate', from);
     if (to) qs.set('toDate', to);
+    if (sortBy) qs.set('sortBy', sortBy);
+    if (sortDir) qs.set('sortDir', sortDir);
     return `?${qs.toString()}`;
   }
 
@@ -179,7 +182,18 @@
       });
       tbody.appendChild(tr);
     });
-    try { if (window.attachTableSort) window.attachTableSort('#grid'); } catch {}
+    try {
+      const keys = ['id','customerFullName','amount','contractState','entryDate'];
+      document.querySelectorAll('#grid thead th').forEach((th, idx) => {
+        th.style.cursor = 'pointer';
+        const ex = th.querySelector('.sort-indicator'); if (ex) ex.remove();
+        const key = keys[idx] || '';
+        const span = document.createElement('span'); span.className = 'sort-indicator ml-2';
+        if (key && key === sortBy) { span.textContent = sortDir === 'desc' ? ' ▼' : ' ▲'; }
+        th.appendChild(span);
+        th.onclick = () => { if (!key) return; if (sortBy === key) sortDir = (sortDir === 'desc' ? 'asc' : 'desc'); else { sortBy = key; sortDir = 'asc'; } page = 1; load(); };
+      });
+    } catch {}
   }
 
   function stateBadge(state) {

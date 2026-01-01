@@ -12,12 +12,19 @@ document.addEventListener('DOMContentLoaded', () => {
   let pageSize = parseInt(pageSizeSel?.value || '10', 10) || 10;
   let totalPages = 1;
   let selectedId = null;
+  let sortBy = '';
+  let sortDir = '';
 
   async function loadStores() {
     try {
       const userId = localStorage.getItem('userId') || 2;
       // Request fresh data; avoid cached responses so grid reflects latest updates
-      const res = await fetch(`/api/stores?userId=${userId}&t=${Date.now()}`, { cache: 'no-store', credentials: 'include', headers: { 'Accept': 'application/json' } });
+      const qs = new URLSearchParams();
+      qs.set('userId', String(userId));
+      qs.set('t', String(Date.now()));
+      if (sortBy) qs.set('sortBy', sortBy);
+      if (sortDir) qs.set('sortDir', sortDir);
+      const res = await fetch(`/api/stores?${qs.toString()}`, { cache: 'no-store', credentials: 'include', headers: { 'Accept': 'application/json' } });
       const data = await res.json();
       stores = data.items || [];
       page = 1;
@@ -55,6 +62,19 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       tableBody.appendChild(tr);
     });
+
+    try {
+      const keys = ['id','name','address','email','phone','lastUpdatedBy'];
+      document.querySelectorAll('table thead th').forEach((th, idx) => {
+        th.style.cursor = 'pointer';
+        const ex = th.querySelector('.sort-indicator'); if (ex) ex.remove();
+        const key = keys[idx] || '';
+        const span = document.createElement('span'); span.className = 'sort-indicator ml-2';
+        if (key && key === sortBy) { span.textContent = sortDir === 'desc' ? ' ▼' : ' ▲'; }
+        th.appendChild(span);
+        th.onclick = () => { if (!key) return; if (sortBy === key) sortDir = (sortDir === 'desc' ? 'asc' : 'desc'); else { sortBy = key; sortDir = 'asc'; } page = 1; loadStores(); };
+      });
+    } catch {}
 
     // pager UI
     const total = stores.length || 0;

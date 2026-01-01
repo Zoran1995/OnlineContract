@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace OnlineContract.Models
@@ -64,5 +62,6 @@ namespace OnlineContract.Models
         public int? ContractId { get; set; }
         public int? ProductId { get; set; }
         public bool? IsActive { get; set; }
+        public bool? IsMain { get; set; }
     }
 }

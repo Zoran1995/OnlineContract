@@ -1,6 +1,7 @@
 let currentPage = 1;
 let pageSize = 10;
 let totalPages = 0;
+let sortBy = '', sortDir = '';
 
 const typeFilter = document.getElementById('typeFilter');
 const fromDate = document.getElementById('fromDate');
@@ -163,6 +164,8 @@ async function loadLogs() {
       page: currentPage,
       pageSize
     });
+    if (sortBy) params.set('sortBy', sortBy);
+    if (sortDir) params.set('sortDir', sortDir);
 
     const res = await fetch(`/api/event-log?${params.toString()}`);
     if (!res.ok) throw new Error("Failed to fetch logs");
@@ -182,6 +185,19 @@ async function loadLogs() {
     // Keep Clear enabled (same behavior as Users/Contracts)
     clearBtn.disabled = false;
     document.getElementById('emptyState').classList.toggle('hidden', data.items.length > 0);
+    // Update header sort indicators
+    try {
+      const keys = ['id','type','inputDt','description','user','stackTrace'];
+      document.querySelectorAll('#logTable thead th').forEach((th, idx) => {
+        th.style.cursor = 'pointer';
+        const ex = th.querySelector('.sort-indicator'); if (ex) ex.remove();
+        const key = keys[idx] || '';
+        const span = document.createElement('span'); span.className = 'sort-indicator ml-2';
+        if (key && key === sortBy) { span.textContent = sortDir === 'desc' ? ' ▼' : ' ▲'; }
+        th.appendChild(span);
+        th.onclick = () => { if (!key) return; if (sortBy === key) sortDir = (sortDir === 'desc' ? 'asc' : 'desc'); else { sortBy = key; sortDir = 'asc'; } currentPage = 1; loadLogs(); };
+      });
+    } catch {}
   } catch (err) {
     logClientError("Load logs failed", err.stack || "");
     showToast('error', 'Failed to load logs');
@@ -229,7 +245,7 @@ function renderLogs(items) {
 
     tableBody.appendChild(tr);
   });
-  try { if (window.attachTableSort) window.attachTableSort('#logTable'); } catch {}
+  try { /* header sorting is server-side now; no client-side attachTableSort */ } catch {}
 }
 
 async function logClientError(description, stackTrace) {

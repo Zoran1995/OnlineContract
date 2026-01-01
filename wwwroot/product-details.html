@@ -65,12 +65,7 @@
             <label class="label"><span class="label-text">Name</span></label>
             <input id="prodName" class="input input-bordered w-full" type="text" placeholder="Product name" />
           </div>
-          <div class="flex items-end">
-            <label class="label cursor-pointer gap-3">
-              <span class="label-text">Active</span>
-              <input id="prodActive" type="checkbox" class="toggle toggle-primary" checked />
-            </label>
-          </div>
+          <!-- Active is managed from the Products grid toolbar; removed from details tab -->
 
           <div class="bg-base-200 rounded-lg p-3">
             <div class="text-xs text-gray-500">Product ID</div>
@@ -100,16 +95,23 @@
         <div class="flex flex-col gap-2 mb-3">
           <div class="text-sm text-gray-500">Manage variants (size/color) and quantities per store.</div>
           <div class="text-sm text-gray-500">Image upload folder: <span class="font-mono">C:\Projects\Build\InstallDocs</span></div>
-          <div class="flex items-center justify-end gap-2">
+          <div class="flex items-center justify-end gap-2" id="variantsToolbar">
             <button id="btnOpenVariant" class="btn btn-sm" disabled>
               <span class="material-icons mr-2">open_in_new</span> Open
             </button>
             <button id="btnAddVariant" class="btn btn-sm btn-outline">
               <span class="material-icons mr-2">add</span> Add Inventory
             </button>
-            <button id="btnDeleteVariant" class="btn btn-sm btn-outline" disabled>
-              <span class="material-icons mr-2">delete</span> Delete
-            </button>
+            <div id="variantsMenu" class="dropdown">
+              <button id="variantsMenuButton" tabindex="0" class="btn btn-sm btn-ghost"> 
+                <span class="material-icons">more_vert</span>
+              </button>
+              <ul id="variantsMenuContent" tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52 hidden">
+                <li><a id="menuActivateVariant" class="menu-item"> <span class="material-icons mr-2">check_circle</span> Activate</a></li>
+                <li><a id="menuDeactivateVariant" class="menu-item"> <span class="material-icons mr-2">not_interested</span> Deactivate</a></li>
+                <li><a id="menuDeleteVariant" class="menu-item"> <span class="material-icons mr-2">delete</span> Delete</a></li>
+              </ul>
+            </div>
           </div>
         </div>
 
@@ -129,16 +131,25 @@
             <tbody></tbody>
           </table>
         </div>
-        <div class="flex items-center justify-between mt-2 grid-pagination">
-          <div class="flex items-center gap-2">
-            <button id="variantsPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
-            <button id="variantsNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
-            <span class="text-sm text-gray-600 ml-2">Page: <span id="variantsPage">1</span></span>
-          </div>
-          <div class="text-sm">
-            <span class="text-gray-600 mr-2">Total amount:</span>
-            <span id="totalAmount" class="font-semibold">0.00</span>
-          </div>
+        <div class="flex items-center gap-3 mt-3 grid-pagination">
+          <label class="text-sm">Rows per page:</label>
+          <select id="variantsPageSizeSel" class="select select-bordered w-20 select-sm">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+
+          <button id="variantsPrev" class="btn btn-outline btn-sm">
+            <span class="material-icons mr-2">chevron_left</span>
+            Previous
+          </button>
+          <span id="variantsPageInfo" class="font-semibold">Page 1 of 1</span>
+          <button id="variantsNext" class="btn btn-outline btn-sm">
+            Next <span class="material-icons ml-2">chevron_right</span>
+          </button>
+
+          <span id="variantsPageCountInfo" class="page-count-info ml-auto">Total records: 0</span>
         </div>
       </div>
 
@@ -179,13 +190,25 @@
             <tbody></tbody>
           </table>
         </div>
-        <div class="flex items-center justify-between mt-2 grid-pagination">
-          <div class="flex items-center gap-2">
-            <button id="notesPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
-            <button id="notesNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
-            <span class="text-sm text-gray-600 ml-2">Page: <span id="notesPage">1</span></span>
-          </div>
-          <div class="text-sm text-gray-600">&nbsp;</div>
+        <div class="flex items-center gap-3 mt-3 grid-pagination">
+          <label class="text-sm">Rows per page:</label>
+          <select id="notesPageSizeSel" class="select select-bordered w-20 select-sm">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+
+          <button id="notesPrev" class="btn btn-outline btn-sm">
+            <span class="material-icons mr-2">chevron_left</span>
+            Previous
+          </button>
+          <span id="notesPageInfo" class="font-semibold">Page 1 of 1</span>
+          <button id="notesNext" class="btn btn-outline btn-sm">
+            Next <span class="material-icons ml-2">chevron_right</span>
+          </button>
+
+          <span id="notesPageCountInfo" class="page-count-info ml-auto">Total records: 0</span>
         </div>
       </div>
     </div>
@@ -289,12 +312,7 @@
           <label class="label"><span class="label-text">Store 2 Qty</span></label>
           <input id="vQty2" class="input input-bordered" type="number" min="0" value="0" />
         </div>
-        <div class="form-control md:col-span-2">
-          <label class="label cursor-pointer gap-3">
-            <span class="label-text">Active</span>
-            <input id="vActive" type="checkbox" class="toggle toggle-primary" checked />
-          </label>
-        </div>
+        <!-- Variant Active toggle removed; activation managed from toolbar menu -->
       </div>
       <div class="modal-action">
         <button id="variantCancel" class="btn">Cancel</button>

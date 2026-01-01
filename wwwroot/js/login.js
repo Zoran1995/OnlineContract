@@ -78,6 +78,9 @@ document.getElementById('navSignIn')?.addEventListener('click', (e) => {
   const inpConfirm = document.getElementById('tmpConfirmPassword');
   const inpStamp = document.getElementById('tmpStamp');
 
+  // Ensure password fields start empty on load
+  try { if (inpNew) inpNew.value = ''; if (inpConfirm) inpConfirm.value = ''; } catch {}
+
   if (btnCancel && !btnCancel._bound) {
     btnCancel._bound = true;
     btnCancel.addEventListener('click', (e) => {
@@ -165,6 +168,13 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
           const tmpStamp = document.getElementById('tmpStamp');
           if (tmpCode) tmpCode.value = code;
           if (tmpStamp) tmpStamp.value = String(data.stamp ?? '0');
+          // Clear password inputs each time the modal is opened
+          try {
+            const tmpNew = document.getElementById('tmpNewPassword');
+            const tmpConfirm = document.getElementById('tmpConfirmPassword');
+            if (tmpNew) tmpNew.value = '';
+            if (tmpConfirm) tmpConfirm.value = '';
+          } catch {}
           try { modal?.showModal(); } catch { modal?.classList.remove('hidden'); }
         } catch {}
         showToast('info', data?.message || 'Please change your password to continue.');

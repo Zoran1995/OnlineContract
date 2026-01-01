@@ -1,4 +1,3 @@
-
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Rewrite;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -235,6 +234,115 @@ app.MapGet("/contracts/{id:int}", (HttpContext context, int id) =>
     var filePath = Path.Combine(app.Environment.WebRootPath, "contract-details.html");
     return Results.File(filePath, "text/html");
 }).RequireAuthorization();
+
+// --- Variant-level actions: activate / deactivate / delete ---
+app.MapPost("/api/product-variants/{id:int}/activate", async (AppDbContext db, HttpContext http, int id) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    try
+    {
+        var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (v == null) return Results.NotFound(new { message = "Inventory row not found. It may have been removed." });
+            // Prevent variant/inventory changes when parent product is inactive or deleted
+            var parentProduct = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == v.ProductId);
+            if (parentProduct == null || !parentProduct.IsActive || parentProduct.IsDeleted)
+            {
+                return Results.BadRequest(new { success = false, message = "Product Inventory for this product cannot be changed because this product is deactivated or deleted." });
+            }
+        var uid = GetCurrentUserId(http);
+        v.IsActive = true;
+        v.LastModifiedById = uid;
+        v.LastUpdatedDt = DateTime.Now;
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Inventory activated", $"VariantId={v.Id}; ProductId={v.ProductId}", uid);
+        return Results.Ok(new { success = true, message = "Product Inventory has been successfully activated." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Activate inventory failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+app.MapPost("/api/product-variants/{id:int}/deactivate", async (AppDbContext db, HttpContext http, int id) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    try
+    {
+        var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (v == null) return Results.NotFound(new { message = "Inventory row not found. It may have been removed." });
+            // Prevent variant/inventory changes when parent product is inactive or deleted
+            var parentProduct = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == v.ProductId);
+            if (parentProduct == null || !parentProduct.IsActive || parentProduct.IsDeleted)
+            {
+                return Results.BadRequest(new { success = false, message = "Product Inventory for this product cannot be changed because this product is deactivated or deleted." });
+            }
+        var uid = GetCurrentUserId(http);
+        v.IsActive = false;
+        v.LastModifiedById = uid;
+        v.LastUpdatedDt = DateTime.Now;
+        // Also deactivate related inventory rows for this variant
+        var inventories = await db.ProductInventories.Where(i => i.ProductVariantId == v.Id && !i.IsDeleted).ToListAsync();
+        foreach (var inv in inventories)
+        {
+            inv.IsActive = false;
+            inv.LastModifiedById = uid;
+            inv.LastUpdatedDt = DateTime.Now;
+        }
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Inventory deactivated", $"VariantId={v.Id}; ProductId={v.ProductId}", uid);
+        return Results.Ok(new { success = true, message = "Product Inventory has been successfully deactivated." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Deactivate inventory failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+app.MapPost("/api/product-variants/{id:int}/delete", async (AppDbContext db, HttpContext http, int id) =>
+{
+    if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    await using var tx = await db.Database.BeginTransactionAsync();
+    try
+    {
+        var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (v == null) return Results.NotFound(new { message = "Inventory row not found. It may have been removed." });
+        // Prevent variant/inventory changes when parent product is inactive or deleted
+        var parentProduct = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == v.ProductId);
+        if (parentProduct == null || !parentProduct.IsActive || parentProduct.IsDeleted)
+        {
+            return Results.BadRequest(new { success = false, message = "Product Inventory for this product cannot be changed because this product is deactivated or deleted." });
+        }
+        var uid = GetCurrentUserId(http);
+        // Mark variant deleted and inactive
+        v.IsActive = false;
+        v.IsDeleted = true;
+        v.LastModifiedById = uid;
+        v.LastUpdatedDt = DateTime.Now;
+
+        // Mark related inventory rows deleted/inactive
+        var inventories = await db.ProductInventories.Where(i => i.ProductVariantId == v.Id && !i.IsDeleted).ToListAsync();
+        foreach (var inv in inventories)
+        {
+            inv.IsActive = false;
+            inv.IsDeleted = true;
+            inv.LastModifiedById = uid;
+            inv.LastUpdatedDt = DateTime.Now;
+        }
+
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Inventory deleted", $"VariantId={v.Id}; ProductId={v.ProductId}", uid);
+        return Results.Ok(new { success = true, message = "Product Inventory has been successfully deleted." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Delete inventory failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+        
 
 // Products pages (Admin/Manager/Worker)
 static bool CanManageProducts(HttpContext http)
@@ -538,7 +646,7 @@ app.MapGet("/api/login", () => Results.Json(new { status = "Login endpoint is al
 
 
 // ---- Users & Teams API (Authorized) ----
-app.MapGet("/api/users", async (AppDbContext db, string? name, string? team, int page, int pageSize, int? userId) =>
+app.MapGet("/api/users", async (AppDbContext db, string? name, string? team, int page, int pageSize, int? userId, string? sortBy, string? sortDir) =>
 {
     try
     {
@@ -596,14 +704,67 @@ app.MapGet("/api/users", async (AppDbContext db, string? name, string? team, int
                 stamp = u.Stamp
             };
 
+        // Apply server-side sorting on AxUser before projection
+        var sortSpec = string.IsNullOrWhiteSpace(sortBy) ? null : new OnlineContract.Helpers.SortSpec(sortBy!.Trim(), string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase));
+        var sortMap = new Dictionary<string, System.Linq.Expressions.Expression<Func<OnlineContract.Models.AxUser, object?>>> {
+            { "id", u => u.Id },
+            { "code", u => u.Code },
+            { "firstName", u => u.FirstName },
+            { "lastName", u => u.LastName },
+            { "email", u => u.Email },
+            { "roleId", u => u.RoleId },
+            { "ownerId", u => u.OwnerId },
+            { "isActive", u => u.IsActive },
+            { "stamp", u => u.Stamp }
+        };
+
         var totalCount = await baseQuery.CountAsync();
-        var items = await baseQuery
-            .OrderBy(x => x.id)
+
+        // We need to apply ordering on the underlying AxUsers query, so reconstruct an ordered sequence
+        var usersQuery = db.AxUsers.AsNoTracking().Where(u => !u.IsDeleted && u.Id > 0 && u.Id != 2);
+        if (!string.IsNullOrWhiteSpace(name)) {
+            var n = name.Trim().ToLower();
+            usersQuery = usersQuery.Where(u => (u.FirstName ?? "").ToLower().Contains(n)
+                || (u.LastName ?? "").ToLower().Contains(n)
+                || (u.Code ?? "").ToLower().Contains(n));
+        }
+        if (!string.IsNullOrWhiteSpace(team)) {
+            var t = team.Trim().ToLower();
+            usersQuery = from u in usersQuery
+                         join g in db.AxUsers.Where(x => x.IsGroup && !x.IsDeleted) on u.OwnerId equals g.Id into groups2
+                         from g in groups2.DefaultIfEmpty()
+                         where g != null && ((g.Code ?? "").ToLower().Contains(t) || (((g.FirstName ?? "") + " " + (g.LastName ?? "")).Trim().ToLower().Contains(t)))
+                         select u;
+        }
+
+        var orderedUsers = usersQuery.ApplySort(sortSpec, sortMap, u => u.Id);
+
+        var items = await (
+            from u in orderedUsers
+            join g in db.AxUsers.AsNoTracking().Where(x => x.IsGroup && !x.IsDeleted) on u.OwnerId equals g.Id into groups2
+            from g in groups2.DefaultIfEmpty()
+            select new
+            {
+                id = u.Id,
+                code = u.Code,
+                firstName = u.FirstName,
+                lastName = u.LastName,
+                email = u.Email,
+                phone = u.Phone,
+                roleId = u.RoleId,
+                isTempPassword = u.IsTempPassword,
+                isActive = u.IsActive,
+                isDeleted = u.IsDeleted,
+                isGroup = u.IsGroup,
+                ownerId = u.OwnerId,
+                groupName = g != null ? g.Code : null,
+                stamp = u.Stamp
+            })
             .Skip(Math.Max(0, (pageIndex - 1) * size))
             .Take(size)
             .ToListAsync();
 
-        return Results.Json(new { items, totalCount, totalPages = (int)Math.Ceiling(totalCount / (double)size) });
+        return Results.Json(new { items, totalCount, totalPages = (int)Math.Ceiling(totalCount / (double)size), sortBy = sortBy ?? "", sortDir = sortDir ?? "" });
     }
     catch (Exception ex)
     {
@@ -1050,10 +1211,10 @@ app.MapPost("/api/users/{id}/delete", async (AppDbContext db, int id, int? userI
 }).RequireAuthorization();
 
 // -------------------------
-// EventLog + Stores (as before)
+// EventLog + Store (as before)
 // -------------------------
 
-app.MapGet("/api/event-log", async (AppDbContext db, int userId, int type, DateTime? from, DateTime? to, int page, int pageSize) =>
+app.MapGet("/api/event-log", async (AppDbContext db, int userId, int type, DateTime? from, DateTime? to, int page, int pageSize, string? sortBy, string? sortDir) =>
 {
     try
     {
@@ -1067,7 +1228,21 @@ app.MapGet("/api/event-log", async (AppDbContext db, int userId, int type, DateT
         if (to.HasValue) query = query.Where(e => e.InputDt <= to.Value);
 
         var totalCount = await query.CountAsync();
-        var items = await (from e in query
+
+        var sortSpec = string.IsNullOrWhiteSpace(sortBy) ? null : new OnlineContract.Helpers.SortSpec(sortBy!.Trim(), string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase));
+        var sortMap = new Dictionary<string, System.Linq.Expressions.Expression<Func<OnlineContract.Models.EventLog, object?>>> {
+            { "id", e => e.EventLogId },
+            { "type", e => e.EventTypeId },
+            { "inputDt", e => e.InputDt },
+            { "description", e => e.Description },
+            { "user", e => e.UserId }
+        };
+
+        var ordered = sortSpec == null
+            ? query.OrderByDescending(e => e.InputDt).ThenBy(e => e.EventLogId)
+            : query.ApplySort(sortSpec, sortMap, e => e.EventLogId);
+
+        var items = await (from e in ordered
                            join u in db.AxUsers on e.UserId equals u.Id into users
                            from u in users.DefaultIfEmpty()
                            select new
@@ -1079,7 +1254,6 @@ app.MapGet("/api/event-log", async (AppDbContext db, int userId, int type, DateT
                                u.Code,
                                e.StackTrace
                            })
-                           .OrderByDescending(e => e.InputDt)
                            .Skip((page - 1) * pageSize)
                            .Take(pageSize)
                            .Select(e => new
@@ -1093,7 +1267,7 @@ app.MapGet("/api/event-log", async (AppDbContext db, int userId, int type, DateT
                            })
                            .ToListAsync();
 
-        return Results.Json(new { items, totalPages = (int)Math.Ceiling(totalCount / (double)pageSize), totalCount });
+        return Results.Json(new { items, totalPages = (int)Math.Ceiling(totalCount / (double)pageSize), totalCount, sortBy = sortBy ?? "", sortDir = sortDir ?? "" });
     }
     catch (Exception ex)
     {
@@ -1167,11 +1341,40 @@ app.MapGet("/api/event-log/export", async (AppDbContext db, int userId, string? 
     }
 });
 
-app.MapGet("/api/stores", async (AppDbContext db, int? userId) =>
+app.MapGet("/api/stores", async (AppDbContext db, int? userId, string? sortBy, string? sortDir) =>
 {
     try
     {
-        var items = await (from s in db.Stores.OrderBy(s => s.StoreId)
+        // Support server-side sorting: Sort -> Filter -> Paginate (stores grid is simple list)
+        var sortSpec = string.IsNullOrWhiteSpace(sortBy) ? null : new SortSpec(sortBy, (sortDir ?? "").ToLowerInvariant() == "desc");
+
+        var baseQuery = from s in db.Stores.AsNoTracking()
+                        join u in db.AxUsers.AsNoTracking() on s.Last_Modified_User_Id equals u.Id into uu
+                        from u in uu.DefaultIfEmpty()
+                        select new
+                        {
+                            store = s,
+                            lastUpdatedBy = u != null ? u.Code : null
+                        };
+
+        var map = new Dictionary<string, System.Linq.Expressions.Expression<Func<OnlineContract.Models.Store, object?>>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["id"] = s => s.StoreId,
+            ["name"] = s => s.Name ?? string.Empty,
+            ["address"] = s => s.Address ?? string.Empty,
+            ["email"] = s => s.Email ?? string.Empty,
+            ["phone"] = s => s.Phone_Number ?? string.Empty,
+            ["lastUpdatedBy"] = s => s.Last_Modified_User_Id
+        };
+
+        // Project to an anonymous type after applying ordering to the Store entity
+        IQueryable<OnlineContract.Models.Store> storeQuery = db.Stores.AsNoTracking();
+        if (sortSpec == null)
+            storeQuery = storeQuery.OrderBy(s => s.StoreId);
+        else
+            storeQuery = storeQuery.ApplySort(sortSpec, map, s => s.StoreId);
+
+        var items = await (from s in storeQuery
                            join u in db.AxUsers.AsNoTracking() on s.Last_Modified_User_Id equals u.Id into uu
                            from u in uu.DefaultIfEmpty()
                            select new
@@ -1227,7 +1430,7 @@ app.MapPut("/api/stores/{id}", async (AppDbContext db, int id, StoreUpdateDto dt
 });
 
 // Contracts API (Authorized)
-app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? state, string? name, string? fromDate, string? toDate, int page, int pageSize) =>
+app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? state, string? name, string? fromDate, string? toDate, int page, int pageSize, string? sortBy, string? sortDir) =>
 {
     try
     {
@@ -1240,11 +1443,88 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
         int.TryParse(userIdClaim, out var currentUserId);
         var isCustomer = roleId == (int)UserRole.Customer;
 
-        var q =
-            from c in db.Contracts.AsNoTracking()
+        // Build base contracts query (entity) so we can apply server-side sorting before projection
+        var contractsQuery = db.Contracts.AsNoTracking().Where(c => c.Id > 0 && (!isCustomer || (c.InputUserId ?? 0) == currentUserId));
+
+        var qUserJoin =
+            from c in contractsQuery
             join u0 in db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug
             from u in ug.DefaultIfEmpty()
-            where c.Id > 0 && (!isCustomer || (c.InputUserId ?? 0) == currentUserId)
+            select new { Contract = c, User = u };
+
+        if (!string.IsNullOrWhiteSpace(state) && Enum.TryParse<OnlineContract.Helpers.ContractState>(state, true, out var st))
+        {
+            contractsQuery = contractsQuery.Where(x => x.ContractState == st);
+        }
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var n = name.Trim().ToLower();
+            qUserJoin = qUserJoin.Where(x => ((x.User == null ? "" : ((x.User.FirstName ?? "") + " " + (x.User.LastName ?? "")).Trim()) ?? "").ToLower().Contains(n)
+                                             || ((x.User == null ? "" : (x.User.Code ?? "")) ?? "").ToLower().Contains(n));
+        }
+
+        // Date range filters (EntryDate)
+        if (!string.IsNullOrWhiteSpace(fromDate) && DateTime.TryParse(fromDate, out var fd))
+        {
+            contractsQuery = contractsQuery.Where(x => x.EntryDate >= fd);
+            qUserJoin = qUserJoin.Where(x => x.Contract.EntryDate >= fd);
+        }
+        if (!string.IsNullOrWhiteSpace(toDate) && DateTime.TryParse(toDate, out var td))
+        {
+            var tdEnd = td.Date.AddDays(1).AddTicks(-1);
+            contractsQuery = contractsQuery.Where(x => x.EntryDate <= tdEnd);
+            qUserJoin = qUserJoin.Where(x => x.Contract.EntryDate <= tdEnd);
+        }
+
+        var totalCount = await contractsQuery.CountAsync();
+
+        // Apply server-side sorting on contracts entity
+        var sortSpec = string.IsNullOrWhiteSpace(sortBy) ? null : new OnlineContract.Helpers.SortSpec(sortBy!.Trim(), string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase));
+        var sortMap = new Dictionary<string, System.Linq.Expressions.Expression<Func<OnlineContract.Models.Contract, object?>>> {
+            { "id", c => c.Id },
+            { "entryDate", c => c.EntryDate },
+            { "amount", c => c.Amount },
+            { "contractState", c => c.ContractState }
+        };
+
+        IQueryable<OnlineContract.Models.Contract> orderedContracts;
+        if (sortSpec == null)
+        {
+            orderedContracts = contractsQuery.OrderByDescending(c => c.EntryDate).ThenBy(c => c.Id);
+        }
+        else if (string.Equals(sortSpec.By, "customerFullName", StringComparison.OrdinalIgnoreCase))
+        {
+            // Sort by customer's full name (join via subquery). Stable secondary sort by Id.
+            if (sortSpec.Desc)
+            {
+                orderedContracts = contractsQuery
+                    .OrderByDescending(c => (db.AxUsers
+                        .Where(u => u.Id == (c.InputUserId ?? 0))
+                        .Select(u => (((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim()))
+                        .FirstOrDefault()) ?? "")
+                    .ThenBy(c => c.Id);
+            }
+            else
+            {
+                orderedContracts = contractsQuery
+                    .OrderBy(c => (db.AxUsers
+                        .Where(u => u.Id == (c.InputUserId ?? 0))
+                        .Select(u => (((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim()))
+                        .FirstOrDefault()) ?? "")
+                    .ThenBy(c => c.Id);
+            }
+        }
+        else
+        {
+            orderedContracts = contractsQuery.ApplySort(sortSpec, sortMap, c => c.Id);
+        }
+
+        var pageRows = await (
+            from c in orderedContracts
+            join u0 in db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug2
+            from u in ug2.DefaultIfEmpty()
+            where !isCustomer || (c.InputUserId ?? 0) == currentUserId
             select new
             {
                 c.Id,
@@ -1255,37 +1535,7 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
                     ? ""
                     : ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim(),
                 CustomerCode = u == null ? "" : (u.Code ?? "")
-            };
-
-        if (!string.IsNullOrWhiteSpace(state) && Enum.TryParse<OnlineContract.Helpers.ContractState>(state, true, out var st))
-        {
-            q = q.Where(x => x.ContractState == st);
-        }
-
-        if (!string.IsNullOrWhiteSpace(name))
-        {
-            var n = name.Trim().ToLower();
-            q = q.Where(x =>
-                (x.CustomerFullName ?? "").ToLower().Contains(n) ||
-                (x.CustomerCode ?? "").ToLower().Contains(n));
-        }
-
-        // Date range filters (EntryDate)
-        if (!string.IsNullOrWhiteSpace(fromDate) && DateTime.TryParse(fromDate, out var fd))
-        {
-            q = q.Where(x => x.EntryDate >= fd);
-        }
-        if (!string.IsNullOrWhiteSpace(toDate) && DateTime.TryParse(toDate, out var td))
-        {
-            var tdEnd = td.Date.AddDays(1).AddTicks(-1);
-            q = q.Where(x => x.EntryDate <= tdEnd);
-        }
-
-        var totalCount = await q.CountAsync();
-
-        var pageRows = await q
-            .OrderByDescending(x => x.EntryDate)
-            .ThenBy(x => x.Id)
+            })
             .Skip(Math.Max(0, (pageIndex - 1) * size))
             .Take(size)
             .ToListAsync();
@@ -1303,7 +1553,9 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
         {
             items,
             totalCount,
-            totalPages = (int)Math.Ceiling(totalCount / (double)size)
+            totalPages = (int)Math.Ceiling(totalCount / (double)size),
+            sortBy = sortBy ?? "",
+            sortDir = sortDir ?? ""
         });
     }
     catch (Exception ex)
@@ -1473,8 +1725,7 @@ static bool IsValidEmail(string? email)
 }
 
 // Phone normalization now handled by OnlineContract.Helpers.PhoneHelper.NormalizeSerbianPhone
-
-app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q, int? storeId, int page, int pageSize) =>
+app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q, int? storeId, int page, int pageSize, string? sortBy, string? sortDir) =>
 {
     if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
 
@@ -1485,13 +1736,55 @@ app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q,
 
         IQueryable<Product> products = db.Products
             .AsNoTracking()
-            .Where(p => p.Id > 0 && !p.IsDeleted && p.IsActive);
+            .Where(p => p.Id > 0 && !p.IsDeleted);
 
         if (!string.IsNullOrWhiteSpace(q))
         {
             var s = q.Trim();
             products = products.Where(p =>
                 EF.Functions.Like(p.Name ?? "", $"%{s}%"));
+        }
+
+        // Apply server-side sorting on the products query before constructing the projection
+        var sortSpec = string.IsNullOrWhiteSpace(sortBy) ? null : new OnlineContract.Helpers.SortSpec(sortBy!.Trim(), string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase));
+        var sortMap = new Dictionary<string, System.Linq.Expressions.Expression<Func<Product, object?>>> {
+            { "id", p => p.Id },
+            { "name", p => p.Name },
+            { "inputDt", p => p.InputDt },
+            { "isActive", p => p.IsActive }
+        };
+
+        IQueryable<Product> orderedProducts;
+        if (sortSpec == null)
+        {
+            orderedProducts = products.OrderBy(p => p.Id);
+        }
+        else if (string.Equals(sortSpec.By, "qtyStore1", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(sortSpec.By, "qtyStore2", StringComparison.OrdinalIgnoreCase))
+        {
+            var storeIdSort = string.Equals(sortSpec.By, "qtyStore1", StringComparison.OrdinalIgnoreCase) ? 1 : 2;
+            if (sortSpec.Desc)
+            {
+                orderedProducts = products.OrderByDescending(p => (
+                    from v in db.ProductVariants.AsNoTracking()
+                    where !v.IsDeleted && v.ProductId == p.Id && v.IsActive
+                    join i in db.ProductInventories.AsNoTracking() on v.Id equals i.ProductVariantId
+                    where !i.IsDeleted && i.StoreId == storeIdSort && i.IsActive
+                    select (int?)i.QtyOnHand).Sum() ?? 0).ThenBy(p => p.Id);
+            }
+            else
+            {
+                orderedProducts = products.OrderBy(p => (
+                    from v in db.ProductVariants.AsNoTracking()
+                    where !v.IsDeleted && v.ProductId == p.Id && v.IsActive
+                    join i in db.ProductInventories.AsNoTracking() on v.Id equals i.ProductVariantId
+                    where !i.IsDeleted && i.StoreId == storeIdSort && i.IsActive
+                    select (int?)i.QtyOnHand).Sum() ?? 0).ThenBy(p => p.Id);
+            }
+        }
+        else
+        {
+            orderedProducts = products.ApplySort(sortSpec, sortMap, p => p.Id);
         }
 
         var baseQuery =
@@ -1546,8 +1839,51 @@ app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q,
 
         var totalCount = await baseQuery.CountAsync();
 
-        var rows = await baseQuery
-            .OrderBy(x => x.Id)
+        var proj =
+            from p in orderedProducts
+            let qty1 =
+                (from v in db.ProductVariants.AsNoTracking()
+                  where !v.IsDeleted && v.ProductId == p.Id && v.IsActive
+                 join i in db.ProductInventories.AsNoTracking()
+                      on v.Id equals i.ProductVariantId
+                  where !i.IsDeleted && i.StoreId == 1 && i.IsActive
+                 select (int?)i.QtyOnHand).Sum()
+            let qty2 =
+                (from v in db.ProductVariants.AsNoTracking()
+                  where !v.IsDeleted && v.ProductId == p.Id && v.IsActive
+                 join i in db.ProductInventories.AsNoTracking()
+                      on v.Id equals i.ProductVariantId
+                  where !i.IsDeleted && i.StoreId == 2 && i.IsActive
+                 select (int?)i.QtyOnHand).Sum()
+            select new
+            {
+                p.Id,
+                p.Name,
+                p.InputDt,
+                p.IsActive,
+                QtyStore1 = qty1 ?? 0,
+                QtyStore2 = qty2 ?? 0,
+                Stamp = p.Stamp
+            };
+
+        if (storeId.HasValue && storeId.Value > 0)
+        {
+            if (storeId.Value == 1) proj = proj.Where(x => x.QtyStore1 > 0);
+            else if (storeId.Value == 2) proj = proj.Where(x => x.QtyStore2 > 0);
+            else
+            {
+                var sid = storeId.Value;
+                proj = proj.Where(r => (
+                    (from v in db.ProductVariants.AsNoTracking()
+                      where !v.IsDeleted && v.ProductId == r.Id && v.IsActive
+                     join i in db.ProductInventories.AsNoTracking()
+                          on v.Id equals i.ProductVariantId
+                      where !i.IsDeleted && i.StoreId == sid && i.IsActive
+                     select (int?)i.QtyOnHand).Sum() ?? 0) > 0);
+            }
+        }
+
+        var rows = await proj
             .Skip(Math.Max(0, (pageIndex - 1) * size))
             .Take(size)
             .ToListAsync();
@@ -1577,7 +1913,7 @@ app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q,
     }
 }).RequireAuthorization();
 
-app.MapGet("/api/products/{id:int}", async (AppDbContext db, HttpContext http, int id) =>
+app.MapGet("/api/products/{id:int}", async (AppDbContext db, HttpContext http, int id, string? sortBy, string? sortDir) =>
 {
     if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     if (id <= 0) return Results.NotFound(new { message = "Product not found. Please verify the product ID and try again." });
@@ -1603,10 +1939,54 @@ app.MapGet("/api/products/{id:int}", async (AppDbContext db, HttpContext http, i
             .FirstOrDefaultAsync() ?? "";
     }
 
-    var variants = await db.ProductVariants.AsNoTracking()
-        .Where(v => v.ProductId == id && !v.IsDeleted)
-        .OrderBy(v => v.Id)
-        .ToListAsync();
+    // Apply server-side sorting for variants when requested (Sort -> Filter -> Paginate)
+    var sortSpec = string.IsNullOrWhiteSpace(sortBy) ? null : new SortSpec(sortBy, (sortDir ?? "").ToLowerInvariant() == "desc");
+
+    var variantsQuery = db.ProductVariants.AsNoTracking().Where(v => v.ProductId == id && !v.IsDeleted);
+
+    var variantMap = new Dictionary<string, System.Linq.Expressions.Expression<Func<ProductVariant, object?>>>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["id"] = v => v.Id,
+        ["size"] = v => v.Size ?? "",
+        ["color"] = v => v.Color ?? "",
+        ["amount"] = v => v.Amount,
+        ["isActive"] = v => v.IsActive,
+        ["stamp"] = v => v.Stamp
+    };
+
+    if (sortSpec == null)
+    {
+        variantsQuery = variantsQuery.OrderBy(v => v.Id);
+    }
+    else
+    {
+        // Support sorting by aggregated inventory quantities per store (qtyStore1, qtyStore2)
+        if (string.Equals(sortSpec.By, "qtyStore1", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(sortSpec.By, "qtyStore2", StringComparison.OrdinalIgnoreCase))
+        {
+            var storeId = string.Equals(sortSpec.By, "qtyStore1", StringComparison.OrdinalIgnoreCase) ? 1 : 2;
+            if (sortSpec.Desc)
+            {
+                var ordered = variantsQuery.OrderByDescending(v => db.ProductInventories
+                    .Where(i => i.ProductVariantId == v.Id && !i.IsDeleted && i.StoreId == storeId)
+                    .Select(i => (int?)i.QtyOnHand).Sum() ?? 0);
+                variantsQuery = System.Linq.Queryable.ThenBy((IOrderedQueryable<ProductVariant>)ordered, v => v.Id);
+            }
+            else
+            {
+                var ordered = variantsQuery.OrderBy(v => db.ProductInventories
+                    .Where(i => i.ProductVariantId == v.Id && !i.IsDeleted && i.StoreId == storeId)
+                    .Select(i => (int?)i.QtyOnHand).Sum() ?? 0);
+                variantsQuery = System.Linq.Queryable.ThenBy((IOrderedQueryable<ProductVariant>)ordered, v => v.Id);
+            }
+        }
+        else
+        {
+            variantsQuery = variantsQuery.ApplySort(sortSpec, variantMap, v => v.Id);
+        }
+    }
+
+    var variants = await variantsQuery.ToListAsync();
 
     var variantIds = variants.Select(v => v.Id).ToList();
     var inv = await db.ProductInventories.AsNoTracking()
@@ -1671,10 +2051,10 @@ app.MapPost("/api/products", async (AppDbContext db, HttpContext http, ProductCr
             Name = name,
             IsActive = dto.IsActive,
             IsDeleted = false,
-            InputDt = DateTime.UtcNow,
+            InputDt = DateTime.Now,
             InputUserId = uid,
             LastModifiedById = uid,
-            LastUpdatedDt = DateTime.UtcNow,
+            LastUpdatedDt = DateTime.Now,
             Stamp = 0
         };
         db.Products.Add(p);
@@ -1709,7 +2089,7 @@ app.MapPut("/api/products/{id:int}", async (AppDbContext db, HttpContext http, i
 
         var uid = GetCurrentUserId(http);
         p.LastModifiedById = uid;
-        p.LastUpdatedDt = DateTime.UtcNow;
+        p.LastUpdatedDt = DateTime.Now;
 
         p.Stamp = p.Stamp + 1;
         await db.SaveChangesAsync();
@@ -1722,8 +2102,6 @@ app.MapPut("/api/products/{id:int}", async (AppDbContext db, HttpContext http, i
         return Results.Json(new { success = false, message = "Failed to update the product. Please try again later." });
     }
 }).RequireAuthorization();
-
-
 
 app.MapPut("/api/products/{id:int}/details",
 async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
@@ -1792,14 +2170,21 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
             await LoggerHelper.LogEventAsync(db, EventType.Warning, "Product details save conflict - stamp mismatch", $"ProductId={id}", uid);
             return Results.Json(new { success = false, message = $"Your changes to product {id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
         }
-        
-        
+
+        // If the product is currently inactive/deleted, disallow changes to variants/inventories/notes.
+        // The only allowed change while inactive is activating the product itself (dto.IsActive = true).
+        if (!p.IsActive && !(dto.IsActive.HasValue && dto.IsActive.Value))
+        {
+            await tx.RollbackAsync();
+            await LoggerHelper.LogEventAsync(db, EventType.Warning, "Product details save blocked - product inactive", $"ProductId={id}", uid);
+            return Results.BadRequest(new { success = false, message = "This product is deactivated or deleted. Activate the product before modifying its variants, inventories or notes." });
+        }
 
         // Basic product fields
         if (dto.Name is not null)        p.Name = dto.Name.Trim();
         if (dto.IsActive.HasValue)       p.IsActive = dto.IsActive.Value;
         p.LastModifiedById = uid;
-        p.LastUpdatedDt    = DateTime.UtcNow;
+        p.LastUpdatedDt    = DateTime.Now;
 
         // Delete variants by id (>0)
         var deletedIds = (dto.DeletedVariantIds ?? new List<int>()).Where(x => x > 0).ToList();
@@ -1814,7 +2199,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                 v.IsDeleted        = true;
                 v.IsActive         = false;
                 v.LastModifiedById = uid;
-                v.LastUpdatedDt    = DateTime.UtcNow;
+                v.LastUpdatedDt    = DateTime.Now;
 
                 var invs = await db.ProductInventories
                     .Where(i => i.ProductVariantId == v.Id && !i.IsDeleted)
@@ -1825,7 +2210,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                     inv.IsDeleted        = true;
                     inv.IsActive         = false;
                     inv.LastModifiedById = uid;
-                    inv.LastUpdatedDt    = DateTime.UtcNow;
+                    inv.LastUpdatedDt    = DateTime.Now;
                 }
             }
         }
@@ -1856,10 +2241,10 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                     PhotoFileName    = photo,
                     IsActive         = isActive,
                     IsDeleted        = false,
-                    InputDt          = DateTime.UtcNow,
+                    InputDt          = DateTime.Now,
                     InputUserId      = uid,
                     LastModifiedById = uid,
-                    LastUpdatedDt    = DateTime.UtcNow,
+                    LastUpdatedDt    = DateTime.Now,
                     Stamp            = 0
                 };
                 db.ProductVariants.Add(v);
@@ -1887,7 +2272,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                 v.PhotoFileName    = photo;
                 v.IsActive         = isActive;
                 v.LastModifiedById = uid;
-                v.LastUpdatedDt    = DateTime.UtcNow;
+                v.LastUpdatedDt    = DateTime.Now;
                 // bump variant stamp
                 v.Stamp = v.Stamp + 1;
             }
@@ -1907,10 +2292,10 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                         QtyOnHand        = Clamp(qty),
                         IsActive         = true,
                         IsDeleted        = false,
-                        InputDt          = DateTime.UtcNow,
+                        InputDt          = DateTime.Now,
                         InputUserId      = uid,
                         LastModifiedById = uid,
-                        LastUpdatedDt    = DateTime.UtcNow,
+                        LastUpdatedDt    = DateTime.Now,
                         Stamp            = 0
                     };
                     db.ProductInventories.Add(inv);
@@ -1928,7 +2313,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                     inv.QtyOnHand        = Clamp(qty);
                     inv.IsActive         = true;
                     inv.LastModifiedById = uid;
-                    inv.LastUpdatedDt    = DateTime.UtcNow;
+                    inv.LastUpdatedDt    = DateTime.Now;
                     inv.Stamp = inv.Stamp + 1;
                 }
             }
@@ -2107,7 +2492,7 @@ app.MapPost("/api/products/upload-photo", async (AppDbContext db, HttpContext ht
         {
             var nameNoExt = Path.GetFileNameWithoutExtension(originalName);
             var existingExt = Path.GetExtension(originalName);
-            var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+            var stamp = DateTime.Now.ToString("yyyyMMddHHmmssfff");
             originalName = $"{nameNoExt}_{stamp}{existingExt}";
             targetPath = Path.Combine(uploadDir, originalName);
         }
@@ -2151,41 +2536,17 @@ app.MapPost("/api/products/{id:int}/deactivate", async (AppDbContext db, HttpCon
         }
         var uid = GetCurrentUserId(http);
 
-        // Deactivate product
-        p.IsActive = false;
-        p.Stamp = p.Stamp + 1;
-        p.LastModifiedById = uid;
-        p.LastUpdatedDt = DateTime.UtcNow;
+        // Use atomic SQL updates to ensure stamp is incremented exactly by 1 at the DB level
+        var now = DateTime.Now;
+        var updatedProduct = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+        var updatedVariants = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_variant SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+        var updatedInventories = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_inventory SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_variant_id IN (SELECT product_variant_id FROM dbo.product_variant WHERE product_id = {id} AND is_deleted = 0) AND is_deleted = 0;");
+        var updatedNotes = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.note SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
 
-        // Deactivate and mark as inactive the product variants
-        var variants = await db.ProductVariants.Where(v => v.ProductId == id && !v.IsDeleted).ToListAsync();
-        var now = DateTime.UtcNow;
-        var variantIds = new List<int>();
-        foreach (var v in variants)
-        {
-            v.IsActive = false;
-            v.LastModifiedById = uid;
-            v.LastUpdatedDt = now;
-            variantIds.Add(v.Id);
-        }
-
-        // Deactivate related inventory rows
-        if (variantIds.Count > 0)
-        {
-            var inventories = await db.ProductInventories.Where(i => variantIds.Contains(i.ProductVariantId) && !i.IsDeleted).ToListAsync();
-            foreach (var inv in inventories)
-            {
-                inv.IsActive = false;
-                inv.LastModifiedById = uid;
-                inv.LastUpdatedDt = now;
-            }
-        }
-
-        await db.SaveChangesAsync();
         await tx.CommitAsync();
 
-        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deactivated", $"ProductId={p.Id}; variants={variantIds.Count}", uid);
-        return Results.Ok(new { success = true, message = "Product has been deactivated successfully.", variantCount = variantIds.Count });
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deactivated", $"ProductId={p.Id}; variantsUpdated={updatedVariants}; inventoriesUpdated={updatedInventories}; notesUpdated={updatedNotes}", uid);
+        return Results.Ok(new { success = true, message = "Product has been deactivated successfully.", variantsUpdated = updatedVariants, inventoriesUpdated = updatedInventories, notesUpdated = updatedNotes });
     }
     catch (Exception ex)
     {
@@ -2199,22 +2560,28 @@ app.MapPost("/api/products/{id:int}/activate", async (AppDbContext db, HttpConte
     if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     try
     {
+        await using var tx = await db.Database.BeginTransactionAsync();
         var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (p == null) return Results.NotFound(new { message = "Product not found. The product may have been removed." });
         var uid = GetCurrentUserId(http);
         // optimistic concurrency: require client to supply current stamp
         if (!stamp.HasValue || stamp.Value != p.Stamp)
         {
+            await tx.RollbackAsync();
             await LoggerHelper.LogEventAsync(db, EventType.Warning, "Product activate conflict - stamp mismatch", $"ProductId={id}", uid);
             return Results.Json(new { success = false, message = $"Your changes to product {id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
         }
-        p.IsActive = true;
-        p.Stamp = p.Stamp + 1;
-        p.LastModifiedById = uid;
-        p.LastUpdatedDt = DateTime.UtcNow;
-        await db.SaveChangesAsync();
-        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product activated", $"ProductId={p.Id}", uid);
-        return Results.Ok(new { success = true, message = "Product has been activated successfully." });
+
+        var now = DateTime.Now;
+        // Use atomic SQL updates to ensure stamp increments by exactly 1
+        var updatedProduct = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+        var updatedVariants = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_variant SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+        var updatedInventories = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_inventory SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_variant_id IN (SELECT product_variant_id FROM dbo.product_variant WHERE product_id = {id} AND is_deleted = 0) AND is_deleted = 0;");
+        var updatedNotes = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.note SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+
+        await tx.CommitAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product activated", $"ProductId={p.Id}; variantsUpdated={updatedVariants}; inventoriesUpdated={updatedInventories}; notesUpdated={updatedNotes}", uid);
+        return Results.Ok(new { success = true, message = "Product has been activated successfully.", variantsUpdated = updatedVariants, inventoriesUpdated = updatedInventories, notesUpdated = updatedNotes });
     }
     catch (Exception ex)
     {
@@ -2233,44 +2600,18 @@ app.MapPost("/api/products/{id:int}/delete", async (AppDbContext db, HttpContext
         var p = await db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (p == null) return Results.NotFound(new { message = "Product not found. The product may have been removed." });
         var uid = GetCurrentUserId(http);
+        var now = DateTime.Now;
 
-        // Deactivate and mark as deleted the product itself
-        p.IsActive = false;
-        p.IsDeleted = true;
-        p.LastModifiedById = uid;
-        p.LastUpdatedDt = DateTime.UtcNow;
+        // Perform atomic SQL updates to mark product, variants, inventories and notes deleted/inactive and increment stamps by 1
+        var updatedProduct = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+        var updatedVariants = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_variant SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+        var updatedInventories = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_inventory SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_variant_id IN (SELECT product_variant_id FROM dbo.product_variant WHERE product_id = {id} AND is_deleted = 0) AND is_deleted = 0;");
+        var updatedNotes = await db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.note SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
 
-        // Find variants for this product and mark them deleted/deactivated
-        var variants = await db.ProductVariants.Where(v => v.ProductId == id && !v.IsDeleted).ToListAsync();
-        var now = DateTime.UtcNow;
-        var variantIds = new List<int>();
-        foreach (var v in variants)
-        {
-            v.IsActive = false;
-            v.IsDeleted = true;
-            v.LastModifiedById = uid;
-            v.LastUpdatedDt = now;
-            variantIds.Add(v.Id);
-        }
-
-        // Find related inventory rows and mark them deleted/deactivated
-        if (variantIds.Count > 0)
-        {
-            var inventories = await db.ProductInventories.Where(i => variantIds.Contains(i.ProductVariantId) && !i.IsDeleted).ToListAsync();
-            foreach (var inv in inventories)
-            {
-                inv.IsActive = false;
-                inv.IsDeleted = true;
-                inv.LastModifiedById = uid;
-                inv.LastUpdatedDt = now;
-            }
-        }
-
-        await db.SaveChangesAsync();
         await tx.CommitAsync();
 
-        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deleted", $"ProductId={p.Id}; variants={variantIds.Count}", uid);
-        return Results.Ok(new { success = true, message = "Product has been deleted successfully.", variantCount = variantIds.Count });
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Product deleted", $"ProductId={p.Id}; variantsUpdated={updatedVariants}; inventoriesUpdated={updatedInventories}; notesUpdated={updatedNotes}", uid);
+        return Results.Ok(new { success = true, message = "Product has been deleted successfully.", variantsUpdated = updatedVariants, inventoriesUpdated = updatedInventories, notesUpdated = updatedNotes });
     }
     catch (Exception ex)
     {
@@ -2290,7 +2631,7 @@ app.MapGet("/notes", (HttpContext context) =>
 }).RequireAuthorization();
 
 // API: list notes (paged, filters)
-app.MapGet("/api/notes", async (AppDbContext db, int? contractId, int? productId, int page, int pageSize) =>
+app.MapGet("/api/notes", async (AppDbContext db, int? contractId, int? productId, int page, int pageSize, string? sortBy, string? sortDir) =>
 {
     try
     {
@@ -2300,29 +2641,85 @@ app.MapGet("/api/notes", async (AppDbContext db, int? contractId, int? productId
         var q = db.Notes.AsNoTracking().Where(n => !n.IsDeleted);
         if (contractId.HasValue && contractId.Value > 0) q = q.Where(n => n.ContractId == contractId.Value);
         if (productId.HasValue && productId.Value > 0) q = q.Where(n => n.ProductId == productId.Value);
+        // Apply server-side sort (if requested) before paging
+        var sortSpec = string.IsNullOrWhiteSpace(sortBy) ? null : new OnlineContract.Helpers.SortSpec(sortBy!.Trim(), string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase));
+        var sortMap = new Dictionary<string, System.Linq.Expressions.Expression<Func<OnlineContract.Models.Note, object?>>> {
+            { "id", n => n.Id },
+            { "contractId", n => n.ContractId },
+            { "productId", n => n.ProductId },
+            { "subject", n => n.Subject },
+            { "inputDt", n => n.InputDt },
+            { "inputUserId", n => n.InputUserId },
+            { "status", n => n.IsActive }
+        };
 
         var totalCount = await q.CountAsync();
 
-        var rows = await q.OrderByDescending(n => n.InputDt)
+        var ordered = sortSpec == null
+            ? q.OrderByDescending(n => n.InputDt).ThenBy(n => n.Id)
+            : q.ApplySort(sortSpec, sortMap, n => n.Id);
+
+        var rows = await ordered
                           .Skip(Math.Max(0, (pageIndex - 1) * size))
                           .Take(size)
                           .Select(n => new {
                               id = n.Id,
                               contractId = n.ContractId,
                               productId = n.ProductId,
+                              isActive = n.IsActive,
                               subject = n.Subject ?? "",
                               inputDt = n.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
                               inputUserId = n.InputUserId,
+                              inputUserCode = (from u in db.AxUsers.AsNoTracking() where u.Id == n.InputUserId select u.Code).FirstOrDefault(),
                               status = n.IsActive ? "Active" : "Inactive"
                           })
                           .ToListAsync();
 
-        return Results.Json(new { items = rows, totalCount, totalPages = (int)Math.Ceiling(totalCount / (double)size) });
+        return Results.Json(new { items = rows, totalCount, totalPages = (int)Math.Ceiling(totalCount / (double)size), sortBy = sortBy ?? "", sortDir = sortDir ?? "" });
     }
     catch (Exception ex)
     {
         await LoggerHelper.LogEventAsync(db, EventType.Error, "Notes fetch failed", ex.ToString(), 2);
         return Results.Json(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
+    }
+}).RequireAuthorization();
+
+// API: get single note by id
+app.MapGet("/api/notes/{id:int}", async (AppDbContext db, int id) =>
+{
+    if (id <= 0) return Results.NotFound(new { message = "Note not found. Please verify the note ID and try again." });
+    try
+    {
+        var n = await db.Notes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (n == null) return Results.NotFound(new { message = "Note not found. The note may have been removed." });
+
+        // resolve related user codes for display
+        var inputUserCode = await db.AxUsers.Where(u => u.Id == n.InputUserId).Select(u => u.Code).FirstOrDefaultAsync();
+        var lastModifiedByCode = await db.AxUsers.Where(u => u.Id == n.LastModifiedById).Select(u => u.Code).FirstOrDefaultAsync();
+
+        return Results.Json(new
+        {
+            id = n.Id,
+            subject = n.Subject ?? "",
+            comment = n.Comment ?? "",
+            contractId = n.ContractId,
+            productId = n.ProductId,
+            isActive = n.IsActive,
+            isMain = n.IsMain,
+            inputDt = n.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
+            inputUserId = n.InputUserId,
+            inputUserCode = inputUserCode ?? "",
+            lastModifiedById = n.LastModifiedById,
+            lastModifiedByCode = lastModifiedByCode ?? "",
+            lastUpdatedDt = n.LastUpdatedDt.HasValue ? n.LastUpdatedDt.Value.ToString("yyyy-MM-dd HH:mm:ss") : "",
+            stamp = n.Stamp,
+            isDeleted = n.IsDeleted
+        });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Note fetch failed", ex.ToString(), 2);
+        return Results.StatusCode(500);
     }
 }).RequireAuthorization();
 
@@ -2332,18 +2729,51 @@ app.MapPost("/api/notes", async (AppDbContext db, NoteCreateSimpleDto dto, HttpC
     try
     {
         var uid = GetCurrentUserId(http);
+        // Validate required fields
+        var subj = (dto.Subject ?? "").Trim();
+        var comm = (dto.Comment ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(subj) || string.IsNullOrWhiteSpace(comm))
+        {
+            return Results.BadRequest(new { success = false, message = "Subject and Comment are required. Please provide both before saving the note." });
+        }
+        // require at least one of contractId or productId
+        var hasContract = dto.ContractId.HasValue && dto.ContractId.Value > 0;
+        var hasProduct = dto.ProductId.HasValue && dto.ProductId.Value > 0;
+        if (!hasContract && !hasProduct)
+        {
+            return Results.BadRequest(new { success = false, message = "Please provide either a Contract Id or a Product Id. Enter a numeric id from the Contracts or Products list." });
+        }
+        // disallow specifying both at once
+        if (hasContract && hasProduct)
+        {
+            return Results.BadRequest(new { success = false, message = "Please provide only one target: either a Contract Id or a Product Id, not both." });
+        }
+        // validate referenced contract/product existence and active status
+        if (hasContract)
+        {
+            var contractIdCheck = dto.ContractId!.Value;
+            var existsC = await db.Contracts.AsNoTracking().AnyAsync(c => c.Id == contractIdCheck && c.IsActive && !c.IsDeleted);
+            if (!existsC) return Results.BadRequest(new { success = false, message = $"Please provide a valid Contract Id. Contract {contractIdCheck} was not found or is no longer active." });
+        }
+        if (hasProduct)
+        {
+            var productIdCheck = dto.ProductId!.Value;
+            var existsP = await db.Products.AsNoTracking().AnyAsync(p => p.Id == productIdCheck && p.IsActive && !p.IsDeleted);
+            if (!existsP) return Results.BadRequest(new { success = false, message = $"Please provide a valid Product Id. Product {productIdCheck} was not found or is no longer active." });
+        }
+
         var note = new OnlineContract.Models.Note
         {
             ContractId = (dto.ContractId.HasValue && dto.ContractId.Value > 0) ? dto.ContractId : null,
             ProductId = (dto.ProductId.HasValue && dto.ProductId.Value > 0) ? dto.ProductId : null,
-            Comment = (dto.Comment ?? dto.Subject) ?? string.Empty,
-            Subject = dto.Subject ?? dto.Comment ?? string.Empty,
+            Comment = comm,
+            Subject = subj,
             IsActive = dto.IsActive ?? true,
             IsDeleted = false,
-            InputDt = DateTime.UtcNow,
+            InputDt = DateTime.Now,
             InputUserId = uid,
             LastModifiedById = uid,
-            LastUpdatedDt = DateTime.UtcNow,
+            LastUpdatedDt = DateTime.Now,
             Stamp = 0
         };
         db.Notes.Add(note);
@@ -2358,6 +2788,121 @@ app.MapPost("/api/notes", async (AppDbContext db, NoteCreateSimpleDto dto, HttpC
         return Results.Json(new { success = false });
     }
 }).RequireAuthorization();
+
+// API: update single note (simple edit)
+app.MapPut("/api/notes/{id:int}", async (AppDbContext db, int id, NoteCreateSimpleDto dto, HttpContext http) =>
+{
+    if (id <= 0) return Results.NotFound(new { message = "Note not found. Please verify the note ID and try again." });
+    try
+    {
+        var n = await db.Notes.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (n == null) return Results.NotFound(new { message = "Note not found. The note may have been removed." });
+
+        // If note is linked to a product that is inactive/deleted, disallow modifications
+        if (n.ProductId.HasValue)
+        {
+            var parent = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == n.ProductId.Value);
+            if (parent == null || !parent.IsActive || parent.IsDeleted)
+            {
+                return Results.BadRequest(new { success = false, message = "Note for this product cannot be changed because this product is deactivated or deleted." });
+            }
+        }
+
+        var uid = GetCurrentUserId(http);
+
+        // Prepare values (preserve existing when client omitted)
+        var newSubject = dto.Subject != null ? dto.Subject.Trim() : n.Subject ?? string.Empty;
+        var newComment = dto.Comment != null ? dto.Comment.Trim() : n.Comment ?? string.Empty;
+        int? newContractId = dto.ContractId.HasValue ? ((dto.ContractId.Value > 0) ? dto.ContractId : null) : n.ContractId;
+        int? newProductId = dto.ProductId.HasValue ? ((dto.ProductId.Value > 0) ? dto.ProductId : null) : n.ProductId;
+
+        var now = DateTime.Now; // use server local time for last_updated_dt
+
+        // Use direct SQL update to avoid EF OUTPUT clause when table has triggers
+        // Do not set `stamp` here — let any DB-side trigger or logic increment it by exactly 1.
+        var updSql = $@"UPDATE dbo.note SET comment = @pComment, subject = @pSubject, contract_id = @pContract, product_id = @pProduct, is_main = @pMain, is_active = @pIsActive, last_modified_by_id = @pUid, last_updated_dt = @pNow WHERE note_id = @pNid;";
+        var pComment = new Microsoft.Data.SqlClient.SqlParameter("@pComment", System.Data.SqlDbType.NVarChar, -1) { Value = (object)(newComment ?? string.Empty) };
+        var pSubject = new Microsoft.Data.SqlClient.SqlParameter("@pSubject", System.Data.SqlDbType.NVarChar, 250) { Value = (object)(newSubject ?? string.Empty) };
+        var pContract = new Microsoft.Data.SqlClient.SqlParameter("@pContract", System.Data.SqlDbType.Int) { Value = (object?)newContractId ?? DBNull.Value };
+        var pProduct = new Microsoft.Data.SqlClient.SqlParameter("@pProduct", System.Data.SqlDbType.Int) { Value = (object?)newProductId ?? DBNull.Value };
+        var pUid = new Microsoft.Data.SqlClient.SqlParameter("@pUid", System.Data.SqlDbType.Int) { Value = uid };
+        var pNow = new Microsoft.Data.SqlClient.SqlParameter("@pNow", System.Data.SqlDbType.DateTime2) { Value = now };
+        var pIsActive = new Microsoft.Data.SqlClient.SqlParameter("@pIsActive", System.Data.SqlDbType.Bit) { Value = (object?)DBNull.Value };
+        // main flag parameter
+        var pMain = new Microsoft.Data.SqlClient.SqlParameter("@pMain", System.Data.SqlDbType.Int) { Value = DBNull.Value };
+        var pNid = new Microsoft.Data.SqlClient.SqlParameter("@pNid", System.Data.SqlDbType.Int) { Value = id };
+
+        // Validate referenced contract/product existence when client provided them
+        if (newContractId.HasValue)
+        {
+            var newContractIdCheck = newContractId.Value;
+            var existsC = await db.Contracts.AsNoTracking().AnyAsync(c => c.Id == newContractIdCheck && c.IsActive && !c.IsDeleted);
+            if (!existsC) return Results.BadRequest(new { success = false, message = $"Contract with id {newContractIdCheck} was not found or is not active. Please provide a valid, active Contract Id from the Contracts list." });
+        }
+        if (newProductId.HasValue)
+        {
+            var existsP = await db.Products.AsNoTracking().AnyAsync(p => p.Id == newProductId.Value && p.IsActive && !p.IsDeleted);
+            if (!existsP) return Results.BadRequest(new { success = false, message = $"Product with id {newProductId.Value} was not found or is not active. Please provide a valid, active Product Id from the Products list." });
+        }
+
+        // Determine active flag: preserve existing when client omitted
+        bool newIsActive;
+        if (dto.IsActive.HasValue)
+        {
+            newIsActive = dto.IsActive.Value;
+        }
+        else
+        {
+            newIsActive = n.IsActive;
+        }
+        pIsActive.Value = newIsActive;
+
+        // Determine main flag: if client provided IsMain, validate it's only allowed for product-linked notes
+        int mainVal;
+        if (dto.IsMain.HasValue)
+        {
+            mainVal = dto.IsMain.Value ? 1 : 0;
+            var targetHasProduct = newProductId.HasValue || (n.ProductId.HasValue && n.ProductId.Value > 0);
+            if (dto.IsMain.Value && !targetHasProduct)
+            {
+                return Results.BadRequest(new { success = false, message = "A note can be marked as 'Main' only when it is linked to a product. Please set Product Id first." });
+            }
+            pMain.Value = mainVal;
+        }
+        else
+        {
+            // preserve existing value
+            mainVal = n.IsMain ? 1 : 0;
+            pMain.Value = mainVal;
+        }
+
+        var affected = await db.Database.ExecuteSqlRawAsync(updSql, pComment, pSubject, pContract, pProduct, pMain, pIsActive, pUid, pNow, pNid);
+        if (affected == 0)
+        {
+            return Results.Json(new { success = false, message = "The note could not be updated (it may have been changed by another user)." });
+        }
+        // Read back the actual stamp and last_updated_dt from the database (ensure we return authoritative values)
+        var refreshed = await db.Notes.AsNoTracking().Where(x => x.Id == id).Select(x => new { x.Stamp, x.LastUpdatedDt }).FirstOrDefaultAsync();
+        var lastModifiedByCode = await db.AxUsers.Where(u => u.Id == uid).Select(u => u.Code).FirstOrDefaultAsync();
+
+        return Results.Json(new
+        {
+            success = true,
+            id = id,
+            stamp = refreshed?.Stamp ?? 0,
+            lastUpdatedDt = (refreshed?.LastUpdatedDt.HasValue == true)
+                ? DateTime.SpecifyKind(refreshed.LastUpdatedDt.Value, DateTimeKind.Utc).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                : now.ToString("yyyy-MM-dd HH:mm:ss"),
+            lastModifiedByCode = lastModifiedByCode ?? ""
+        });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Note update failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.Json(new { success = false, message = "Failed to save the note. Please try again later." });
+    }
+}).RequireAuthorization();
+
 app.MapGet("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext http, int id, string? q, int page, int pageSize) =>
 {
     if (!CanManageProducts(http)) return Results.StatusCode(StatusCodes.Status403Forbidden);
@@ -2645,8 +3190,7 @@ app.MapGet("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
             InputUserCode = r.inputUserCode,
             LastModifiedById = null,
             LastModifiedByCode = r.lastModifiedByCode,
-            LastUpdatedDt = r.LastUpdatedDt?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
-            ,
+            LastUpdatedDt = r.LastUpdatedDt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
             Stamp = r.Stamp
         });
 

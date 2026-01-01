@@ -80,7 +80,7 @@ namespace OnlineContract.Services
                 // Token/link scenario — make the email copy more descriptive and friendly
                     var link = token != null ? $"{_appOriginFull.TrimEnd('/')}/reset?token={Uri.EscapeDataString(token)}" : "";
                 builder.TextBody =
-$"You (or someone using this email address) recently requested to reset the password for your Online Contracts account.\n\n" +
+$"You (or someone using this email address) recently requested to reset the password for your KidzStyle account.\n\n" +
 "To choose a new password, open the link below within 15 minutes:\n\n" +
 $"{link}\n\n" +
                     $"If the link does not open, copy and paste the full URL into your browser. If you did not request a password reset, you can safely ignore this message — no changes will be made to your account.\n\n" +
@@ -96,7 +96,7 @@ $"{link}\n\n" +
                     $"<p style=\"word-break:break-all;font-size:13px;color:#0b1220\">{link}</p>" +
                     $"<hr style=\"border:none;border-top:1px solid #eee;margin:18px 0\">" +
                     $"<p style=\"font-size:12px;color:#6b7280;margin:0\">If you did not request a password reset, please ignore this email. No changes will be made to your account.</p>" +
-                        $"<p style=\"font-size:12px;color:#6b7280;margin:8px 0 0\"><em>This is an automated email — please do not reply.</em></p>" +
+                        $"<p style=\"font-size:12px;color:#6b7280;margin:8px 0 0\"><em>This is an automated email - please do not reply.</em></p>" +
                         $"</div>";
             }
 

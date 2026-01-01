@@ -26,11 +26,11 @@ namespace OnlineContract.Data
                 .HasNoKey()
         .ToFunction("fn_event_logs");
 
-            // Map Store entity to dbo.stores with snake_case columns
+            // Map Store entity to dbo.store with snake_case columns
             modelBuilder.Entity<Store>(entity =>
             {
-                entity.ToTable("stores", "dbo", tb => tb.HasTrigger("TR_dbo_stores"));
-                entity.HasKey(e => e.StoreId).HasName("PK_stores");
+                entity.ToTable("store", "dbo", tb => tb.HasTrigger("TR_dbo_store"));
+                entity.HasKey(e => e.StoreId).HasName("PK_store");
                 entity.Property(e => e.StoreId).HasColumnName("store_id");
                 entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100);
                 entity.Property(e => e.Address).HasColumnName("address").HasMaxLength(255);

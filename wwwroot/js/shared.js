@@ -1841,7 +1841,7 @@ function ensureAdminChangeStoreModal() {
       <h3 class="font-bold text-lg mb-2 flex items-center"><span class="material-icons mr-2 text-emerald-600">edit</span>Change Store Details</h3>
       <p class="text-sm text-gray-600 mb-4">Update store name, address, phone, email, and working hours.</p>
       <form id="adminStoreForm" class="space-y-3">
-        <select id="storeSelect" class="select select-bordered w-full">
+        <select id="storeSelect" class="hidden">
           <option value="">Select a store...</option>
         </select>
         <input type="text" class="input input-bordered w-full" id="storeName" placeholder="Store name" />

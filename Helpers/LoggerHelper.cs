@@ -1,8 +1,5 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using OnlineContract.Data;
-using OnlineContract.Models;
 using System.Net;
 
 namespace OnlineContract.Helpers
@@ -22,18 +19,17 @@ namespace OnlineContract.Helpers
             var safeDescription = WebUtility.HtmlEncode(description ?? "");
             var safeStack = stackTrace is null ? null : WebUtility.HtmlEncode(stackTrace);
 
-            var log = new EventLog
+            try
             {
-                EventTypeId = (int)type,
-                InputDt = DateTime.Now,
-                Description = safeDescription,
-                StackTrace = safeStack,
-                UserId = validUser ? userId : 2,
-                Stamp = 0
-            };
-
-            db.EventLogs.Add(log);
-            await db.SaveChangesAsync();
+                // Use direct SQL insert to avoid EF OUTPUT clause issues on tables with triggers.
+                await db.Database.ExecuteSqlInterpolatedAsync($@"
+                    INSERT INTO dbo.event_log (event_type, input_dt, description, stack_trace, user_id, stamp)
+                    VALUES ({(int)type}, {DateTime.Now}, {safeDescription}, {safeStack}, {(validUser ? userId : 2)}, 0);");
+            }
+            catch
+            {
+                // Logging should never break the main request flow; swallow failures.
+            }
         }
     }
 }
