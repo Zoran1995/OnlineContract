@@ -1016,11 +1016,14 @@ function ensureNotificationUI() {
             const ddUsersTeams = document.getElementById('ddUsersTeams');
             const ddEventLog = document.getElementById('ddEventLog');
             const ddContracts = document.getElementById('ddContracts');
+            const ddNotes = document.getElementById('ddNotes');
             const ddProducts = document.getElementById('ddProducts');
             if (ddChangeStore) ddChangeStore.classList.toggle('hidden', !isPrivileged);
             if (ddUsersTeams) ddUsersTeams.classList.toggle('hidden', !isPrivileged);
             if (ddEventLog) ddEventLog.classList.toggle('hidden', !isPrivileged);
-            if (ddContracts) ddContracts.classList.toggle('hidden', !isLoggedIn);
+            // Contracts and Notes should be hidden for ordinary Customers (roleId = 5)
+            if (ddContracts) ddContracts.classList.toggle('hidden', (!isLoggedIn) || isCustomer);
+            if (ddNotes) ddNotes.classList.toggle('hidden', (!isLoggedIn) || isCustomer);
             if (ddProducts) ddProducts.classList.toggle('hidden', !canManageProducts);
           } catch { }
         }

@@ -1,4 +1,3 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -26,16 +25,16 @@ namespace OnlineContract.Models
         [MaxLength(150)]
         public string? Email { get; set; }
 
-        [Column("created_at")]
-        public DateTime CreatedAt { get; set; }
+        [Column("created_dt")]
+        public DateTime CreatedDt { get; set; }
 
-        [Column("expires_at")]
-        public DateTime ExpiresAt { get; set; }
+        [Column("expiry_dt")]
+        public DateTime ExpiryDt { get; set; }
 
-        [Column("used")]
-        public bool Used { get; set; }
+        [Column("is_used")]
+        public bool IsUsed { get; set; }
 
-        [Column("used_at")]
-        public DateTime? UsedAt { get; set; }
+        [Column("used_dt")]
+        public DateTime? UsedDt { get; set; }
     }
 }

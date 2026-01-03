@@ -144,6 +144,29 @@ var app = builder.Build();
 // Rewrite: /route -> /route.html
 // -------------------------
 
+// If an already-authenticated user attempts to open the login/signin pages
+// directly (typing the URL or opening a bookmarked link), redirect them
+// to `/home`. We do a lightweight cookie presence check here to avoid
+// forcing full authentication middleware before rewrites.
+app.Use(async (ctx, next) =>
+{
+    try
+    {
+        var p = ctx.Request.Path.Value ?? string.Empty;
+        if (p.StartsWith("/login", StringComparison.OrdinalIgnoreCase) || p.StartsWith("/signin", StringComparison.OrdinalIgnoreCase))
+        {
+            // Consider the user authenticated when the auth cookie exists.
+            if (ctx.Request.Cookies != null && ctx.Request.Cookies.ContainsKey(".OnlineContract.Auth"))
+            {
+                ctx.Response.Redirect("/home");
+                return;
+            }
+        }
+    }
+    catch { }
+    await next();
+});
+
 var rewriteOptions = new RewriteOptions()
     .AddRewrite("(?i)^login$", "login.html", skipRemainingRules: true)
     .AddRewrite("(?i)^home$", "home.html", skipRemainingRules: true)
@@ -153,8 +176,7 @@ var rewriteOptions = new RewriteOptions()
     .AddRewrite("(?i)^collections$", "collections.html", skipRemainingRules: true)
     .AddRewrite("(?i)^changestore$", "changestore.html", skipRemainingRules: true)
     .AddRewrite("(?i)^users$", "users.html", skipRemainingRules: true)
-    .AddRewrite("(?i)^contracts$", "contracts.html", true)
-    // Map /reset -> reset-password.html so email links like /reset?token=... load the SPA reset page
+    .AddRewrite("(?i)^contracts$", "contracts.html", skipRemainingRules: true)
     .AddRewrite("(?i)^reset$", "reset-password.html", skipRemainingRules: true);
 
 app.UseRewriter(rewriteOptions);
@@ -354,26 +376,25 @@ static bool CanManageProducts(HttpContext http)
     }
     catch { return false; }
 }
-
 app.MapGet("/products", (HttpContext context) =>
 {
-    if (!CanManageProducts(context)) return Results.Redirect("/home");
-    var filePath = Path.Combine(app.Environment.WebRootPath, "products.html");
-    return Results.File(filePath, "text/html");
+        if (!CanManageProducts(context)) return Results.Redirect("/home");
+        var filePath = Path.Combine(app.Environment.WebRootPath, "products.html");
+        return Results.File(filePath, "text/html");
 }).RequireAuthorization();
 
 app.MapGet("/products/new", (HttpContext context) =>
 {
-    if (!CanManageProducts(context)) return Results.Redirect("/home");
-    var filePath = Path.Combine(app.Environment.WebRootPath, "product-details.html");
-    return Results.File(filePath, "text/html");
+        if (!CanManageProducts(context)) return Results.Redirect("/home");
+        var filePath = Path.Combine(app.Environment.WebRootPath, "product-details.html");
+        return Results.File(filePath, "text/html");
 }).RequireAuthorization();
 
 app.MapGet("/products/{id:int}", (HttpContext context, int id) =>
 {
-    if (!CanManageProducts(context)) return Results.Redirect("/home");
-    var filePath = Path.Combine(app.Environment.WebRootPath, "product-details.html");
-    return Results.File(filePath, "text/html");
+        if (!CanManageProducts(context)) return Results.Redirect("/home");
+        var filePath = Path.Combine(app.Environment.WebRootPath, "product-details.html");
+        return Results.File(filePath, "text/html");
 }).RequireAuthorization();
 
 // Fallback
@@ -476,7 +497,7 @@ app.MapGet("/api/auth/reset-token/{token}", async (AppDbContext db, string token
     try
     {
         var now = DateTime.Now;
-        var pr = await db.PasswordResetTokens.FirstOrDefaultAsync(p => p.Token == token && !p.Used && p.ExpiresAt > now);
+        var pr = await db.PasswordResetTokens.FirstOrDefaultAsync(p => p.Token == token && !p.IsUsed && p.ExpiryDt > now);
         if (pr == null) return Results.Json(new { success = false, message = "This reset link is invalid or has expired. Please request a new password reset." });
         return Results.Json(new { success = true, code = pr.Code, email = pr.Email });
     }
@@ -502,7 +523,7 @@ app.MapPost("/api/auth/reset-password", async (AppDbContext db, HttpContext http
             return Results.Json(new { success = false, message = "Password must be at least 8 characters, include one uppercase letter and one number." });
 
         var now = DateTime.Now;
-        var pr = await db.PasswordResetTokens.FirstOrDefaultAsync(p => p.Token == token && !p.Used && p.ExpiresAt > now);
+        var pr = await db.PasswordResetTokens.FirstOrDefaultAsync(p => p.Token == token && !p.IsUsed && p.ExpiryDt > now);
         if (pr == null) return Results.Json(new { success = false, message = "This reset link is invalid or has expired." });
 
         if (!pr.UserId.HasValue) return Results.Json(new { success = false, message = "No user associated with this token." });
@@ -515,8 +536,8 @@ app.MapPost("/api/auth/reset-password", async (AppDbContext db, HttpContext http
         user.LastLoginDt = DateTime.Now;
         user.Stamp = user.Stamp + 1;
 
-        pr.Used = true;
-        pr.UsedAt = DateTime.Now;
+        pr.IsUsed = true;
+        pr.UsedDt = DateTime.Now;
 
         await db.SaveChangesAsync();
 
@@ -1276,7 +1297,7 @@ app.MapGet("/api/event-log", async (AppDbContext db, int userId, int type, DateT
     }
 });
 
-app.MapGet("/api/event-log/export", async (AppDbContext db, int userId, string? type, string? from, string? to) =>
+app.MapGet("/api/event-log/export", async (AppDbContext db, int userId, int type, DateTime? from, DateTime? to) =>
 {
     try
     {
@@ -1295,41 +1316,53 @@ app.MapGet("/api/event-log/export", async (AppDbContext db, int userId, string? 
                 e.StackTrace
             };
 
-        if (!string.IsNullOrWhiteSpace(type))
+        if (type == 0)
         {
-            // UI sends numeric values (1,2,3) for the Type select; accept both numeric ids and textual names.
-            if (int.TryParse(type.Trim(), out var typeId))
-            {
-                // Map UI values (1,2,3) to DB EventTypeId used elsewhere: 1->2, 2->3, 3->4
-                var mappedType = typeId == 1 ? 2 : typeId == 2 ? 3 : typeId == 3 ? 4 : typeId;
-                q = q.Where(x => x.EventTypeId == mappedType);
-            }
-            else
-            {
-                var t = type.Trim().ToLower();
-                if (t == "information" || t == "info") q = q.Where(x => x.TypeName.ToLower() == "information");
-                else if (t == "warning") q = q.Where(x => x.TypeName.ToLower() == "warning");
-                else if (t == "error") q = q.Where(x => x.TypeName.ToLower() == "error");
-            }
+            // UI 'All' should include Information(2), Warning(3) and Error(4)
+            q = q.Where(x => x.EventTypeId == 2 || x.EventTypeId == 3 || x.EventTypeId == 4);
+        }
+        else if (type > 0)
+        {
+            var mappedType = type == 1 ? 2 : type == 2 ? 3 : type == 3 ? 4 : type;
+            q = q.Where(x => x.EventTypeId == mappedType);
         }
 
-        if (!string.IsNullOrWhiteSpace(from) && DateTime.TryParse(from, out var fd))
-        {
-            q = q.Where(x => x.InputDt >= fd);
-        }
-        if (!string.IsNullOrWhiteSpace(to) && DateTime.TryParse(to, out var td))
-        {
-            // Respect provided time component as well (do not expand to end-of-day)
-            q = q.Where(x => x.InputDt <= td);
-        }
+        if (from.HasValue) q = q.Where(x => x.InputDt >= from.Value);
+        if (to.HasValue) q = q.Where(x => x.InputDt <= to.Value);
 
         var logs = await q.OrderByDescending(x => x.InputDt).ToListAsync();
 
-        var csv = "Id,Type,Date,Description,User,StackTrace\n" +
-                  string.Join("\n", logs.Select(e =>
-                      $"{e.EventLogId},{e.TypeName},{e.InputDt:yyyy-MM-dd HH:mm:ss},{e.Description?.Replace(',', ';')},{e.UserFullName?.Replace(',', ';')},{(e.StackTrace ?? string.Empty).Replace(',', ';')}"));
+        // Build CSV with robust escaping to preserve newlines and commas inside fields (especially stack traces)
+        string EscapeCsv(object? value)
+        {
+            if (value == null) return string.Empty;
+            var s = value.ToString() ?? string.Empty;
+            // Normalize CRLF to LF to avoid platform-specific issues
+            s = s.Replace("\r\n", "\n").Replace('\r', '\n');
+            // Escape double-quotes
+            s = s.Replace("\"", "\"\"");
+            // If field contains comma, quote or newline, wrap in quotes
+            if (s.IndexOfAny(new char[] { ',', '"', '\n' }) >= 0)
+            {
+                s = '"' + s + '"';
+            }
+            return s;
+        }
 
-        var bytes = System.Text.Encoding.UTF8.GetBytes(csv);
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Id,Type,Date,Description,User,StackTrace");
+        foreach (var e in logs)
+        {
+            sb.Append(EscapeCsv(e.EventLogId)); sb.Append(',');
+            sb.Append(EscapeCsv(e.TypeName)); sb.Append(',');
+            sb.Append(EscapeCsv(e.InputDt.ToString("yyyy-MM-dd HH:mm:ss"))); sb.Append(',');
+            sb.Append(EscapeCsv(e.Description)); sb.Append(',');
+            sb.Append(EscapeCsv(e.UserFullName)); sb.Append(',');
+            sb.Append(EscapeCsv(e.StackTrace));
+            sb.AppendLine();
+        }
+
+        var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
         var ts = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
         var fname = $"EventLog_{ts}.csv";
         return Results.File(bytes, "text/csv; charset=utf-8", fname);
@@ -1349,7 +1382,7 @@ app.MapGet("/api/stores", async (AppDbContext db, int? userId, string? sortBy, s
         var sortSpec = string.IsNullOrWhiteSpace(sortBy) ? null : new SortSpec(sortBy, (sortDir ?? "").ToLowerInvariant() == "desc");
 
         var baseQuery = from s in db.Stores.AsNoTracking()
-                        join u in db.AxUsers.AsNoTracking() on s.Last_Modified_User_Id equals u.Id into uu
+                        join u in db.AxUsers.AsNoTracking() on s.LastModifiedUserId equals u.Id into uu
                         from u in uu.DefaultIfEmpty()
                         select new
                         {
@@ -1363,8 +1396,8 @@ app.MapGet("/api/stores", async (AppDbContext db, int? userId, string? sortBy, s
             ["name"] = s => s.Name ?? string.Empty,
             ["address"] = s => s.Address ?? string.Empty,
             ["email"] = s => s.Email ?? string.Empty,
-            ["phone"] = s => s.Phone_Number ?? string.Empty,
-            ["lastUpdatedBy"] = s => s.Last_Modified_User_Id
+            ["phone"] = s => s.PhoneNumber ?? string.Empty,
+            ["lastUpdatedBy"] = s => s.LastModifiedUserId
         };
 
         // Project to an anonymous type after applying ordering to the Store entity
@@ -1375,16 +1408,16 @@ app.MapGet("/api/stores", async (AppDbContext db, int? userId, string? sortBy, s
             storeQuery = storeQuery.ApplySort(sortSpec, map, s => s.StoreId);
 
         var items = await (from s in storeQuery
-                           join u in db.AxUsers.AsNoTracking() on s.Last_Modified_User_Id equals u.Id into uu
+                           join u in db.AxUsers.AsNoTracking() on s.LastModifiedUserId equals u.Id into uu
                            from u in uu.DefaultIfEmpty()
                            select new
                            {
                                id = s.StoreId,
                                name = s.Name,
                                address = s.Address,
-                               phone = s.Phone_Number,
+                               phone = s.PhoneNumber,
                                email = s.Email,
-                               hours = s.Working_Hours,
+                               hours = s.WorkingHours,
                                lastUpdatedBy = u != null ? u.Code : null
                            }).ToListAsync();
 
@@ -1406,17 +1439,17 @@ app.MapPut("/api/stores/{id}", async (AppDbContext db, int id, StoreUpdateDto dt
 
         var name = dto.Name?.Trim();
         var address = dto.Address?.Trim();
-        var phone = dto.Phone_Number?.Trim();
+        var phone = dto.PhoneNumber?.Trim();
         var email = dto.Email?.Trim();
-        var hours = dto.Working_Hours?.Trim();
+        var hours = dto.WorkingHours?.Trim();
 
         if (name is not null) store.Name = name;
         if (address is not null) store.Address = address;
-        if (phone is not null) store.Phone_Number = phone;
+        if (phone is not null) store.PhoneNumber = phone;
         if (email is not null) store.Email = email;
-        if (hours is not null) store.Working_Hours = hours;
+        if (hours is not null) store.WorkingHours = hours;
 
-        store.Last_Modified_User_Id = userId ?? 2;
+        store.LastModifiedUserId = userId ?? 2;
 
         await db.SaveChangesAsync();
         await LoggerHelper.LogEventAsync(db, EventType.Information, "Store details updated", $"StoreId={store.StoreId}, Name={store.Name}", userId ?? 2);

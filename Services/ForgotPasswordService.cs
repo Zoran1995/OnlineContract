@@ -82,9 +82,9 @@ namespace OnlineContract.Services
                 UserId = user.Id,
                 Code = user.Code,
                 Email = user.Email,
-                CreatedAt = now,
-                ExpiresAt = now.AddMinutes(expiryMinutes),
-                Used = false
+                CreatedDt = now,
+                ExpiryDt = now.AddMinutes(expiryMinutes),
+                IsUsed = false
             };
 
             try

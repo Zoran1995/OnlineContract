@@ -5,11 +5,11 @@ namespace OnlineContract.Models
         public int StoreId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
-        public string Phone_Number { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
         public string? Email { get; set; }
-        public string? Working_Hours { get; set; }
-        public DateTime Created_At { get; set; }
-        public DateTime Updated_At { get; set; }
-        public int Last_Modified_User_Id { get; set; }
+        public string? WorkingHours { get; set; }
+        public DateTime CreatedDt { get; set; }
+        public DateTime UpdatedDt { get; set; }
+        public int LastModifiedUserId { get; set; }
     }
 }

@@ -416,6 +416,15 @@
               showToast('error', msg);
             }
           } else {
+            // Client-side validation: mirror server password policy to provide immediate feedback
+            try {
+              const pw = payload.Password || '';
+              if (pw.length < 8 || !/[A-Z]/.test(pw) || !/\d/.test(pw)) {
+                showToast('error', 'Password must be at least 8 characters long and include upper and lower case letters and at least one number.');
+                return;
+              }
+            } catch (e) { /* ignore and continue to server validation */ }
+
             const res = await fetch(`/api/users?userId=${userId}`, {
               method: 'POST',
               credentials: 'include',
@@ -715,14 +724,14 @@
         headers: { 'Accept': 'application/json' }
       });
       if (res.ok) {
-        showToast('info', 'User deleted');
+        showToast('info', 'User has been deleted successfully.');
         selectedUserId = null;
         await loadUsers();
       } else {
-        showToast('error', 'Delete failed');
+        showToast('error', 'Failed to delete user. Please try again later.');
       }
     } catch {
-      showToast('error', 'Delete failed');
+      showToast('error', 'Failed to delete user. Please try again later.');
     }
 
     function proceedDelete() {
@@ -735,14 +744,14 @@
             headers: { 'Accept': 'application/json' }
           });
           if (res.ok) {
-            showToast('info', 'User deleted');
+            showToast('info', 'User has been deleted successfully.');
             selectedUserId = null;
             await loadUsers();
           } else {
-            showToast('error', 'Delete failed');
+            showToast('error', 'Failed to delete user. Please try again later.');
           }
         } catch {
-          showToast('error', 'Delete failed');
+          showToast('error', 'Failed to delete user. Please try again later.');
         }
       })();
     }

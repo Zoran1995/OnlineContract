@@ -27,6 +27,13 @@
     <Compile Remove="Tests\**\*.cs" />
     <Compile Remove="Tests_disabled\**\*.cs" />
     <Compile Remove="Tests*\**\*.cs" />
+    <!-- Exclude nested bin/obj from content copying -->
+    <Content Remove="Tests\bin\**" />
+    <Content Remove="Tests\obj\**" />
+    <Content Remove="tools\**\bin\**" />
+    <Content Remove="tools\**\obj\**" />
+    <None Remove="Tests\bin\**" />
+    <None Remove="Tests\obj\**" />
   </ItemGroup>
 
 </Project>
