@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <title>KidzStyle · Stores & Contact</title>
-  <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
   <link rel="icon" href="/resources/icons/map-store.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/css/home.css" />
+  <link href="/dist/output.css" rel="stylesheet">
 </head>
 <body class="bg-base-200 text-base-content">
 
@@ -82,21 +82,42 @@
   <!-- Notification UI injected by /js/shared.js -->
 
   <script>
-    // Navbar toggle based on login state
+    // Safe navbar auth updater: delegates to shared `updateNavbarAuth` when available,
+    // otherwise performs guarded DOM toggles. Runs after DOM is ready.
     function updateNavbarAuth() {
-      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-      document.getElementById('navSignIn').classList.toggle('hidden', isLoggedIn);
-      document.getElementById('navLogIn').classList.toggle('hidden', isLoggedIn);
-      document.getElementById('navLogOut').classList.toggle('hidden', !isLoggedIn);
+      try {
+        if (typeof window.updateNavbarAuth === 'function') {
+          try { window.updateNavbarAuth(); return; } catch { }
+        }
+        const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+        const signIn = document.getElementById('navSignIn');
+        const logIn = document.getElementById('navLogIn');
+        const logOut = document.getElementById('navLogOut');
+        if (signIn) signIn.classList.toggle('hidden', isLoggedIn);
+        if (logIn) logIn.classList.toggle('hidden', isLoggedIn);
+        if (logOut) logOut.classList.toggle('hidden', !isLoggedIn);
+      } catch (err) {
+        try { console.warn('updateNavbarAuth error', err); } catch {}
+      }
     }
-    updateNavbarAuth();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', updateNavbarAuth); else updateNavbarAuth();
 
-    document.getElementById('navLogOut')?.addEventListener('click', () => {
-      localStorage.removeItem('isLoggedIn');
-      localStorage.removeItem('userId');
-      updateNavbarAuth();
-      location.href = '/login';
-    });
+    (function () {
+      function bindLogout() {
+        try {
+          const btn = document.getElementById('navLogOut');
+          if (!btn || btn._oc_logout_bound) return;
+          btn._oc_logout_bound = true;
+          btn.addEventListener('click', () => {
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('userId');
+            updateNavbarAuth();
+            location.href = '/login';
+          });
+        } catch {}
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindLogout); else bindLogout();
+    })();
   </script>
   <script src="/js/shared.js"></script>
   <script>

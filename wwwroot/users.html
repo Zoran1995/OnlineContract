@@ -5,15 +5,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>KidzStyle · Users & Teams</title>
-
-  <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
-
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
   <link rel="icon" href="/resources/icons/user.svg" type="image/svg+xml" />
   <link href="/css/login.css" rel="stylesheet" />
   <link href="/css/eventlog.css" rel="stylesheet" />
-
+  <link href="/dist/output.css" rel="stylesheet">
   <style>
     .hidden { display: none !important; }
     main { max-width: 1200px; margin: 0 auto; }
@@ -105,7 +102,7 @@
             <th>Role</th>
             <th>Team</th>
             <th>Status</th>
-            <th style="width:1%"></th>
+            
           </tr>
         </thead>
         <tbody id="usersBody"></tbody>
@@ -176,11 +173,11 @@
           <input id="uPassword" class="input input-bordered" type="password" />
         </div>
         <div class="form-control">
-          <label class="label cursor-pointer">
-            <input id="uIsTempPassword" type="checkbox" class="checkbox mr-2" />
-            <span class="label-text">User must change password at next logon</span>
+          <label class="label cursor-pointer items-center gap-3">
+            <input id="uIsTempPassword" type="checkbox" class="checkbox checkbox-primary peer" style="accent-color:#60a5fa" />
+            <span class="label-text peer-checked:font-semibold peer-checked:text-primary">Require new password at next login</span>
           </label>
-          <label class="label"><span class="label-text-alt">When checked, the user will be required to set a new password on their next login.</span></label>
+          <label class="label"><span class="label-text-alt leading-snug">User will set a new password on next login. This helps keep the account secure.</span></label>
         </div>
       </div>
       <div class="modal-action">

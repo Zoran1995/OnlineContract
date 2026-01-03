@@ -257,6 +257,14 @@ app.MapGet("/contracts/{id:int}", (HttpContext context, int id) =>
     return Results.File(filePath, "text/html");
 }).RequireAuthorization();
 
+// Contracts listing page (guarded like products)
+app.MapGet("/contracts", (HttpContext context) =>
+{
+    if (!CanManageProducts(context)) return Results.Redirect("/home");
+    var filePath = Path.Combine(app.Environment.WebRootPath, "contracts.html");
+    return Results.File(filePath, "text/html");
+}).RequireAuthorization();
+
 // --- Variant-level actions: activate / deactivate / delete ---
 app.MapPost("/api/product-variants/{id:int}/activate", async (AppDbContext db, HttpContext http, int id) =>
 {
@@ -376,6 +384,7 @@ static bool CanManageProducts(HttpContext http)
     }
     catch { return false; }
 }
+
 app.MapGet("/products", (HttpContext context) =>
 {
         if (!CanManageProducts(context)) return Results.Redirect("/home");
