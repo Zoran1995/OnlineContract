@@ -177,7 +177,8 @@ var rewriteOptions = new RewriteOptions()
     .AddRewrite("(?i)^changestore$", "changestore.html", skipRemainingRules: true)
     .AddRewrite("(?i)^users$", "users.html", skipRemainingRules: true)
     .AddRewrite("(?i)^contracts$", "contracts.html", skipRemainingRules: true)
-    .AddRewrite("(?i)^reset$", "reset-password.html", skipRemainingRules: true);
+    .AddRewrite("(?i)^reset$", "reset-password.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^contractshistory$", "contractshistory.html", skipRemainingRules: true);
 
 app.UseRewriter(rewriteOptions);
 
@@ -262,6 +263,24 @@ app.MapGet("/contracts", (HttpContext context) =>
 {
     if (!CanManageProducts(context)) return Results.Redirect("/home");
     var filePath = Path.Combine(app.Environment.WebRootPath, "contracts.html");
+    return Results.File(filePath, "text/html");
+}).RequireAuthorization();
+
+// Customer-only Contracts History page
+static bool IsCustomer(HttpContext http)
+{
+    try
+    {
+        var rc = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type.EndsWith("/role", StringComparison.OrdinalIgnoreCase))?.Value;
+        return int.TryParse(rc, out var roleId) && roleId == 5;
+    }
+    catch { return false; }
+}
+
+app.MapGet("/contractshistory", (HttpContext context) =>
+{
+    if (!IsCustomer(context)) return Results.Redirect("/home");
+    var filePath = Path.Combine(app.Environment.WebRootPath, "contractshistory.html");
     return Results.File(filePath, "text/html");
 }).RequireAuthorization();
 

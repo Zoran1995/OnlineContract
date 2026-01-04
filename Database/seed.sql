@@ -12,39 +12,50 @@ GO
 BEGIN TRAN;
 
 /* lookup_set seed (explicit IDs) */
+
 DECLARE @is_identity_lookup_set BIT =
     CASE WHEN COLUMNPROPERTY(OBJECT_ID('dbo.lookup_set'), 'lookup_set_id', 'IsIdentity') = 1 THEN 1 ELSE 0 END;
+
 IF @is_identity_lookup_set = 1 SET IDENTITY_INSERT dbo.lookup_set ON;
 
 MERGE dbo.lookup_set AS tgt
 USING (
     VALUES
-    (11, N'ContractState', N'Accepted'),
-    (19, N'ContractState', N'Cancelled'),
-    (15, N'ContractState', N'Completed'),
-    (17, N'ContractState', N'Delivered'),
-    (16, N'ContractState', N'Dispatched'),
-    (9 , N'ContractState', N'Draft'),
-    (12, N'ContractState', N'Partially Accepted'),
-    (13, N'ContractState', N'Rejected'),
-    (14, N'ContractState', N'In Progress'),
-    (18, N'ContractState', N'Returned'),
-    (10, N'ContractState', N'Submitted'),
-    (20, N'ContractState', N'Written Off'),
-    (4 , N'EventType',     N'Error'),
-    (2 , N'EventType',     N'Information'),
-    (3 , N'EventType',     N'Warning'),
-    (1 , N'None',          N'None'),
-    (8 , N'UserRole',      N'Administrator'),
-    (5 , N'UserRole',      N'Customer'),
-    (7 , N'UserRole',      N'Manager'),
-    (6 , N'UserRole',      N'Worker')
+    ( 1 , N'None',          N'None'),
+    ( 2 , N'EventType',     N'Information'),
+    ( 3 , N'EventType',     N'Warning'),
+    ( 4 , N'EventType',     N'Error'),
+    ( 5 , N'UserRole',      N'Customer'),
+    ( 6 , N'UserRole',      N'Worker'),
+    ( 7 , N'UserRole',      N'Manager'),
+    ( 8 , N'UserRole',      N'Administrator'),
+    ( 9 , N'ContractState', N'Draft'),
+    (10 , N'ContractState', N'Submitted'),
+    (11 , N'ContractState', N'Accepted'),
+    (12 , N'ContractState', N'Partially Accepted'),
+    (13 , N'ContractState', N'Rejected'),
+    (14 , N'ContractState', N'In Progress'),
+    (15 , N'ContractState', N'Completed'),
+    (16 , N'ContractState', N'Dispatched'),
+    (17 , N'ContractState', N'Delivered'),
+    (18 , N'ContractState', N'Returned'),
+    (19 , N'ContractState', N'Cancelled'),
+    (20 , N'ContractState', N'Written Off'),
+    (21 , N'ProductStateInOrder', N'Draft'),
+    (22 , N'ProductStateInOrder', N'Submitted'),
+    (23 , N'ProductStateInOrder', N'Accepted'),
+    (24 , N'ProductStateInOrder', N'Partially Accepted'),
+    (25 , N'ProductStateInOrder', N'Rejected')
 ) AS src(lookup_set_id, set_name, value)
 ON (tgt.lookup_set_id = src.lookup_set_id)
-WHEN NOT MATCHED THEN INSERT (lookup_set_id, set_name, value)
-VALUES (src.lookup_set_id, src.set_name, src.value)
+
+WHEN NOT MATCHED THEN
+    INSERT (lookup_set_id, set_name, value)
+    VALUES (src.lookup_set_id, src.set_name, src.value)
+
 WHEN MATCHED AND (tgt.set_name <> src.set_name OR tgt.value <> src.value)
-THEN UPDATE SET set_name = src.set_name, value = src.value;
+THEN
+    UPDATE SET set_name = src.set_name, value = src.value;
 
 IF @is_identity_lookup_set = 1 SET IDENTITY_INSERT dbo.lookup_set OFF;
 
@@ -198,7 +209,7 @@ END
 
 IF @is_identity_product = 1 SET IDENTITY_INSERT dbo.product OFF;
 
-/* contract default row id = 0 (state set to Draft=9) */
+/* contract default row id = 0 (state set to Draft = 9) */
 DECLARE @is_identity_contract BIT =
     CASE WHEN COLUMNPROPERTY(OBJECT_ID('dbo.contract'), 'contract_id', 'IsIdentity') = 1 THEN 1 ELSE 0 END;
 IF @is_identity_contract = 1 SET IDENTITY_INSERT dbo.contract ON;

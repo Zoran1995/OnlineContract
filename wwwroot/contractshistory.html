@@ -1,0 +1,120 @@
+
+<!DOCTYPE html>
+<html lang="en" data-theme="pastel">
+<head>
+  <meta charset="utf-8" />
+  <title>KidzStyle · Contracts History</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link rel="icon" href="/resources/icons/clipboard-list.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/eventlog.css" />
+  <link rel="stylesheet" href="/css/login.css" />
+  <link href="/dist/output.css" rel="stylesheet">
+  <style>
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body class="bg-base-200 text-base-content">
+
+  <!-- Navbar (single, sticky) -->
+  <div class="navbar bg-base-100 shadow sticky top-0 z-50">
+    <div class="flex-1">
+      <a href="/home" class="btn btn-ghost normal-case text-xl">
+        <span class="material-icons mr-2">home</span> Home
+      </a>
+      <a href="/about" class="btn btn-ghost">
+        <span class="material-icons mr-2">info</span> About
+      </a>
+      <a href="/address" class="btn btn-ghost">
+        <span class="material-icons mr-2">location_on</span> Address
+      </a>
+      <a href="/eventlog" class="btn btn-ghost">
+        <span class="material-icons mr-2">bug_report</span> EventLog
+      </a>
+    </div>
+    <div class="flex-none items-center gap-3">
+      <a id="navSignIn" href="/login" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</a>
+      <a id="navLogIn" href="/login" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</a>
+    </div>
+  </div>
+
+  <main class="container mx-auto p-4">
+    <div class="flex items-center justify-between gap-3 mb-3">
+      <h1 class="text-2xl font-bold">Contracts History</h1>
+    </div>
+
+    <!-- Toolbar (no filters) -->
+    <div class="flex items-center gap-2 mb-3 justify-end">
+      <button id="btnOpen" class="btn btn-sm" disabled>
+        <span class="material-icons">open_in_new</span>
+        <span>Open</span>
+      </button>
+      <button id="btnDelete" class="btn btn-sm" disabled>
+        <span class="material-icons">delete</span>
+        <span>Delete</span>
+      </button>
+    </div>
+
+    <div id="emptyState" class="hidden">No contracts found.</div>
+
+    <!-- Grid -->
+    <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
+      <table id="grid" class="table table-zebra w-full" aria-label="Contracts History">
+        <thead>
+          <tr>
+            <th style="width:80px">ID</th>
+            <th style="width:220px">Entry Date</th>
+            <th>State</th>
+            <th style="width:220px">Delivered Date</th>
+            <th style="width:120px">Amount</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex items-center gap-3 mt-3 grid-pagination">
+      <label class="text-sm">Rows per page:</label>
+      <select id="pageSize" class="select select-bordered w-20 select-sm">
+        <option value="10" selected>10</option>
+        <option value="20">20</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+
+      <button id="prevPage" class="btn btn-outline btn-sm">
+        <span class="material-icons mr-2">chevron_left</span>
+        Previous
+      </button>
+      <span id="pageInfo" class="font-semibold"></span>
+      <button id="nextPage" class="btn btn-outline btn-sm">
+        Next <span class="material-icons ml-2">chevron_right</span>
+      </button>
+
+      <span id="pageCountInfo" class="page-count-info"></span>
+    </div>
+  </main>
+
+  <!-- Confirm delete modal -->
+  <dialog id="contractDeleteConfirm" class="modal">
+    <form method="dialog" class="modal-box">
+      <h3 class="font-bold text-lg mb-2">Delete Contract</h3>
+      <p class="mb-4">Are you sure you want to delete this contract? This action cannot be undone.</p>
+      <div class="modal-action">
+        <button class="btn">Cancel</button>
+        <button id="contractConfirmOk" class="btn btn-error">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loading-box">Loading...</div>
+  </div>
+
+  <script src="/js/shared.js"></script>
+  <script src="/js/contractshistory.js"></script>
+</body>
+</html>

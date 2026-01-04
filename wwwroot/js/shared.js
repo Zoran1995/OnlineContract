@@ -521,7 +521,7 @@ function ensureNotificationUI() {
         cartBtn.title = 'Shopping cart';
         cartBtn.innerHTML = '<span class="material-icons">shopping_cart</span>';
 
-        const CART_URL = '/contracts';
+        const CART_URL = '/contractshistory';
         const LOGIN_URL = '/login?mode=login';
         const RETURN_URL = location.pathname + location.search;
 
@@ -529,7 +529,7 @@ function ensureNotificationUI() {
         cartBtn.addEventListener('click', (e) => {
           e.preventDefault();
 
-          const CART_URL = '/contracts';
+          const CART_URL = '/contractshistory';
           const LOGIN_URL = '/login?mode=login';
           const RETURN_URL = location.pathname + location.search;
 
@@ -778,7 +778,7 @@ function ensureNotificationUI() {
 
       // Navbar links:
       // - Users is privileged-only
-      // - EventLog link is used as the Menu anchor; keep it visible for any logged-in user
+      // - Menu (EventLog anchor) is visible only for Worker/Admin/Manager
       const userLinks = Array.from(document.querySelectorAll('.navbar a'))
         .filter(a => (a.getAttribute('href') || '').toLowerCase().includes('/users'));
       userLinks.forEach(a => a.classList.toggle('hidden', !isPrivileged));
@@ -790,10 +790,11 @@ function ensureNotificationUI() {
       if (logIn) logIn.classList.toggle('hidden', isLoggedIn);
       if (logOut) logOut.classList.toggle('hidden', !isLoggedIn);
 
-      // Hide the Menu anchor (EventLog link) unless logged in
+      // Hide the Menu anchor (EventLog link) unless role is Worker/Admin/Manager
       const eventLogLinks = Array.from(document.querySelectorAll('.navbar a'))
         .filter(a => (a.getAttribute('href') || '').toLowerCase().includes('/eventlog'));
-      eventLogLinks.forEach(a => a.classList.toggle('hidden', !isLoggedIn));
+      const canSeeMenu = isLoggedIn && (roleId === 6 || roleId === 7 || roleId === 8);
+      eventLogLinks.forEach(a => a.classList.toggle('hidden', !canSeeMenu));
 
       // Export button rules:
       // - EventLog export is privileged-only
@@ -1062,7 +1063,10 @@ function ensureNotificationUI() {
           // Toggle dropdown visibility: show Menu only when authenticated.
           // Privileged-only entries stay hidden for non-privileged users.
           const dd = document.getElementById('eventlogDropdown');
-          if (dd) dd.classList.toggle('hidden', !isLoggedIn);
+          if (dd) {
+            const canSeeMenu = isLoggedIn && (roleId === 6 || roleId === 7 || roleId === 8);
+            dd.classList.toggle('hidden', !canSeeMenu);
+          }
 
           try {
             const ddChangeStore = document.getElementById('ddChangeStore');
@@ -1230,25 +1234,50 @@ function ensureNotificationUI() {
 // Gate protected pages and show an inline Access Denied panel instead of redirecting
 function gateProtectedPages(auth) {
   const path = (window.location && window.location.pathname || '').toLowerCase();
-  const protectedAny = ['/users', '/users.html', '/eventlog', '/eventlog.html', '/changestore', '/changestore.html', '/contracts', '/contracts.html'];
+  const protectedAny = [
+    '/users','/users.html',
+    '/eventlog','/eventlog.html',
+    '/changestore','/changestore.html',
+    '/contracts','/contracts.html',
+    '/products','/products.html',
+    '/product-details','/product-details.html',
+    '/notes','/notes.html',
+    '/contractshistory','/contractshistory.html'
+  ];
   if (!protectedAny.includes(path)) return;
 
   const isAuth = !!auth?.isAuthenticated;
   const roleIdRaw = auth?.roleId ?? 0;
   const roleId = parseInt(String(roleIdRaw), 10) || 0;
-  const isPrivileged = isAuth && (roleId === 7 || roleId === 8);
+  const isAdminManager = isAuth && (roleId === 7 || roleId === 8);
+  const isWorker = isAuth && roleId === 6;
   const isCustomer = isAuth && roleId === 5;
 
-  // EventLog and Change Store require privileged roles; Users page requires authentication only
-  const requiresPrivilege = (p) =>
-    ['/eventlog', '/eventlog.html', '/changestore', '/changestore.html', '/users', '/users.html'].includes(p);
+  const isUsers = path === '/users' || path === '/users.html';
+  const isEventLog = path === '/eventlog' || path === '/eventlog.html';
+  const isStore = path === '/changestore' || path === '/changestore.html';
+  const isContracts = path === '/contracts' || path === '/contracts.html';
+  const isProducts = path === '/products' || path === '/products.html';
+  const isProductDetails = path === '/product-details' || path === '/product-details.html';
+  const isNotes = path === '/notes' || path === '/notes.html';
+  const isContractsHistory = path === '/contractshistory' || path === '/contractshistory.html';
 
-  const mustBePrivileged = requiresPrivilege(path);
+  let deny = false;
 
-  const isContractsPage = path === '/contracts' || path === '/contracts.html';
-  const denyContracts = isContractsPage && (!isAuth);
+  // Admin/Manager: all Menu pages allowed, but not Contract History
+  if (isAdminManager) {
+    deny = isContractsHistory; // cannot access /contractshistory
+  } else if (isWorker) {
+    // Worker: can access only Notes/Products/Contracts (+ product-details). Deny the rest
+    deny = (isUsers || isEventLog || isStore || isContractsHistory) || (!isNotes && !isProducts && !isProductDetails && !isContracts);
+  } else if (isCustomer) {
+    // Customer: can access Contract History only; deny products/product-details/notes/contracts and admin pages
+    deny = (isUsers || isEventLog || isStore || isProducts || isProductDetails || isNotes || isContracts) || (!isContractsHistory);
+  } else {
+    // Not logged in: deny all protected pages
+    deny = true;
+  }
 
-  const deny = denyContracts || (!isAuth) || (mustBePrivileged && !isPrivileged);
   if (!deny) return;
 
   // Hide known main content containers
@@ -2714,5 +2743,3 @@ document.addEventListener('DOMContentLoaded', () => {
     try { setupNavbarDropdown('userDropdown', 'adminLabel'); } catch { }
   });
 })();
-
-// (duplicate toolbar initializer removed; the unified initializer above handles both btnToolbarMenu and btnMore)
