@@ -7,6 +7,41 @@ using System.Security.Claims;
 using OnlineContract.Data;
 using OnlineContract.Helpers;
 using OnlineContract.Models;
+// Load local .env into process environment (development only).
+// This avoids hard-coding secrets while allowing local dev to store values in a .env file.
+try
+{
+    var aspEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+    if (string.Equals(aspEnv, "Development", StringComparison.OrdinalIgnoreCase))
+    {
+        var dotEnvPath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
+        if (File.Exists(dotEnvPath))
+        {
+            foreach (var raw in File.ReadAllLines(dotEnvPath))
+            {
+                var line = raw?.Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+                if (line.StartsWith("#")) continue;
+                var idx = line.IndexOf('=');
+                if (idx <= 0) continue;
+                var key = line.Substring(0, idx).Trim();
+                var val = line.Substring(idx + 1).Trim();
+                if ((val.StartsWith("\"") && val.EndsWith("\"")) || (val.StartsWith("'") && val.EndsWith("'")))
+                {
+                    val = val.Substring(1, val.Length - 2);
+                }
+                // Unescape common escaped newline sequences
+                val = val.Replace("\\n", "\n");
+                // Only set if not already present in environment (do not overwrite)
+                if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+                {
+                    Environment.SetEnvironmentVariable(key, val, EnvironmentVariableTarget.Process);
+                }
+            }
+        }
+    }
+}
+catch { }
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +52,12 @@ var builder = WebApplication.CreateBuilder(args);
 // DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Memory cache (used by ForgotPasswordService for rate limiting)
+builder.Services.AddMemoryCache();
+
+// Email services: register the SMTP MailKit sender and adapter to the existing IEmailService helper
+builder.Services.AddScoped<OnlineContract.Services.IEmailService, OnlineContract.Services.EmailService>();
 
 // Cookie Authentication + Authorization
 builder.Services
@@ -103,16 +144,40 @@ var app = builder.Build();
 // Rewrite: /route -> /route.html
 // -------------------------
 
+// If an already-authenticated user attempts to open the login/signin pages
+// directly (typing the URL or opening a bookmarked link), redirect them
+// to `/home`. We do a lightweight cookie presence check here to avoid
+// forcing full authentication middleware before rewrites.
+app.Use(async (ctx, next) =>
+{
+    try
+    {
+        var p = ctx.Request.Path.Value ?? string.Empty;
+        if (p.StartsWith("/login", StringComparison.OrdinalIgnoreCase) || p.StartsWith("/signin", StringComparison.OrdinalIgnoreCase))
+        {
+            // Consider the user authenticated when the auth cookie exists.
+            if (ctx.Request.Cookies != null && ctx.Request.Cookies.ContainsKey(".OnlineContract.Auth"))
+            {
+                ctx.Response.Redirect("/home");
+                return;
+            }
+        }
+    }
+    catch { }
+    await next();
+});
+
 var rewriteOptions = new RewriteOptions()
-     .AddRewrite("(?i)^login$", "login.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^home$", "home.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^eventlog$", "eventlog.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^about$", "about.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^address$", "address.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^login$", "login.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^home$", "home.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^eventlog$", "eventlog.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^about$", "about.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^address$", "address.html", skipRemainingRules: true)
     .AddRewrite("(?i)^collections$", "collections.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^changestore$", "changestore.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^users$", "users.html", skipRemainingRules: true)
-     .AddRewrite("(?i)^contracts$", "contracts.html", true);
+    .AddRewrite("(?i)^changestore$", "changestore.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^users$", "users.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^contracts$", "contracts.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^reset$", "reset-password.html", skipRemainingRules: true);
 
 app.UseRewriter(rewriteOptions);
 
@@ -189,6 +254,14 @@ app.MapGet("/contracts/{id:int}", (HttpContext context, int id) =>
 {
     // HTML shell is static; data loads via /api/contracts/{id}
     var filePath = Path.Combine(app.Environment.WebRootPath, "contract-details.html");
+    return Results.File(filePath, "text/html");
+}).RequireAuthorization();
+
+// Contracts listing page (guarded like products)
+app.MapGet("/contracts", (HttpContext context) =>
+{
+    if (!CanManageProducts(context)) return Results.Redirect("/home");
+    var filePath = Path.Combine(app.Environment.WebRootPath, "contracts.html");
     return Results.File(filePath, "text/html");
 }).RequireAuthorization();
 
@@ -314,23 +387,23 @@ static bool CanManageProducts(HttpContext http)
 
 app.MapGet("/products", (HttpContext context) =>
 {
-    if (!CanManageProducts(context)) return Results.Redirect("/home");
-    var filePath = Path.Combine(app.Environment.WebRootPath, "products.html");
-    return Results.File(filePath, "text/html");
+        if (!CanManageProducts(context)) return Results.Redirect("/home");
+        var filePath = Path.Combine(app.Environment.WebRootPath, "products.html");
+        return Results.File(filePath, "text/html");
 }).RequireAuthorization();
 
 app.MapGet("/products/new", (HttpContext context) =>
 {
-    if (!CanManageProducts(context)) return Results.Redirect("/home");
-    var filePath = Path.Combine(app.Environment.WebRootPath, "product-details.html");
-    return Results.File(filePath, "text/html");
+        if (!CanManageProducts(context)) return Results.Redirect("/home");
+        var filePath = Path.Combine(app.Environment.WebRootPath, "product-details.html");
+        return Results.File(filePath, "text/html");
 }).RequireAuthorization();
 
 app.MapGet("/products/{id:int}", (HttpContext context, int id) =>
 {
-    if (!CanManageProducts(context)) return Results.Redirect("/home");
-    var filePath = Path.Combine(app.Environment.WebRootPath, "product-details.html");
-    return Results.File(filePath, "text/html");
+        if (!CanManageProducts(context)) return Results.Redirect("/home");
+        var filePath = Path.Combine(app.Environment.WebRootPath, "product-details.html");
+        return Results.File(filePath, "text/html");
 }).RequireAuthorization();
 
 // Fallback
@@ -408,6 +481,96 @@ app.MapPost("/api/login", async (AppDbContext db, LoginDto dto, HttpContext http
         return Results.Json(new { success = false, message = "Login failed due to a server error. Please try again later." });
     }
 });
+
+// Forgot password endpoints (initiate, validate token, perform reset)
+app.MapPost("/api/auth/forgot-password", async (AppDbContext db, HttpContext http, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, OnlineContract.Services.IEmailService emailService) =>
+{
+    try
+    {
+        var body = await http.Request.ReadFromJsonAsync<System.Collections.Generic.Dictionary<string, string>>();
+        var rawEmail = body != null && body.TryGetValue("email", out var e) ? e : "";
+        var ip = http.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        var svc = new OnlineContract.Services.ForgotPasswordService(app.Configuration);
+        var (status, message) = await svc.HandleAsync(db, rawEmail, ip, cache, emailService);
+        return Results.Json(new { message }, statusCode: status);
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Forgot-password endpoint exception", ex.ToString(), 2);
+        return Results.Json(new { message = "Failed to process forgot-password request." }, statusCode: 500);
+    }
+}).AllowAnonymous();
+
+app.MapGet("/api/auth/reset-token/{token}", async (AppDbContext db, string token) =>
+{
+    try
+    {
+        var now = DateTime.Now;
+        var pr = await db.PasswordResetTokens.FirstOrDefaultAsync(p => p.Token == token && !p.IsUsed && p.ExpiryDt > now);
+        if (pr == null) return Results.Json(new { success = false, message = "This reset link is invalid or has expired. Please request a new password reset." });
+        return Results.Json(new { success = true, code = pr.Code, email = pr.Email });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Reset-token check failed", ex.ToString(), 2);
+        return Results.Json(new { success = false, message = "Failed to validate reset token." }, statusCode: 500);
+    }
+}).AllowAnonymous();
+
+app.MapPost("/api/auth/reset-password", async (AppDbContext db, HttpContext http) =>
+{
+    try
+    {
+        var dto = await http.Request.ReadFromJsonAsync<System.Collections.Generic.Dictionary<string, string>>();
+        var token = dto != null && dto.TryGetValue("token", out var t) ? t : "";
+        var newPw = dto != null && dto.TryGetValue("newPassword", out var n) ? n : "";
+        var conf = dto != null && dto.TryGetValue("confirmPassword", out var c) ? c : "";
+
+        if (string.IsNullOrWhiteSpace(token)) return Results.Json(new { success = false, message = "Token is required." });
+        if (string.IsNullOrWhiteSpace(newPw) || newPw != conf) return Results.Json(new { success = false, message = "Passwords do not match or are empty." });
+        if (newPw.Length < 8 || !System.Text.RegularExpressions.Regex.IsMatch(newPw, "[A-Z]") || !System.Text.RegularExpressions.Regex.IsMatch(newPw, "\\d"))
+            return Results.Json(new { success = false, message = "Password must be at least 8 characters, include one uppercase letter and one number." });
+
+        var now = DateTime.Now;
+        var pr = await db.PasswordResetTokens.FirstOrDefaultAsync(p => p.Token == token && !p.IsUsed && p.ExpiryDt > now);
+        if (pr == null) return Results.Json(new { success = false, message = "This reset link is invalid or has expired." });
+
+        if (!pr.UserId.HasValue) return Results.Json(new { success = false, message = "No user associated with this token." });
+        var user = await db.AxUsers.FirstOrDefaultAsync(u => u.Id == pr.UserId.Value && !u.IsDeleted);
+        if (user == null) return Results.Json(new { success = false, message = "User account not found." });
+
+        user.Password = PasswordHelper.HashPassword(newPw);
+        user.PasswordDt = DateTime.Now;
+        user.IsTempPassword = false;
+        user.LastLoginDt = DateTime.Now;
+        user.Stamp = user.Stamp + 1;
+
+        pr.IsUsed = true;
+        pr.UsedDt = DateTime.Now;
+
+        await db.SaveChangesAsync();
+
+        // Sign in the user
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Name, user.Code ?? string.Empty),
+            new Claim(ClaimTypes.Role, user.RoleId.ToString())
+        };
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var principal = new ClaimsPrincipal(identity);
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
+            new AuthenticationProperties { IsPersistent = true, AllowRefresh = true, ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8) });
+
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Password reset completed", $"UserId={user.Id}", user.Id);
+        return Results.Json(new { success = true, userId = user.Id, roleId = user.RoleId });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Reset-password failed", ex.ToString(), 2);
+        return Results.Json(new { success = false, message = "Failed to reset password. Please try again later." });
+    }
+}).AllowAnonymous();
 
 app.MapPost("/api/logout", async (HttpContext http) =>
 {
@@ -1143,7 +1306,7 @@ app.MapGet("/api/event-log", async (AppDbContext db, int userId, int type, DateT
     }
 });
 
-app.MapGet("/api/event-log/export", async (AppDbContext db, int userId, string? type, string? from, string? to) =>
+app.MapGet("/api/event-log/export", async (AppDbContext db, int userId, int type, DateTime? from, DateTime? to) =>
 {
     try
     {
@@ -1162,41 +1325,53 @@ app.MapGet("/api/event-log/export", async (AppDbContext db, int userId, string? 
                 e.StackTrace
             };
 
-        if (!string.IsNullOrWhiteSpace(type))
+        if (type == 0)
         {
-            // UI sends numeric values (1,2,3) for the Type select; accept both numeric ids and textual names.
-            if (int.TryParse(type.Trim(), out var typeId))
-            {
-                // Map UI values (1,2,3) to DB EventTypeId used elsewhere: 1->2, 2->3, 3->4
-                var mappedType = typeId == 1 ? 2 : typeId == 2 ? 3 : typeId == 3 ? 4 : typeId;
-                q = q.Where(x => x.EventTypeId == mappedType);
-            }
-            else
-            {
-                var t = type.Trim().ToLower();
-                if (t == "information" || t == "info") q = q.Where(x => x.TypeName.ToLower() == "information");
-                else if (t == "warning") q = q.Where(x => x.TypeName.ToLower() == "warning");
-                else if (t == "error") q = q.Where(x => x.TypeName.ToLower() == "error");
-            }
+            // UI 'All' should include Information(2), Warning(3) and Error(4)
+            q = q.Where(x => x.EventTypeId == 2 || x.EventTypeId == 3 || x.EventTypeId == 4);
+        }
+        else if (type > 0)
+        {
+            var mappedType = type == 1 ? 2 : type == 2 ? 3 : type == 3 ? 4 : type;
+            q = q.Where(x => x.EventTypeId == mappedType);
         }
 
-        if (!string.IsNullOrWhiteSpace(from) && DateTime.TryParse(from, out var fd))
-        {
-            q = q.Where(x => x.InputDt >= fd);
-        }
-        if (!string.IsNullOrWhiteSpace(to) && DateTime.TryParse(to, out var td))
-        {
-            // Respect provided time component as well (do not expand to end-of-day)
-            q = q.Where(x => x.InputDt <= td);
-        }
+        if (from.HasValue) q = q.Where(x => x.InputDt >= from.Value);
+        if (to.HasValue) q = q.Where(x => x.InputDt <= to.Value);
 
         var logs = await q.OrderByDescending(x => x.InputDt).ToListAsync();
 
-        var csv = "Id,Type,Date,Description,User,StackTrace\n" +
-                  string.Join("\n", logs.Select(e =>
-                      $"{e.EventLogId},{e.TypeName},{e.InputDt:yyyy-MM-dd HH:mm:ss},{e.Description?.Replace(',', ';')},{e.UserFullName?.Replace(',', ';')},{(e.StackTrace ?? string.Empty).Replace(',', ';')}"));
+        // Build CSV with robust escaping to preserve newlines and commas inside fields (especially stack traces)
+        string EscapeCsv(object? value)
+        {
+            if (value == null) return string.Empty;
+            var s = value.ToString() ?? string.Empty;
+            // Normalize CRLF to LF to avoid platform-specific issues
+            s = s.Replace("\r\n", "\n").Replace('\r', '\n');
+            // Escape double-quotes
+            s = s.Replace("\"", "\"\"");
+            // If field contains comma, quote or newline, wrap in quotes
+            if (s.IndexOfAny(new char[] { ',', '"', '\n' }) >= 0)
+            {
+                s = '"' + s + '"';
+            }
+            return s;
+        }
 
-        var bytes = System.Text.Encoding.UTF8.GetBytes(csv);
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Id,Type,Date,Description,User,StackTrace");
+        foreach (var e in logs)
+        {
+            sb.Append(EscapeCsv(e.EventLogId)); sb.Append(',');
+            sb.Append(EscapeCsv(e.TypeName)); sb.Append(',');
+            sb.Append(EscapeCsv(e.InputDt.ToString("yyyy-MM-dd HH:mm:ss"))); sb.Append(',');
+            sb.Append(EscapeCsv(e.Description)); sb.Append(',');
+            sb.Append(EscapeCsv(e.UserFullName)); sb.Append(',');
+            sb.Append(EscapeCsv(e.StackTrace));
+            sb.AppendLine();
+        }
+
+        var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
         var ts = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
         var fname = $"EventLog_{ts}.csv";
         return Results.File(bytes, "text/csv; charset=utf-8", fname);
@@ -1216,7 +1391,7 @@ app.MapGet("/api/stores", async (AppDbContext db, int? userId, string? sortBy, s
         var sortSpec = string.IsNullOrWhiteSpace(sortBy) ? null : new SortSpec(sortBy, (sortDir ?? "").ToLowerInvariant() == "desc");
 
         var baseQuery = from s in db.Stores.AsNoTracking()
-                        join u in db.AxUsers.AsNoTracking() on s.Last_Modified_User_Id equals u.Id into uu
+                        join u in db.AxUsers.AsNoTracking() on s.LastModifiedUserId equals u.Id into uu
                         from u in uu.DefaultIfEmpty()
                         select new
                         {
@@ -1230,8 +1405,8 @@ app.MapGet("/api/stores", async (AppDbContext db, int? userId, string? sortBy, s
             ["name"] = s => s.Name ?? string.Empty,
             ["address"] = s => s.Address ?? string.Empty,
             ["email"] = s => s.Email ?? string.Empty,
-            ["phone"] = s => s.Phone_Number ?? string.Empty,
-            ["lastUpdatedBy"] = s => s.Last_Modified_User_Id
+            ["phone"] = s => s.PhoneNumber ?? string.Empty,
+            ["lastUpdatedBy"] = s => s.LastModifiedUserId
         };
 
         // Project to an anonymous type after applying ordering to the Store entity
@@ -1242,16 +1417,16 @@ app.MapGet("/api/stores", async (AppDbContext db, int? userId, string? sortBy, s
             storeQuery = storeQuery.ApplySort(sortSpec, map, s => s.StoreId);
 
         var items = await (from s in storeQuery
-                           join u in db.AxUsers.AsNoTracking() on s.Last_Modified_User_Id equals u.Id into uu
+                           join u in db.AxUsers.AsNoTracking() on s.LastModifiedUserId equals u.Id into uu
                            from u in uu.DefaultIfEmpty()
                            select new
                            {
                                id = s.StoreId,
                                name = s.Name,
                                address = s.Address,
-                               phone = s.Phone_Number,
+                               phone = s.PhoneNumber,
                                email = s.Email,
-                               hours = s.Working_Hours,
+                               hours = s.WorkingHours,
                                lastUpdatedBy = u != null ? u.Code : null
                            }).ToListAsync();
 
@@ -1273,17 +1448,17 @@ app.MapPut("/api/stores/{id}", async (AppDbContext db, int id, StoreUpdateDto dt
 
         var name = dto.Name?.Trim();
         var address = dto.Address?.Trim();
-        var phone = dto.Phone_Number?.Trim();
+        var phone = dto.PhoneNumber?.Trim();
         var email = dto.Email?.Trim();
-        var hours = dto.Working_Hours?.Trim();
+        var hours = dto.WorkingHours?.Trim();
 
         if (name is not null) store.Name = name;
         if (address is not null) store.Address = address;
-        if (phone is not null) store.Phone_Number = phone;
+        if (phone is not null) store.PhoneNumber = phone;
         if (email is not null) store.Email = email;
-        if (hours is not null) store.Working_Hours = hours;
+        if (hours is not null) store.WorkingHours = hours;
 
-        store.Last_Modified_User_Id = userId ?? 2;
+        store.LastModifiedUserId = userId ?? 2;
 
         await db.SaveChangesAsync();
         await LoggerHelper.LogEventAsync(db, EventType.Information, "Store details updated", $"StoreId={store.StoreId}, Name={store.Name}", userId ?? 2);

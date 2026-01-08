@@ -166,8 +166,7 @@
         name,
         roleName(u.roleId),
         teamDisplay,
-        status,
-        '' // actions placeholder
+        status
       ];
 
       body.appendChild(tr);
@@ -208,22 +207,35 @@
   function updateMenuActionsState() {
     const deactivateLink = document.getElementById('btnDeactivate');
     const deleteLink = document.getElementById('btnDelete');
-    const deactivateItem = deactivateLink ? deactivateLink.closest('li') : null;
     const hasSelection = !!selectedUserId;
 
-    if (deactivateItem) {
-      deactivateItem.classList.toggle('hidden', !hasSelection);
-    }
+    // Hide Activate/Deactivate item when no row is selected
+    try {
+      const deactivateItem = deactivateLink ? deactivateLink.closest('li') : null;
+      if (deactivateItem) deactivateItem.classList.toggle('hidden', !hasSelection);
+    } catch {}
 
-    if (deleteLink) {
-      if (!hasSelection) {
-        deleteLink.setAttribute('aria-disabled', 'true');
-        deleteLink.classList.add('pointer-events-none', 'opacity-50');
+    const setState = (el, enabled) => {
+      if (!el) return;
+      if (enabled) {
+        el.removeAttribute('aria-disabled');
+        el.classList.remove('pointer-events-none', 'opacity-50');
       } else {
-        deleteLink.removeAttribute('aria-disabled');
-        deleteLink.classList.remove('pointer-events-none', 'opacity-50');
+        el.setAttribute('aria-disabled', 'true');
+        el.classList.add('pointer-events-none', 'opacity-50');
       }
-    }
+    };
+
+    // Delete stays visible; disabled when no selection
+    setState(deleteLink, hasSelection);
+    // Activate/Deactivate enabled only with selection (hidden when none)
+    setState(deactivateLink, hasSelection);
+
+    // Update label/icon based on current selection's active state
+    try {
+      const u = hasSelection ? items.find(x => x.id === selectedUserId) : null;
+      if (u) updateDeactivateLabel(u);
+    } catch {}
   }
 
   function updateDeactivateLabel(user) {
@@ -416,6 +428,15 @@
               showToast('error', msg);
             }
           } else {
+            // Client-side validation: mirror server password policy to provide immediate feedback
+            try {
+              const pw = payload.Password || '';
+              if (pw.length < 8 || !/[A-Z]/.test(pw) || !/\d/.test(pw)) {
+                showToast('error', 'Password must be at least 8 characters long and include upper and lower case letters and at least one number.');
+                return;
+              }
+            } catch (e) { /* ignore and continue to server validation */ }
+
             const res = await fetch(`/api/users?userId=${userId}`, {
               method: 'POST',
               credentials: 'include',
@@ -578,41 +599,7 @@
 
     const menuContainer = document.getElementById('toolbarMenu');
     const menuButton   = document.getElementById('btnToolbarMenu');
-
-    function setMenuOpen(open) {
-      if (!menuContainer || !menuButton) return;
-      const content = document.getElementById('toolbarMenuContent');
-      menuContainer.classList.toggle('dropdown-open', !!open);
-      menuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (content) content.classList.toggle('hidden', !open);
-    }
-
-    menuContainer?.querySelector('.dropdown-content')
-      ?.addEventListener('click', () => setMenuOpen(false))
-    
-    menuButton?.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const isOpen = menuButton?.getAttribute('aria-expanded') === 'true';
-      setMenuOpen(!isOpen);
-    }); 
-
-    // Close on outside click
-
-    document.addEventListener('pointerdown', (e) => {
-    if (!menuContainer) return;
-      if (!menuContainer.contains(e.target)) {
-        setMenuOpen(false);
-      }
-    });
-
-    // Close on Escape
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') setMenuOpen(false);
-    });
-
-    document.getElementById('btnDeactivate')?.addEventListener('click', () => { setMenuOpen(false); deactivateSelected(); });
-    document.getElementById('btnDelete')?.addEventListener('click',     () => { setMenuOpen(false); deleteSelected(); });
+    if (menuButton) { try { menuButton.disabled = false; } catch {} }
 
     document.getElementById('btnNewUser')?.addEventListener('click', () => {
       // Ensure Add User always opens a blank form and does not reuse any selection
@@ -657,9 +644,37 @@
       loadUsers();
     });
 
+    // Recompute enabled state when toolbar menu opens
+    try {
+      menuContainer?.addEventListener('oc-toolbar-toggle', (ev) => {
+        try { if (ev?.detail?.open) { updateOpenState(); updateMenuActionsState(); } } catch {}
+      });
+    } catch {}
+
+    // Bind toolbar actions once: close menu, then execute page handlers
+    const dd = document.getElementById('toolbarMenuContent');
+    const aDeactivate = document.getElementById('btnDeactivate');
+    const aDelete = document.getElementById('btnDelete');
+    if (aDeactivate && !aDeactivate._oc_bound) {
+      aDeactivate._oc_bound = true;
+      aDeactivate.addEventListener('click', (e) => {
+        try { window._oc_toolbar_closeAll && window._oc_toolbar_closeAll(); } catch {}
+        deactivateSelected();
+      });
+    }
+    if (aDelete && !aDelete._oc_bound) {
+      aDelete._oc_bound = true;
+      aDelete.addEventListener('click', (e) => {
+        try { window._oc_toolbar_closeAll && window._oc_toolbar_closeAll(); } catch {}
+        deleteSelected();
+      });
+    }
+
     // Init: load groups for dropdown and mapping, then users
     loadGroups().finally(() => loadUsers());
   });
+
+  // per-row menu removed: toolbar menu controls actions for selected row
 
   async function deactivateSelected() {
     if (!selectedUserId) { showToast('warning', 'Please select a user before proceeding.'); return; }
@@ -675,8 +690,13 @@
         headers: { 'Accept': 'application/json' }
       });
       if (res.ok) {
-        showToast('info', (u.isActive ? 'User has been deactivated successfully.' : 'User has been activated successfully.'));
-        await loadUsers();
+          showToast('info', (u.isActive ? 'User has been deactivated successfully.' : 'User has been activated successfully.'));
+          // Clear selection after action per requirements
+          selectedUserId = null;
+          try { renderTable(); } catch {}
+          try { updateOpenState(); } catch {}
+          try { updateMenuActionsState(); } catch {}
+          await loadUsers();
       } else {
         showToast('error', 'Failed to change user status. Please try again later.');
       }
@@ -715,14 +735,14 @@
         headers: { 'Accept': 'application/json' }
       });
       if (res.ok) {
-        showToast('info', 'User deleted');
+        showToast('info', 'User has been deleted successfully.');
         selectedUserId = null;
         await loadUsers();
       } else {
-        showToast('error', 'Delete failed');
+        showToast('error', 'Failed to delete user. Please try again later.');
       }
     } catch {
-      showToast('error', 'Delete failed');
+      showToast('error', 'Failed to delete user. Please try again later.');
     }
 
     function proceedDelete() {
@@ -735,14 +755,14 @@
             headers: { 'Accept': 'application/json' }
           });
           if (res.ok) {
-            showToast('info', 'User deleted');
+            showToast('info', 'User has been deleted successfully.');
             selectedUserId = null;
             await loadUsers();
           } else {
-            showToast('error', 'Delete failed');
+            showToast('error', 'Failed to delete user. Please try again later.');
           }
         } catch {
-          showToast('error', 'Delete failed');
+          showToast('error', 'Failed to delete user. Please try again later.');
         }
       })();
     }

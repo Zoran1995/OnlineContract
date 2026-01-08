@@ -378,8 +378,8 @@ BEGIN
         [phone_number] [nvarchar](20) NOT NULL,
         [email] [nvarchar](100) NULL,
         [working_hours] [nvarchar](255) NULL,
-        [created_at] [datetime2](0) NOT NULL,
-        [updated_at] [datetime2](0) NOT NULL,
+        [created_dt] [datetime2](0) NOT NULL,
+        [updated_dt] [datetime2](0) NOT NULL,
         [last_modified_user_id] [int] NOT NULL,
         CONSTRAINT [PK_store] PRIMARY KEY CLUSTERED ([store_id] ASC)
             WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
@@ -387,8 +387,8 @@ BEGIN
             ON [PRIMARY]
     ) ON [PRIMARY];
 
-    ALTER TABLE [dbo].[store] ADD DEFAULT (dbo.GetLocalTime()) FOR [created_at];
-    ALTER TABLE [dbo].[store] ADD DEFAULT (dbo.GetLocalTime()) FOR [updated_at];
+    ALTER TABLE [dbo].[store] ADD DEFAULT (dbo.GetLocalTime()) FOR [created_dt];
+    ALTER TABLE [dbo].[store] ADD DEFAULT (dbo.GetLocalTime()) FOR [updated_dt];
 
     ALTER TABLE [dbo].[store]  WITH CHECK ADD  CONSTRAINT [FK_store_ax_user]
         FOREIGN KEY([last_modified_user_id]) REFERENCES [dbo].[ax_user] ([ax_user_id]) ON UPDATE CASCADE;
@@ -516,15 +516,15 @@ IF OBJECT_ID(N'dbo.password_reset_token', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
     CREATE TABLE [dbo].[password_reset_token](
-        [id] [int] IDENTITY(1,1) NOT NULL,
+        [password_reset_token_id] [int] IDENTITY(1,1) NOT NULL,
         [token] [nvarchar](200) NOT NULL,
         [user_id] [int] NULL,
         [code] [nvarchar](50) NULL,
         [email] [nvarchar](150) NULL,
-        [created_at] [datetime2](7) NOT NULL,
-        [expires_at] [datetime2](7) NOT NULL,
-        [used] [bit] NOT NULL,
-        [used_at] [datetime2](7) NULL,
+        [created_dt] [datetime2](7) NOT NULL,
+        [expires_dt] [datetime2](7) NOT NULL,
+        [is_used] [bit] NOT NULL,
+        [used_dt] [datetime2](7) NULL,
         CONSTRAINT [PK_password_reset_token] PRIMARY KEY CLUSTERED ([id] ASC)
             WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
                   ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
@@ -622,4 +622,52 @@ RETURN
         ON ls.lookup_set_id = ns.next_state_id
        AND ls.set_name = N'ContractState'
 );
+GO
+
+/* 4. Triggers */
+IF OBJECT_ID(N'dbo.trg_stores_touch', N'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_stores_touch;
+GO
+
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
+CREATE TRIGGER [dbo].[trg_stores_touch]
+ON [dbo].[store]
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE s
+    SET s.updated_dt = dbo.GetLocalTime()
+    FROM dbo.store AS s
+    INNER JOIN inserted AS i ON s.store_id = i.store_id;
+END;
+GO
+
+IF OBJECT_ID(N'dbo.tr_note_SetLastUpdate', N'TR') IS NOT NULL
+    DROP TRIGGER dbo.tr_note_SetLastUpdate;
+GO
+
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
+CREATE TRIGGER [dbo].[tr_note_SetLastUpdate]
+ON [dbo].[note]
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE n
+       SET last_updated_dt = dbo.GetLocalTime(),
+           stamp = n.stamp + 1
+    FROM dbo.note AS n
+    INNER JOIN inserted AS i ON i.note_id = n.note_id;
+END;
 GO

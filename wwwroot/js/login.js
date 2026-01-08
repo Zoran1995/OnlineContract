@@ -28,6 +28,16 @@ document.getElementById('navSignIn')?.addEventListener('click', (e) => {
       regC.classList.add('hidden');
     }
 
+    // If URL hash requests the forgot modal, open it (e.g. /login#forgot)
+    try {
+      if (window.location.hash === '#forgot') {
+        const modal = document.getElementById('forgotModal');
+        const email = document.getElementById('forgotEmail');
+        if (email) email.value = '';
+        try { modal?.showModal(); } catch { modal?.classList.remove('hidden'); }
+      }
+    } catch {}
+
     // Show role selector only for Admin (8) or Manager (7)
     try {
       const currentRole = parseInt(localStorage.getItem('roleId') || '0', 10);
@@ -206,6 +216,59 @@ document.getElementById('loginClearBtn')?.addEventListener('click', () => {
   document.getElementById('code').value = '';
   document.getElementById('password').value = '';
 });
+
+// Forgot password modal handlers
+(() => {
+  const btn = document.getElementById('forgotPasswordBtn');
+  const modal = document.getElementById('forgotModal');
+  const cancel = document.getElementById('forgotCancel');
+  const send = document.getElementById('forgotSend');
+  const email = document.getElementById('forgotEmail');
+
+  if (btn) btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    try { if (email) email.value = ''; modal?.showModal(); } catch { if (email) email.value = ''; modal?.classList.remove('hidden'); }
+  });
+  if (cancel) cancel.addEventListener('click', (e) => { e.preventDefault(); try { modal?.close(); } catch { modal?.classList.add('hidden'); } });
+  if (send) send.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const v = (email?.value || '').trim();
+    if (!v) { showToast('error', 'Email is required. Please enter your email address.'); return; }
+    try {
+      send.disabled = true;
+      const res = await fetch('/api/auth/forgot-password', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ email: v }) });
+      // Parse JSON when available
+      let data = null;
+      try { data = await res.json(); } catch {}
+
+      if (res.status === 404) {
+        // Account not found
+        const msg = data?.message || 'Account with this email was not found. Please create an account.';
+        showToast('error', msg);
+        return;
+      }
+
+      if (res.status === 429) {
+        const msg = data?.message || 'Too many attempts. Please try again later.';
+        showToast('error', msg);
+        return;
+      }
+
+      if (!res.ok) {
+        const msg = data?.message || 'Failed to process request. Please try again later.';
+        showToast('error', msg);
+        return;
+      }
+
+      // Success
+      const successMsg = data?.message || 'We have sent reset instructions to your email.';
+      showToast('info', successMsg);
+      try { modal?.close(); } catch { modal?.classList.add('hidden'); }
+    } catch (err) {
+      showToast('error', 'Failed to send reset instructions. Please try again later.');
+    } finally { send.disabled = false; }
+  });
+})();
 
 document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
   e.preventDefault();

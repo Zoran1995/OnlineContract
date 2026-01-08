@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <UserSecretsId>44a8d77e-0f4f-4e49-8f4f-6b95a4083a5b</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +15,25 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MailKit" Version="4.1.0" />
+  </ItemGroup>
+
+  <!-- Exclude helpers, tools and test helper projects from SDK default globbing -->
+  <ItemGroup>
+    <Compile Remove="tools\**\*.cs" />
+    <Compile Remove="tempTest\**\*.cs" />
+    <Compile Remove="Tests\**\*.cs" />
+    <Compile Remove="Tests_disabled\**\*.cs" />
+    <Compile Remove="Tests*\**\*.cs" />
+    <!-- Exclude nested bin/obj from content copying -->
+    <Content Remove="Tests\bin\**" />
+    <Content Remove="Tests\obj\**" />
+    <Content Remove="tools\**\bin\**" />
+    <Content Remove="tools\**\obj\**" />
+    <None Remove="Tests\bin\**" />
+    <None Remove="Tests\obj\**" />
   </ItemGroup>
 
 </Project>

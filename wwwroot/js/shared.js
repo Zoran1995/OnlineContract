@@ -14,6 +14,59 @@ function _oc_getNotificationKey() {
   }
 }
 
+// Minimal, resilient capture-phase handler to toggle navbar dropdowns
+// Ensures `#eventlogDropdown` (Menu) and `#userDropdown` (Admin/user) open on click,
+// and prevents immediate document-level handlers from closing them.
+if (!window._oc_navbar_capture_bound) {
+  window._oc_navbar_capture_bound = true;
+  document.addEventListener('pointerdown', function (e) {
+    try {
+      const tgt = e.target;
+
+      // Helper to toggle a dropdown element and its .dropdown-content
+      function toggleDropdown(wrapper) {
+        if (!wrapper) return false;
+        wrapper.classList.toggle('dropdown-open');
+        const content = wrapper.querySelector('.dropdown-content');
+        if (content) content.classList.toggle('hidden');
+        return true;
+      }
+
+      // If clicking the EventLog/Menu activator or its children
+      const eventWrapper = document.getElementById('eventlogDropdown');
+      if (eventWrapper) {
+        const eventActivator = eventWrapper.querySelector('[role="button"], .oc-dropdown-activator');
+        // Only treat clicks on the activator itself (or its children). Do NOT treat clicks
+        // inside the dropdown menu (anchors) as activator clicks — otherwise navigation is blocked.
+        if (eventActivator && (eventActivator === tgt || eventActivator.contains(tgt))) {
+          // Prevent the global outside-click handler from immediately closing it
+          window._oc_ignoreNextDocClick = true;
+          setTimeout(function () { window._oc_ignoreNextDocClick = false; }, 250);
+          toggleDropdown(eventWrapper);
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
+
+      // If clicking the Admin/User label
+      const adminLabel = document.getElementById('adminLabel');
+      const userWrapper = document.getElementById('userDropdown');
+      if (adminLabel && (adminLabel === tgt || adminLabel.contains(tgt))) {
+        window._oc_ignoreNextDocClick = true;
+        setTimeout(function () { window._oc_ignoreNextDocClick = false; }, 250);
+        if (toggleDropdown(userWrapper)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        return;
+      }
+    } catch (err) {
+      // swallow errors to avoid breaking other scripts
+    }
+  }, true);
+}
+
 function _oc_loadNotifications() {
   try {
     const key = _oc_getNotificationKey();
@@ -1016,16 +1069,22 @@ function ensureNotificationUI() {
             const ddUsersTeams = document.getElementById('ddUsersTeams');
             const ddEventLog = document.getElementById('ddEventLog');
             const ddContracts = document.getElementById('ddContracts');
+            const ddNotes = document.getElementById('ddNotes');
             const ddProducts = document.getElementById('ddProducts');
             if (ddChangeStore) ddChangeStore.classList.toggle('hidden', !isPrivileged);
             if (ddUsersTeams) ddUsersTeams.classList.toggle('hidden', !isPrivileged);
             if (ddEventLog) ddEventLog.classList.toggle('hidden', !isPrivileged);
-            if (ddContracts) ddContracts.classList.toggle('hidden', !isLoggedIn);
+            // Contracts and Notes should be hidden for ordinary Customers (roleId = 5)
+            if (ddContracts) ddContracts.classList.toggle('hidden', (!isLoggedIn) || isCustomer);
+            if (ddNotes) ddNotes.classList.toggle('hidden', (!isLoggedIn) || isCustomer);
             if (ddProducts) ddProducts.classList.toggle('hidden', !canManageProducts);
           } catch { }
         }
       }
     };
+
+    try { window.updateNavbarAuth = updateNavbarAuth; } catch {}
+    try { window.syncAuthFromServer = syncAuthFromServer; } catch {}
 
     // First, align with server cookie; then update the navbar view without touching localStorage
     syncAuthFromServer().then((auth) => {
@@ -2401,3 +2460,259 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   mo.observe(document.body, { childList: true, subtree: true });
 })();
+
+// Row action menus helper: attach once and manage open/close for row kebab menus
+(function () {
+  if (window._oc_row_menus_bound) return; window._oc_row_menus_bound = true;
+
+  function closeAll(root) {
+    // Close any open row menus inside the provided root (limit to rows)
+    const scope = root || document;
+    const candidates = Array.from(scope.querySelectorAll('.dropdown-content, .oc-row-menu'))
+      .filter(m => !!m.closest && !!m.closest('tr'));
+    candidates.forEach(m => {
+      m.classList.add('hidden');
+      // find a kebab button in the same row
+      const row = m.closest('tr');
+      if (row) {
+        const btn = row.querySelector('button.oc-row-kebab, button[data-oc-kebab], .dropdown > button');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+        const wrap = m.closest('.dropdown') || m.closest('.oc-row-menu-wrapper');
+        if (wrap) wrap.classList.remove('dropdown-open');
+      }
+    });
+  }
+
+  function toggleMenuFor(button) {
+    if (!button) return;
+    // Prefer the nearest dropdown wrapper
+    const wrapper = button.closest('.dropdown') || button.closest('.oc-row-menu-wrapper') || button.parentElement;
+    if (!wrapper) return;
+    // Ensure this is a row-level menu (inside a table row)
+    const row = wrapper.closest('tr');
+    if (!row) return; // avoid toggling toolbar menus
+    const menu = wrapper.querySelector('.dropdown-content') || wrapper.querySelector('.oc-row-menu');
+    if (!menu) return;
+    const isOpen = !menu.classList.contains('hidden');
+    // Close others first (within same table)
+    closeAll(row.closest('table') || document);
+    if (isOpen) {
+      menu.classList.add('hidden');
+      button.setAttribute('aria-expanded', 'false');
+      wrapper.classList.remove('dropdown-open');
+    } else {
+      menu.classList.remove('hidden');
+      button.setAttribute('aria-expanded', 'true');
+      wrapper.classList.add('dropdown-open');
+    }
+  }
+
+  // Capture-phase pointerdown: open when clicking the kebab button, close when clicking outside
+  document.addEventListener('pointerdown', function (ev) {
+    try {
+      const tgt = ev.target;
+      // Only consider row-level kebabs inside a <tr>
+      const row = tgt.closest && tgt.closest('tr');
+      if (row) {
+        const kebab = tgt.closest && (tgt.closest('button.oc-row-kebab') || row.querySelector('button.oc-row-kebab') || tgt.closest('button[data-oc-kebab]') || row.querySelector('button[data-oc-kebab]') || tgt.closest('.dropdown > button'));
+        if (kebab) {
+          // prevent outside closers from seeing this as a click-away
+          try { ev.stopPropagation(); ev.preventDefault(); } catch {}
+          toggleMenuFor(kebab);
+          return;
+        }
+        // If click is inside any open row menu, ignore
+        const openMenu = tgt.closest && (tgt.closest('.dropdown-content') || tgt.closest('.oc-row-menu'));
+        if (openMenu && openMenu.closest('tr')) return;
+      }
+      // else close all row menus
+      closeAll(document);
+    } catch (e) { }
+  }, true);
+
+  // Close on Escape
+  document.addEventListener('keydown', function (ev) {
+    try { if (ev.key === 'Escape') closeAll(document); } catch (e) { }
+  }, true);
+
+  // Expose small helper to allow reusing when needed
+  try { window._oc_rowMenusCloseAll = (root) => closeAll(root ? document.querySelector(root) : document); } catch {}
+})();
+
+// Toolbar dropdown initializer: ensure toolbar kebab buttons open/close reliably
+(function () {
+  const ids = ['btnToolbarMenu', 'btnMore'];
+  function setup(btn) {
+    if (!btn || btn._oc_toolbar_bound) return;
+    btn._oc_toolbar_bound = true;
+    const container = btn.closest('.dropdown');
+    const content = container ? container.querySelector('.dropdown-content') : null;
+
+    function setOpen(open) {
+      try {
+        if (!container) return;
+        container.classList.toggle('dropdown-open', !!open);
+        if (content) content.classList.toggle('hidden', !open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        try {
+          // Notify any page-specific logic that the toolbar menu toggled
+          container.dispatchEvent(new CustomEvent('oc-toolbar-toggle', { detail: { open: !!open } }));
+        } catch {}
+      } catch { }
+    }
+
+    // Use capture-phase pointerdown so we run before other handlers
+    btn.addEventListener('pointerdown', function (ev) {
+      try {
+        ev.preventDefault();
+        ev.stopPropagation();
+      } catch { }
+      try { window._oc_ignoreNextDocClick = true; } catch { }
+      setTimeout(function () { try { window._oc_ignoreNextDocClick = false; } catch { } }, 250);
+      // Read open state from the container when possible (more reliable than aria attr alone)
+      const isOpen = (container && container.classList && container.classList.contains('dropdown-open')) || btn.getAttribute('aria-expanded') === 'true';
+      setOpen(!isOpen);
+    }, true);
+
+    // Close when clicking outside
+    document.addEventListener('pointerdown', function (ev) {
+      try {
+        if (window._oc_ignoreNextDocClick) return;
+        if (!container) return;
+        if (!container.classList.contains('dropdown-open')) return;
+        const tgt = ev.target || ev.srcElement;
+        if (container.contains(tgt)) return;
+        setOpen(false);
+      } catch { }
+    }, true);
+
+    // Close on Escape
+    document.addEventListener('keydown', function (ev) {
+      try { if (ev.key === 'Escape') setOpen(false); } catch { }
+    }, true);
+
+    // Close when a menu item is clicked
+    if (content) content.addEventListener('click', function () { try { setOpen(false); } catch { } });
+  }
+
+  function init() {
+    ids.forEach(id => {
+      try { setup(document.getElementById(id)); } catch { }
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+
+  // Expose a helper to close all toolbar menus (used by page code when actions run)
+  try {
+    window._oc_toolbar_closeAll = function () {
+      try {
+        ids.forEach(id => {
+          try {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            const container = btn.closest && btn.closest('.dropdown');
+            if (!container) return;
+            const content = container.querySelector && container.querySelector('.dropdown-content');
+            container.classList.remove('dropdown-open');
+            if (content) content.classList.add('hidden');
+            try { btn.setAttribute('aria-expanded', 'false'); } catch {}
+          } catch {}
+        });
+      } catch {}
+    };
+  } catch {}
+})();
+
+// Additional minimal dropdown hardening for Menu and Admin
+(function () {
+  function closeDropdown(wrapper) {
+    if (!wrapper) return;
+    wrapper.classList.remove('dropdown-open');
+    const menu = wrapper.querySelector('.dropdown-content');
+    if (menu) menu.classList.add('hidden');
+    const activator = wrapper.querySelector('[role="button"], #adminLabel');
+    if (activator) activator.setAttribute('aria-expanded', 'false');
+  }
+
+  function openDropdown(wrapper) {
+    if (!wrapper) return;
+    wrapper.classList.add('dropdown-open');
+    const menu = wrapper.querySelector('.dropdown-content');
+    if (menu) menu.classList.remove('hidden');
+    const activator = wrapper.querySelector('[role="button"], #adminLabel');
+    if (activator) activator.setAttribute('aria-expanded', 'true');
+  }
+
+  function toggleDropdown(wrapper) {
+    if (!wrapper) return;
+    if (wrapper.classList.contains('dropdown-open')) closeDropdown(wrapper); else openDropdown(wrapper);
+  }
+
+  function setupNavbarDropdown(wrapperId, activatorId) {
+    const wrapper = document.getElementById(wrapperId);
+    if (!wrapper) return;
+    const activator = activatorId ? document.getElementById(activatorId) : wrapper.querySelector('[role="button"]');
+    const menu = wrapper.querySelector('.dropdown-content');
+    if (!activator || !menu) return;
+    if (activator._oc_nav_setup) return;
+    activator._oc_nav_setup = true;
+
+    // Use capture-phase pointerdown so this runs before other handlers
+    activator.addEventListener('pointerdown', function (ev) {
+      try {
+        ev.preventDefault();
+        ev.stopPropagation();
+      } catch { }
+      try { window._oc_ignoreNextDocClick = true; } catch { }
+      setTimeout(function () { try { window._oc_ignoreNextDocClick = false; } catch { } }, 300);
+      toggleDropdown(wrapper);
+    }, true);
+
+    // Anchor fallback: if navigation is prevented by other handlers, force it shortly after click
+    Array.from(menu.querySelectorAll('a[href]')).forEach(a => {
+      if (a._oc_nav_bound) return;
+      a._oc_nav_bound = true;
+      a.addEventListener('click', function (ev) {
+        try {
+          // Let default happen first; schedule a fallback
+          const href = a.getAttribute('href');
+          if (!href) return;
+          setTimeout(function () {
+            try {
+              const dest = new URL(href, location.origin).pathname;
+              if (location.pathname !== dest) location.href = href;
+            } catch { }
+          }, 50);
+        } catch { }
+      }, false);
+    });
+
+    // Close when pressing Escape
+    document.addEventListener('keydown', function (ev) {
+      try {
+        if (ev.key === 'Escape' || ev.key === 'Esc') {
+          if (wrapper.classList.contains('dropdown-open')) closeDropdown(wrapper);
+        }
+      } catch { }
+    }, true);
+
+    // Document click (capture) closes when clicking outside
+    document.addEventListener('pointerdown', function (ev) {
+      try {
+        if (window._oc_ignoreNextDocClick) return;
+        if (!wrapper.classList.contains('dropdown-open')) return;
+        const tgt = ev.target || ev.srcElement;
+        if (wrapper.contains(tgt)) return;
+        closeDropdown(wrapper);
+      } catch { }
+    }, true);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    try { setupNavbarDropdown('eventlogDropdown'); } catch { }
+    try { setupNavbarDropdown('userDropdown', 'adminLabel'); } catch { }
+  });
+})();
+
+// (duplicate toolbar initializer removed; the unified initializer above handles both btnToolbarMenu and btnMore)

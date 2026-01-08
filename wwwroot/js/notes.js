@@ -288,35 +288,18 @@
     const menuDelete = document.getElementById('notesMenuDelete');
     const menuSetMain = document.getElementById('notesMenuSetMain');
 
-    // Initialize menu state and wire open/close behavior
+    // Initialize menu state and wire open/close behavior (robust toggling)
     try {
       updateMenuState();
-      btnMore?.addEventListener('click', (ev) => {
-        try { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } catch {}
-        try { window._oc_ignoreNextDocClick = true; } catch {}
-        setTimeout(() => { try { window._oc_ignoreNextDocClick = false; } catch {} }, 250);
-        const dd = btnMore.closest('.dropdown');
-        if (!dd) return;
-        const menu = dd.querySelector('.dropdown-content');
-        const open = dd.classList.toggle('dropdown-open');
-        if (menu) menu.classList.toggle('hidden', !open);
-        btnMore.setAttribute('aria-expanded', open ? 'true' : 'false');
-      });
-      // Close the menu when clicking outside (respect ignore flag)
-      if (!window._oc_bound_notes_menu_doc) {
-        window._oc_bound_notes_menu_doc = true;
-        document.addEventListener('click', (ev) => {
-          try {
-            if (window._oc_ignoreNextDocClick) return;
-            const dd = btnMore?.closest('.dropdown');
-            if (!dd) return;
-            if (!dd.classList.contains('dropdown-open')) return;
-            const tgt = ev.target || ev.srcElement;
-            if (dd.contains(tgt)) return;
-            closeMenu();
-          } catch {}
-        }, true);
-      }
+      const notesDropdown = btnMore?.closest('.dropdown');
+      const notesMenu = notesDropdown ? notesDropdown.querySelector('.dropdown-content') : null;
+
+      // Toolbar kebab is handled by shared initializer; recompute menu state when opened
+      try {
+        notesDropdown?.addEventListener('oc-toolbar-toggle', (ev) => {
+          try { const open = ev?.detail?.open; if (open) updateMenuState(); } catch {}
+        });
+      } catch {}
     } catch {}
 
     async function fetchNoteMeta(id) {
@@ -328,20 +311,31 @@
     }
 
     menuDeactivate?.addEventListener('click', async (e) => {
-      closeMenu();
+      try { window._oc_toolbar_closeAll && window._oc_toolbar_closeAll(); } catch {}
       if (!selectedId) { try { showToast('warning', 'Please select a note first.'); } catch {} return; }
       try {
         const meta = await fetchNoteMeta(selectedId);
         if (!meta) { try { showToast('error','Failed to retrieve note info.'); } catch {} return; }
         const newActive = !meta.isActive;
         const res = await fetch(`${apiBase}/${selectedId}`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify({ IsActive: newActive }) });
-        if (res && res.ok) { try { showToast('info', newActive ? 'Note has been activated.' : 'Note has been deactivated.'); } catch {} await load(); updateMenuState(); }
-        else { try { showToast('error','Failed to change active state.'); } catch {} }
-      } catch (e) { try { showToast('error','Failed to change active state.'); } catch {} }
+        if (res && res.ok) {
+          try { showToast('info', newActive ? 'Note has been activated.' : 'Note has been deactivated.'); } catch {}
+        } else {
+          try { showToast('error','Failed to change active state.'); } catch {}
+        }
+      } catch (e) {
+        try { showToast('error','Failed to change active state.'); } catch {}
+      } finally {
+        // Clear selection after action (success or failure) and recompute disabled state
+        selectedId = null; selectedRow = null;
+        try { render(); } catch {}
+        await load();
+        try { updateMenuState(); } catch {}
+      }
     });
 
     menuDelete?.addEventListener('click', async (e) => {
-      closeMenu();
+      try { window._oc_toolbar_closeAll && window._oc_toolbar_closeAll(); } catch {}
       if (!selectedId) { try { showToast('warning', 'Please select a note first.'); } catch {} return; }
       try {
         const meta = await fetchNoteMeta(selectedId);
@@ -350,11 +344,16 @@
         if (meta.productId && Number(meta.productId) > 0) {
           const body = { Delete: [{ Id: selectedId, Stamp: meta.stamp }] };
           const r = await fetch(`/api/products/${meta.productId}/notes`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body) });
-          if (r && r.ok) { try { showToast('info','Note has been deleted.'); } catch {} await load(); updateMenuState(); } else { try { showToast('error','Failed to delete note.'); } catch {} }
+          if (r && r.ok) { try { showToast('info','Note has been deleted.'); } catch {} 
+            // clear selection after action
+            selectedId = null; selectedRow = null; try { render(); } catch {};
+            await load(); updateMenuState(); } else { try { showToast('error','Failed to delete note.'); } catch {} }
         } else if (meta.contractId && Number(meta.contractId) > 0) {
           const body = { Delete: [{ Id: selectedId, Stamp: meta.stamp }] };
           const r = await fetch(`/api/contracts/${meta.contractId}/notes`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body) });
-          if (r && r.ok) { try { showToast('info','Note has been deleted.'); } catch {} await load(); updateMenuState(); } else { try { showToast('error','Failed to delete note.'); } catch {} }
+          if (r && r.ok) { try { showToast('info','Note has been deleted.'); } catch {} 
+            selectedId = null; selectedRow = null; try { render(); } catch {};
+            await load(); updateMenuState(); } else { try { showToast('error','Failed to delete note.'); } catch {} }
         } else {
           try { showToast('error','Note is not linked to a product or contract; cannot delete.'); } catch {}
         }
@@ -362,7 +361,7 @@
     });
 
     menuSetMain?.addEventListener('click', async (e) => {
-      closeMenu();
+      try { window._oc_toolbar_closeAll && window._oc_toolbar_closeAll(); } catch {}
       if (!selectedId) { try { showToast('warning', 'Please select a note first.'); } catch {} return; }
       try {
         const meta = await fetchNoteMeta(selectedId);
@@ -371,7 +370,10 @@
         if (meta.productId && Number(meta.productId) > 0) {
           const body = { SetMainId: selectedId, SetMainStamp: meta.stamp };
           const r = await fetch(`/api/products/${meta.productId}/notes`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body) });
-          if (r && r.ok) { try { showToast('info','Note has been set as main.'); } catch {} await load(); updateMenuState(); } else { try { showToast('error','Failed to set note as main.'); } catch {} }
+          if (r && r.ok) { try { showToast('info','Note has been set as main.'); } catch {} 
+            // clear selection after action
+            selectedId = null; selectedRow = null; try { render(); } catch {};
+            await load(); updateMenuState(); } else { try { showToast('error','Failed to set note as main.'); } catch {} }
         } else if (meta.contractId && Number(meta.contractId) > 0) {
           const body = { SetMainId: selectedId, SetMainStamp: meta.stamp };
           const r = await fetch(`/api/contracts/${meta.contractId}/notes`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body) });

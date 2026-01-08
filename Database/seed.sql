@@ -233,27 +233,27 @@ USING (
     (2, N'Novi Sad Promenada', N'Bulevar Oslobođenja 119, 21000 Novi Sad', N'+381 64 123 4567', N'novisad.kidstyle@gmail.com',
         N'Mon-Sun 10:00-22:00',
         CAST('2025-12-13T18:37:12' AS DATETIME2(0)), CAST('2025-12-28T22:05:12' AS DATETIME2(0)), 0)
-) AS src(store_id, name, address, phone_number, email, working_hours, created_at, updated_at, last_modified_user_id)
+) AS src(store_id, name, address, phone_number, email, working_hours, created_dt, updated_dt, last_modified_user_id)
 ON (tgt.store_id = src.store_id)
 WHEN NOT MATCHED THEN
-    INSERT (store_id, name, address, phone_number, email, working_hours, created_at, updated_at, last_modified_user_id)
-    VALUES (src.store_id, src.name, src.address, src.phone_number, src.email, src.working_hours, src.created_at, src.updated_at, src.last_modified_user_id)
+    INSERT (store_id, name, address, phone_number, email, working_hours, created_dt, updated_dt, last_modified_user_id)
+    VALUES (src.store_id, src.name, src.address, src.phone_number, src.email, src.working_hours, src.created_dt, src.updated_dt, src.last_modified_user_id)
 WHEN MATCHED AND (
     tgt.name <> src.name OR tgt.address <> src.address OR tgt.phone_number <> src.phone_number OR
     tgt.email <> src.email OR tgt.working_hours <> src.working_hours OR
-    tgt.updated_at <> src.updated_at OR ISNULL(tgt.last_modified_user_id, -1) <> src.last_modified_user_id
+    tgt.updated_dt <> src.updated_dt OR ISNULL(tgt.last_modified_user_id, -1) <> src.last_modified_user_id
 ) THEN UPDATE SET
     name = src.name,
     address = src.address,
     phone_number = src.phone_number,
     email = src.email,
     working_hours = src.working_hours,
-    updated_at = src.updated_at,
+    updated_dt = src.updated_dt,
     last_modified_user_id = src.last_modified_user_id;
 
 IF @is_identity_store = 1 SET IDENTITY_INSERT dbo.store OFF;
 
 COMMIT TRAN;
 
-PRINT 'Base data seeded (lookup_set, contract_state, transitions, ax_user: 0,1,2,3; product/contract defaults; store).';
+PRINT 'Base data seeded (lookup_set, contract_state, transitions, ax_user; product/contract defaults; store).';
 GO

@@ -47,18 +47,25 @@
     if (btnOpen) btnOpen.disabled = !selectedId || (selectedItem && !selectedItem.isActive);
 
     const hasSelection = !!selectedId;
+    // Hide Deactivate when no selection; Delete remains visible but disabled
     const deactivateItem = btnDeactivate ? btnDeactivate.closest('li') : null;
     if (deactivateItem) deactivateItem.classList.toggle('hidden', !hasSelection);
 
-    if (btnDelete) {
-      if (!hasSelection) {
-        btnDelete.setAttribute('aria-disabled', 'true');
-        btnDelete.classList.add('pointer-events-none', 'opacity-50');
+    // Disable/enable helper for menu items
+    const setState = (el, enabled) => {
+      if (!el) return;
+      if (enabled) {
+        el.removeAttribute('aria-disabled');
+        el.classList.remove('pointer-events-none', 'opacity-50');
       } else {
-        btnDelete.removeAttribute('aria-disabled');
-        btnDelete.classList.remove('pointer-events-none', 'opacity-50');
+        el.setAttribute('aria-disabled', 'true');
+        el.classList.add('pointer-events-none', 'opacity-50');
       }
-    }
+    };
+    // Delete is present even with no selection (disabled in that case)
+    setState(btnDelete, hasSelection);
+    // Deactivate enabled only when a row is selected (hidden otherwise as above)
+    setState(btnDeactivate, hasSelection);
 
     if (btnDeactivate && selectedItem) {
       const icon = selectedItem.isActive ? 'block' : 'check_circle';
@@ -198,6 +205,7 @@
       const tdQ2 = document.createElement('td'); tdQ2.textContent = String(it.qtyStore2 ?? 0); tr.appendChild(tdQ2);
       const tdStatus = document.createElement('td'); tdStatus.textContent = statusText; tr.appendChild(tdStatus);
 
+      // No actions column in rows: toolbar kebab above the grid controls actions
       tbody.appendChild(tr);
     });
 
@@ -214,6 +222,8 @@
       });
     } catch {}
   }
+
+  // per-row menu removed: toolbar menu controls actions for selected row
 
   function renderPager() {
     const pages = Math.max(1, Number(totalPages || 1));
@@ -245,6 +255,10 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       try { showToast('info', shouldDeactivate ? 'Product has been deactivated successfully.' : 'Product has been activated successfully.'); } catch { /* noop */ }
+      // Clear selection after action per requirements
+      selectedId = null; selectedRow = null; selectedItem = null;
+      try { renderRows(); } catch {}
+      try { updateOpenState(); } catch {}
       await load();
     } catch {
       try { showToast('error', 'Operation failed. Please try again later.'); } catch { /* noop */ }
@@ -286,6 +300,10 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       try { showToast('info', 'Product has been deleted successfully.'); } catch { /* noop */ }
+      // Clear selection after delete
+      selectedId = null; selectedRow = null; selectedItem = null;
+      try { renderRows(); } catch {}
+      try { updateOpenState(); } catch {}
       await load();
     } catch {
       try { showToast('error', 'Failed to delete product. Please try again later.'); } catch { /* noop */ }
@@ -360,43 +378,25 @@
     const menuButton = document.getElementById('btnToolbarMenu');
     const menuContent = document.getElementById('toolbarMenuContent');
 
-    function setMenuOpen(open) {
-      if (!menuContainer || !menuButton || !menuContent) return;
-      menuContainer.classList.toggle('dropdown-open', !!open);
-      menuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
-      menuContent.classList.toggle('hidden', !open);
-    }
+    // Toolbar menu behavior handled centrally in shared.js; recompute state when opened
+      // Use shared toolbar initializer for open/close behavior. Listen for its
+      // toggle event so we can recompute enabled state when opened.
+      try {
+        menuContainer?.addEventListener('oc-toolbar-toggle', (ev) => {
+          try { if (ev?.detail?.open) updateOpenState(); } catch {}
+        });
+      } catch {}
+      // Toolbar action bindings: close menu then invoke existing handlers
+      document.getElementById('btnDeactivate')?.addEventListener('click', () => { try { window._oc_toolbar_closeAll && window._oc_toolbar_closeAll(); } catch {} doActivateDeactivate(); });
+      document.getElementById('btnDelete')?.addEventListener('click',     () => { try { window._oc_toolbar_closeAll && window._oc_toolbar_closeAll(); } catch {} doDelete(); });
 
-    menuButton?.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const isOpen = menuButton.getAttribute('aria-expanded') === 'true';
-      setMenuOpen(!isOpen);
-    });
-
-    document.addEventListener('pointerdown', (e) => {
-      if (!menuContainer) return;
-      if (!menuContainer.contains(e.target)) setMenuOpen(false);
-    });
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') setMenuOpen(false);
-    });
-
-    menuContent?.addEventListener('click', () => setMenuOpen(false));
-
-    btnDeactivate?.addEventListener('click', (e) => {
-      e.preventDefault();
-      setMenuOpen(false);
-      doActivateDeactivate();
-    });
-    btnDelete?.addEventListener('click', (e) => {
-      e.preventDefault();
-      setMenuOpen(false);
-      doDelete();
-    });
-
-    loadStores().finally(() => load());
+    // Ensure initial data load: populate store filter then load products
+    try {
+      if (typeof loadStores === 'function') {
+        loadStores().finally(() => { try { load(); } catch {} });
+      } else {
+        try { load(); } catch {}
+      }
+    } catch {}
   });
-
 })();

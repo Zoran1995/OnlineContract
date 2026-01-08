@@ -152,18 +152,55 @@ dotnet build --configuration Debug "c:\Projects\OnlineContract\OnlineContract.cs
 dotnet run --project "c:\Projects\OnlineContract\OnlineContract.csproj"
 ```
 
+4. Tests
+
+- All automated tests live in the `Tests` folder. Run the full solution test run with:
+
+```powershell
+dotnet test OnlineContract.sln
+```
+
+- Or run only the tests project directly:
+
+```powershell
+dotnet test Tests\OnlineContract.Tests.csproj
+```
+
+- To configure the SMTP/email credentials for local test runs (user-secrets):
+
+```powershell
+cd c:\Projects\OnlineContract
+dotnet user-secrets set "GMAIL_USER" "your@gmail.com"
+dotnet user-secrets set "GMAIL_APP_PASSWORD" "your-app-password"
+```
+
+- Note: I removed leftover compiled artifacts under `Tests/bin` to keep the repo clean.
+
 3. Quick verification scenarios
 
-- Login as admin (example): `admin / passw0rd` → should sign in normally.
-- Attempt to sign in with a team account (`ax_user.IsGroup = 1`) → you should receive: "Team accounts cannot be used to sign in. Please use a personal account or contact your administrator for access.".
-- Edit an existing user without changing password → open Users, select a user, open modal, do not modify the password input, click Save → update succeeds.
-- Clear the password field in the modal (delete characters so it becomes empty) and Save → server will validate and return an explanatory error if empty (password required for that update).
-- Attempt to save a user when Stamp mismatch occurs → server returns a conflict message instructing to refresh.
-- Export EventLog with type and exact datetimes → returned CSV contains only filtered rows and filename includes timestamp.
 
----
 
-## Files & areas to inspect for related logic
+  - To set SMTP password locally using user secrets:
+
+    ```powershell
+    cd c:\Projects\OnlineContract
+    dotnet user-secrets init
+    dotnet user-secrets set "Smtp:Pass" "<your-app-password>"
+    ```
+
+  - Or set an environment variable (useful in CI or Docker):
+
+    Windows PowerShell:
+    ```powershell
+    $env:SMTP_PASSWORD = "<your-app-password>"
+    ```
+
+    Linux/macOS:
+    ```bash
+    export SMTP_PASSWORD="<your-app-password>"
+    ```
+
+  - The application prefers `Smtp:Pass` from configuration but will also read `SMTP_PASSWORD` env var if `Smtp:Pass` is empty.
 
 - Server: `Controllers/Program.cs` (login, users, groups, stores, exports, timestamps) — primary place for recent fixes.
 - Client: `wwwroot/js/users.js`, `wwwroot/js/shared.js`, `wwwroot/js/changestore.js`, `wwwroot/js/eventlog.js`, `wwwroot/js/contracts.js`.
