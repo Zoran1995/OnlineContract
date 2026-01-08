@@ -329,7 +329,7 @@
       const res = await fetch(`/api/contracts/${encodeURIComponent(state.id)}/notes`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload) });
       if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      try { showToast('info', 'Note deleted'); } catch {}
+      try { showToast('info', 'The note was deleted successfully.'); } catch {}
       state.selectedNoteId = null;
       await loadNotes();
     } catch { try { showToast('error', 'Failed to delete note.'); } catch {} }

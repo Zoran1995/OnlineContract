@@ -94,6 +94,7 @@ builder.Services.AddScoped<OnlineContract.Services.CartService>();
 builder.Services.AddSingleton<OnlineContract.Services.SessionBridgeService>();
 builder.Services.AddScoped<OnlineContract.Services.AnonCartCacheService>();
 builder.Services.AddScoped<OnlineContract.Services.CartMergeService>();
+builder.Services.AddScoped<OnlineContract.Services.VariantAvailabilityService>();
 
 // Cookie Authentication + Authorization
 builder.Services
@@ -305,6 +306,14 @@ IResult StableJson(object payload)
         : Results.Json(payload);
 }
 
+// Helper: stable JSON with explicit status code (avoids PipeWriter in Testing)
+IResult StableJsonStatus(object payload, int statusCode)
+{
+    return app.Environment.IsEnvironment("Testing")
+        ? Results.Text(JsonSerializer.Serialize(payload), "application/json", statusCode: statusCode)
+        : Results.Json(payload, statusCode: statusCode);
+}
+
 // Contract details page shell
 app.MapGet("/contracts/{id:int}", (HttpContext context, int id) =>
 {
@@ -345,6 +354,14 @@ app.MapGet("/contractshistory", (HttpContext context) =>
 {
     if (!IsCustomer(context)) return Results.Redirect("/home");
     var filePath = Path.Combine(app.Environment.WebRootPath, "contractshistory.html");
+    return Results.File(filePath, "text/html");
+}).RequireAuthorization();
+
+// Customer-only Contract History Details (items-only) page shell
+app.MapGet("/contractshistory/{id:int}", (HttpContext context, int id) =>
+{
+    if (!IsCustomer(context)) return Results.Redirect("/home");
+    var filePath = Path.Combine(app.Environment.WebRootPath, "contractshistory-details.html");
     return Results.File(filePath, "text/html");
 }).RequireAuthorization();
 
@@ -420,7 +437,7 @@ app.MapPost("/api/product-variants/{id:int}/delete", async (AppDbContext db, Htt
     try
     {
         var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
-        if (v == null) return Results.NotFound(new { message = "Inventory row not found. It may have been removed." });
+        if (v == null) return Results.NotFound(new { message = "The inventory row was not found. It may have been removed." });
         // Prevent variant/inventory changes when parent product is inactive or deleted
         var parentProduct = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == v.ProductId);
         if (parentProduct == null || !parentProduct.IsActive || parentProduct.IsDeleted)
@@ -574,17 +591,17 @@ app.MapPost("/api/cart/items", async (OnlineContract.Services.CartService cartSv
     {
         var dto = await http.Request.ReadFromJsonAsync<OnlineContract.Dtos.AddToCartRequest>();
         if (dto == null || dto.ProductVariantId <= 0 || dto.Quantity < 1)
-            return Results.BadRequest(new { message = "Invalid payload" });
+            return StableJsonStatus(new { message = "Invalid payload" }, StatusCodes.Status400BadRequest);
 
         var uid = GetCurrentUserId(http);
         var res = await cartSvc.AddToCartAsync(uid, dto.ProductVariantId, dto.Quantity, http.RequestAborted);
         try { await LoggerHelper.LogEventAsync(http.RequestServices.GetRequiredService<AppDbContext>(), OnlineContract.Helpers.EventType.Information, "AddToCart", $"VariantId={dto.ProductVariantId}; Qty={dto.Quantity}; ContractId={res.ContractId}", uid); } catch { }
-        return Results.Json(res);
+        return StableJson(res);
     }
     catch (InvalidOperationException ex)
     {
         // Business rule violations
-        return Results.BadRequest(new { message = ex.Message });
+        return StableJsonStatus(new { message = ex.Message }, StatusCodes.Status400BadRequest);
     }
     catch (Exception ex)
     {
@@ -1770,7 +1787,9 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
         var isCustomer = roleId == (int)UserRole.Customer;
 
         // Build base contracts query (entity) so we can apply server-side sorting before projection
-        var contractsQuery = db.Contracts.AsNoTracking().Where(c => c.Id > 0 && (!isCustomer || (c.InputUserId ?? 0) == currentUserId));
+        // For customers: restrict to own contracts that are active and not deleted
+        var contractsQuery = db.Contracts.AsNoTracking().Where(c =>
+            c.Id > 0 && (!isCustomer || ((c.InputUserId ?? 0) == currentUserId && c.IsActive && !c.IsDeleted)));
 
         var qUserJoin =
             from c in contractsQuery
@@ -1850,7 +1869,7 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
             from c in orderedContracts
             join u0 in db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug2
             from u in ug2.DefaultIfEmpty()
-            where !isCustomer || (c.InputUserId ?? 0) == currentUserId
+            where !isCustomer || ((c.InputUserId ?? 0) == currentUserId && c.IsActive && !c.IsDeleted)
             select new
             {
                 c.Id,
@@ -1925,7 +1944,7 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
 
 app.MapGet("/api/contracts/{id:int}", async (AppDbContext db, HttpContext http, int id) =>
 {
-    if (id <= 0) return Results.NotFound(new { message = "Contract not found. Please verify the contract ID and try again." });
+    if (id <= 0) return StableJsonStatus(new { message = "Contract not found. Please verify the contract ID and try again." }, StatusCodes.Status404NotFound);
 
     var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
     int.TryParse(roleClaim, out var roleId);
@@ -1933,13 +1952,17 @@ app.MapGet("/api/contracts/{id:int}", async (AppDbContext db, HttpContext http, 
     int.TryParse(userIdClaim, out var currentUserId);
     var isCustomer = roleId == (int)UserRole.Customer;
 
+    var contractEntity = await db.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+    if (contractEntity == null) return StableJsonStatus(new { message = "Contract not found. The contract may have been removed." }, StatusCodes.Status404NotFound);
+    if (isCustomer && (contractEntity.InputUserId ?? 0) != currentUserId) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
     var row = await (
         from c in db.Contracts.AsNoTracking()
         join u0 in db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug
         from u in ug.DefaultIfEmpty()
         join u1 in db.AxUsers.AsNoTracking() on c.LastModifiedById equals (int?)u1.Id into ug1
         from lm in ug1.DefaultIfEmpty()
-        where c.Id > 0 && c.Id == id && (!isCustomer || (c.InputUserId ?? 0) == currentUserId)
+        where c.Id == id
         select new
         {
             c.Id,
@@ -1959,7 +1982,8 @@ app.MapGet("/api/contracts/{id:int}", async (AppDbContext db, HttpContext http, 
         }
     ).FirstOrDefaultAsync();
 
-    if (row == null) return Results.NotFound(new { message = "Contract not found. The contract may have been removed." });
+    if (row == null)
+        return StableJsonStatus(new { message = "Contract not found. The contract may have been removed." }, StatusCodes.Status404NotFound);
 
     string contractStateText = row.ContractState.ToString();
     try { contractStateText = await OnlineContract.Helpers.LookupHelper.GetLookupValueAsync(db, (int)row.ContractState); } catch {}
@@ -1985,7 +2009,17 @@ app.MapGet("/api/contracts/{id:int}", async (AppDbContext db, HttpContext http, 
 // Contract items (read-only list for details page)
 app.MapGet("/api/contracts/{id:int}/items", async (AppDbContext db, HttpContext http, int id, int page, int pageSize) =>
 {
-    if (id <= 0) return Results.NotFound(new { message = "Contract not found. Please verify the contract ID and try again." });
+    if (id <= 0) return StableJsonStatus(new { message = "Contract not found. Please verify the contract ID and try again." }, StatusCodes.Status404NotFound);
+
+    var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+    int.TryParse(roleClaim, out var roleId);
+    var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+    int.TryParse(userIdClaim, out var currentUserId);
+    var isCustomer = roleId == (int)UserRole.Customer;
+
+    var contractEntity = await db.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+    if (contractEntity == null) return StableJsonStatus(new { message = "Contract not found. The contract may have been removed." }, StatusCodes.Status404NotFound);
+    if (isCustomer && (contractEntity.InputUserId ?? 0) != currentUserId) return Results.StatusCode(StatusCodes.Status403Forbidden);
 
     try
     {
@@ -1995,11 +2029,11 @@ app.MapGet("/api/contracts/{id:int}/items", async (AppDbContext db, HttpContext 
         var baseQ = db.ContractDets.AsNoTracking().Where(d => d.ContractId == id && !d.IsDeleted);
         var totalCount = await baseQ.CountAsync();
 
-        var rows = await baseQ
-            .OrderBy(d => d.Id)
-            .Skip(Math.Max(0, (pageIndex - 1) * size))
-            .Take(size)
-            .Select(d => new
+        var rows = await (
+            from d in baseQ
+            join v in db.ProductVariants.AsNoTracking() on d.ProductVariantId equals v.Id
+            orderby d.Id
+            select new
             {
                 d.Id,
                 d.ProductName,
@@ -2011,8 +2045,12 @@ app.MapGet("/api/contracts/{id:int}/items", async (AppDbContext db, HttpContext 
                 d.ItemStateId,
                 d.InputDt,
                 d.IsActive,
-                d.ProductVariantId
+                d.ProductVariantId,
+                d.Stamp,
+                ProductId = v.ProductId
             })
+            .Skip(Math.Max(0, (pageIndex - 1) * size))
+            .Take(size)
             .ToListAsync();
 
         var items = new List<object>();
@@ -2042,7 +2080,9 @@ app.MapGet("/api/contracts/{id:int}/items", async (AppDbContext db, HttpContext 
                 itemStateText = stateText,
                 inputDt = r.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
                 isActive = r.IsActive,
-                photoFileName
+                photoFileName,
+                productId = r.ProductId,
+                stamp = r.Stamp
             });
         }
 
@@ -2057,6 +2097,419 @@ app.MapGet("/api/contracts/{id:int}/items", async (AppDbContext db, HttpContext 
     {
         await LoggerHelper.LogEventAsync(db, OnlineContract.Helpers.EventType.Error, "Contract items fetch failed", ex.ToString(), 2);
         return StableJson(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
+    }
+}).RequireAuthorization();
+
+// Contract items delete (Draft only, owner-only)
+app.MapPost("/api/contracts/{id:int}/items/{itemId:int}/delete", async (AppDbContext db, HttpContext http, int id, int itemId) =>
+{
+    if (id <= 0 || itemId <= 0) return Results.StatusCode(StatusCodes.Status404NotFound);
+
+    try
+    {
+        var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+        int.TryParse(roleClaim, out var roleId);
+        var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        int.TryParse(userIdClaim, out var currentUserId);
+        var isCustomer = roleId == (int)UserRole.Customer;
+        if (!isCustomer) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+        if (contract == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        if ((contract.InputUserId ?? 0) != currentUserId) return Results.StatusCode(StatusCodes.Status403Forbidden);
+        if (contract.ContractState != ContractState.Draft) return Results.StatusCode(StatusCodes.Status409Conflict);
+
+        await using var tx = await db.Database.BeginTransactionAsync();
+
+        var det = await db.ContractDets.FirstOrDefaultAsync(d => d.Id == itemId && d.ContractId == id && !d.IsDeleted);
+        if (det == null) { await tx.RollbackAsync(); return Results.StatusCode(StatusCodes.Status404NotFound); }
+
+        // Soft-delete detail (respect DB CHECK on active/deleted exclusivity)
+        det.IsDeleted = true;
+        det.IsActive = false;
+        det.LastModifiedById = currentUserId;
+        det.LastUpdatedDt = DateTime.Now;
+        det.Stamp = det.Stamp + 1;
+        await db.SaveChangesAsync();
+
+        // Recompute header amount from remaining active/not-deleted lines as sum of AmtGross
+        var newAmount = await db.ContractDets.AsNoTracking()
+            .Where(d => d.ContractId == id && d.IsActive && !d.IsDeleted)
+            .Select(d => (decimal?)d.AmtGross)
+            .SumAsync() ?? 0m;
+        contract.Amount = newAmount;
+        contract.LastModifiedById = currentUserId;
+        contract.LastUpdatedDt = DateTime.Now;
+        contract.Stamp = contract.Stamp + 1;
+        await db.SaveChangesAsync();
+
+        // If this was the last active detail, soft-delete the contract header as well
+        var remainingActive = await db.ContractDets.AsNoTracking()
+            .CountAsync(d => d.ContractId == id && d.IsActive && !d.IsDeleted);
+        if (remainingActive == 0)
+        {
+            contract.IsDeleted = true;
+            contract.IsActive = false;
+            contract.LastModifiedById = currentUserId;
+            contract.LastUpdatedDt = DateTime.Now;
+            contract.Stamp = contract.Stamp + 1;
+            await db.SaveChangesAsync();
+        }
+
+        await tx.CommitAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Contract item deleted", $"ContractId={id}; ItemId={itemId}", currentUserId);
+        return StableJson(new { success = true, message = "The item was deleted successfully." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Contract item delete failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+// Save contract (Draft only, owner-only). No-op that bumps audit/stamp.
+app.MapPost("/api/contracts/{id:int}/save", async (AppDbContext db, HttpContext http, int id) =>
+{
+    if (id <= 0) return Results.StatusCode(StatusCodes.Status404NotFound);
+    try
+    {
+        var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+        int.TryParse(roleClaim, out var roleId);
+        var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        int.TryParse(userIdClaim, out var currentUserId);
+        var isCustomer = roleId == (int)UserRole.Customer;
+        if (!isCustomer) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+        if (contract == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        if ((contract.InputUserId ?? 0) != currentUserId) return Results.StatusCode(StatusCodes.Status403Forbidden);
+        if (contract.ContractState != ContractState.Draft) return Results.StatusCode(StatusCodes.Status409Conflict);
+
+        // Optional concurrency check: client can pass stamp in body
+        try
+        {
+            var body = await http.Request.ReadFromJsonAsync<Dictionary<string, int?>>();
+            if (body != null && body.TryGetValue("contractStamp", out var cs) && cs.HasValue && contract.Stamp != cs.Value)
+                return Results.StatusCode(StatusCodes.Status409Conflict);
+        }
+        catch { }
+
+        // Re-validate stock for all active lines (standardized message)
+        var dets = await db.ContractDets.Where(d => d.ContractId == id && !d.IsDeleted).ToListAsync();
+        foreach (var d in dets)
+        {
+            var ok = await new OnlineContract.Services.VariantAvailabilityService(db)
+                .CheckVariantAvailabilityAsync(d.ProductVariantId, d.Quantity);
+            if (!ok)
+            {
+                var available = await db.ProductInventories.AsNoTracking()
+                    .Where(i => i.ProductVariantId == d.ProductVariantId && i.IsActive && !i.IsDeleted)
+                    .Select(i => (int?)i.QtyOnHand).SumAsync() ?? 0;
+                return StableJson(new { success = false, message = $"Insufficient stock: requested {d.Quantity}, available {available}." });
+            }
+        }
+
+        // Recompute header amount as sum of AmtGross for active/not-deleted lines
+        var newAmount = await db.ContractDets.AsNoTracking()
+            .Where(d => d.ContractId == id && d.IsActive && !d.IsDeleted)
+            .Select(d => (decimal?)d.AmtGross)
+            .SumAsync() ?? 0m;
+        contract.Amount = newAmount;
+
+        contract.LastModifiedById = currentUserId;
+        contract.LastUpdatedDt = DateTime.Now;
+        contract.Stamp = contract.Stamp + 1;
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Contract saved", $"ContractId={id}", currentUserId);
+        return StableJson(new { success = true, message = "Your changes have been saved successfully." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Contract save failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+// Edit contract item (Draft only, owner-only) with variant+stock validation and concurrency checks
+app.MapPost("/api/contracts/{id:int}/items/{itemId:int}/edit", async (
+    AppDbContext db,
+    HttpContext http,
+    OnlineContract.Services.VariantAvailabilityService stockSvc,
+    int id,
+    int itemId) =>
+{
+    if (id <= 0 || itemId <= 0) return Results.StatusCode(StatusCodes.Status404NotFound);
+    try
+    {
+        var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+        int.TryParse(roleClaim, out var roleId);
+        var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        int.TryParse(userIdClaim, out var currentUserId);
+        var isCustomer = roleId == (int)UserRole.Customer;
+        if (!isCustomer) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+        var dto = await http.Request.ReadFromJsonAsync<OnlineContract.Dtos.ContractItemUpdateDto>();
+        if (dto == null) return Results.StatusCode(StatusCodes.Status400BadRequest);
+        if (dto.ItemId != 0 && dto.ItemId != itemId) return Results.StatusCode(StatusCodes.Status400BadRequest);
+        if (dto.Quantity <= 0) return StableJson(new { success = false, message = "Quantity must be greater than 0." });
+
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+        if (contract == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        if ((contract.InputUserId ?? 0) != currentUserId) return Results.StatusCode(StatusCodes.Status403Forbidden);
+        if (contract.ContractState != ContractState.Draft) return Results.StatusCode(StatusCodes.Status409Conflict);
+        if (contract.Stamp != dto.ContractStamp) return Results.StatusCode(StatusCodes.Status409Conflict);
+
+        var det = await db.ContractDets.FirstOrDefaultAsync(d => d.Id == itemId && d.ContractId == id && !d.IsDeleted);
+        if (det == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        if (det.Stamp != dto.ItemStamp) return Results.StatusCode(StatusCodes.Status409Conflict);
+
+        // Resolve product
+        var existingVariant = await db.ProductVariants.AsNoTracking().FirstOrDefaultAsync(v => v.Id == det.ProductVariantId);
+        if (existingVariant == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        var productId = existingVariant.ProductId;
+
+        // Variant and stock validation for requested size/color/qty
+        var vr = await stockSvc.CheckVariantAvailabilityAsync(productId, dto.Color ?? string.Empty, dto.Size ?? string.Empty, dto.Quantity, dto.StoreId, http.RequestAborted);
+        if (vr.FoundVariantId <= 0)
+        {
+            return StableJson(new { success = false, message = "Selected color/size variant is not available." });
+        }
+        if (!vr.IsAvailable)
+        {
+            var err = vr.Errors.FirstOrDefault() ?? $"Insufficient stock: requested {dto.Quantity}, available {vr.AvailableQty}.";
+            return StableJson(new { success = false, message = err });
+        }
+
+        // Apply edits: do not change Amount (unit price). Update variant, qty, size, color, audit, stamp
+        det.ProductVariantId = vr.FoundVariantId;
+        det.Quantity = dto.Quantity;
+        det.Size = (dto.Size ?? string.Empty).Trim();
+        det.Color = (dto.Color ?? string.Empty).Trim();
+        det.LastModifiedById = currentUserId;
+        det.LastUpdatedDt = DateTime.Now;
+        det.Stamp = det.Stamp + 1;
+
+        // Persist the line change first so computed AmtGross reflects the new quantity
+        await db.SaveChangesAsync();
+
+        // Recompute header amount: sum of AmtGross for active/not-deleted lines
+        var newAmount = await db.ContractDets.AsNoTracking()
+            .Where(d => d.ContractId == id && d.IsActive && !d.IsDeleted)
+            .Select(d => (decimal?)d.AmtGross)
+            .SumAsync() ?? 0m;
+        contract.Amount = newAmount;
+        contract.LastModifiedById = currentUserId;
+        contract.LastUpdatedDt = DateTime.Now;
+        contract.Stamp = contract.Stamp + 1;
+
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Contract item edited", $"ContractId={id}; ItemId={itemId}; VariantId={det.ProductVariantId}", currentUserId);
+        return StableJson(new { success = true, message = "Item has been successfully updated.", stamp = det.Stamp, contractStamp = contract.Stamp });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Contract item edit failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+// Payment webhook (idempotent) to mark AmtMatched when payment succeeds
+app.MapPost("/api/payments/webhook", async (AppDbContext db, HttpContext http) =>
+{
+    try
+    {
+        var payload = await http.Request.ReadFromJsonAsync<Dictionary<string, object?>>();
+        if (payload == null) return Results.StatusCode(StatusCodes.Status400BadRequest);
+        var status = (payload.TryGetValue("status", out var s) ? (s?.ToString() ?? "") : "").Trim().ToLowerInvariant();
+        if (status != "success") return Results.Ok(new { ignored = true });
+        if (!payload.TryGetValue("contractId", out var cidObj)) return Results.StatusCode(StatusCodes.Status400BadRequest);
+        if (!int.TryParse(cidObj?.ToString(), out var contractId) || contractId <= 0) return Results.StatusCode(StatusCodes.Status400BadRequest);
+
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == contractId && !c.IsDeleted);
+        if (contract == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        // Idempotent: only update if not already fully matched
+        if (contract.AmtMatched < contract.Amount)
+        {
+            contract.AmtMatched = contract.Amount;
+            contract.LastUpdatedDt = DateTime.Now;
+            contract.Stamp = contract.Stamp + 1;
+            await db.SaveChangesAsync();
+            await LoggerHelper.LogEventAsync(db, EventType.Information, "Payment matched", $"ContractId={contractId}; AmtMatched={contract.AmtMatched}", 2);
+        }
+        return Results.Ok(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Payment webhook failed", ex.ToString(), 2);
+        return Results.StatusCode(500);
+    }
+});
+
+// WSPay/Monri callback (idempotent): expects { status: 'success'|'failure', contractId: number }
+app.MapPost("/api/payments/wspay/callback", async (AppDbContext db, HttpContext http) =>
+{
+    try
+    {
+        var payload = await http.Request.ReadFromJsonAsync<Dictionary<string, object?>>();
+        if (payload == null) return Results.StatusCode(StatusCodes.Status400BadRequest);
+        var status = (payload.TryGetValue("status", out var s) ? (s?.ToString() ?? "") : "").Trim().ToLowerInvariant();
+        if (!payload.TryGetValue("contractId", out var cidObj)) return Results.StatusCode(StatusCodes.Status400BadRequest);
+        if (!int.TryParse(cidObj?.ToString(), out var contractId) || contractId <= 0) return Results.StatusCode(StatusCodes.Status400BadRequest);
+
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == contractId && !c.IsDeleted);
+        if (contract == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+
+        if (status == "success")
+        {
+            // If already matched and submitted, no-op
+            if (contract.ContractState == ContractState.Submitted && contract.AmtMatched >= contract.Amount)
+                return StableJson(new { success = true, idempotent = true });
+
+            var dets = await db.ContractDets.Where(d => d.ContractId == contractId && !d.IsDeleted).ToListAsync();
+            foreach (var d in dets)
+            {
+                d.ItemStateId = ProductStateInOrder.Submitted;
+                d.LastUpdatedDt = DateTime.Now;
+                d.Stamp = d.Stamp + 1;
+            }
+            // Recompute header amount by summing per-line gross with rounding
+            decimal newAmount = 0m;
+            foreach (var ln in dets)
+            {
+                var net = ln.Amount * ln.Quantity;
+                var tax = Math.Round(net * 0.20m, 2, MidpointRounding.AwayFromZero);
+                var gross = Math.Round(net + tax, 2, MidpointRounding.AwayFromZero);
+                newAmount += gross;
+            }
+            contract.Amount = newAmount;
+            contract.ContractState = ContractState.Submitted;
+            contract.AmtMatched = contract.Amount;
+            contract.LastUpdatedDt = DateTime.Now;
+            contract.Stamp = contract.Stamp + 1;
+            await db.SaveChangesAsync();
+            await LoggerHelper.LogEventAsync(db, EventType.Information, "WSPay payment matched", $"ContractId={contractId}; AmtMatched={contract.AmtMatched}", 2);
+            return StableJson(new { success = true });
+        }
+        else
+        {
+            await LoggerHelper.LogEventAsync(db, EventType.Warning, "WSPay payment failed", $"ContractId={contractId}", 2);
+            return StableJson(new { success = false, message = "Payment failed. Please try again." });
+        }
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "WSPay callback failed", ex.ToString(), 2);
+        return Results.StatusCode(500);
+    }
+});
+
+// Submit contract (Draft only, owner-only). method=cod|online
+app.MapPost("/api/contracts/{id:int}/submit", async (AppDbContext db, HttpContext http, OnlineContract.Services.VariantAvailabilityService stockSvc, int id, string? method) =>
+{
+    if (id <= 0) return Results.StatusCode(StatusCodes.Status404NotFound);
+    try
+    {
+        var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+        int.TryParse(roleClaim, out var roleId);
+        var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        int.TryParse(userIdClaim, out var currentUserId);
+        var isCustomer = roleId == (int)UserRole.Customer;
+        if (!isCustomer) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+        if (contract == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        if ((contract.InputUserId ?? 0) != currentUserId) return Results.StatusCode(StatusCodes.Status403Forbidden);
+        if (contract.ContractState != ContractState.Draft) return Results.StatusCode(StatusCodes.Status409Conflict);
+
+        // Recompute header amount: sum of AmtGross for active/not-deleted lines
+        var sumAmount = await db.ContractDets.AsNoTracking()
+            .Where(d => d.ContractId == id && d.IsActive && !d.IsDeleted)
+            .Select(d => (decimal?)d.AmtGross)
+            .SumAsync() ?? 0m;
+        contract.Amount = sumAmount;
+
+        // Validate variant availability for each non-deleted item before submission
+        var dets = await db.ContractDets.Where(d => d.ContractId == id && !d.IsDeleted).ToListAsync();
+        foreach (var d in dets)
+        {
+            var ok = await stockSvc.CheckVariantAvailabilityAsync(d.ProductVariantId, d.Quantity);
+            if (!ok)
+            {
+                // Compute available quantity to return standardized message
+                var available = await db.ProductInventories.AsNoTracking()
+                    .Where(i => i.ProductVariantId == d.ProductVariantId && i.IsActive && !i.IsDeleted)
+                    .Select(i => (int?)i.QtyOnHand).SumAsync() ?? 0;
+                return StableJson(new { success = false, message = $"Insufficient stock: requested {d.Quantity}, available {available}." });
+            }
+        }
+
+        // Validate profile completeness (after stock check)
+        var user = await db.AxUsers.FirstOrDefaultAsync(u => u.Id == currentUserId && !u.IsDeleted);
+        if (user == null) return Results.StatusCode(StatusCodes.Status403Forbidden);
+        var errors = new Dictionary<string, string>();
+        if (string.IsNullOrWhiteSpace(user.Email)) errors["email"] = "Email is required.";
+        else if (!user.Email.Contains('@')) errors["email"] = "Email format is invalid.";
+        var phone = user.Phone ?? "";
+        var (okPhone, _, phoneErr) = PhoneHelper.NormalizeSerbianPhone(phone);
+        if (!okPhone) errors["phoneNumber"] = phoneErr ?? "Phone number format is invalid.";
+        if (string.IsNullOrWhiteSpace(user.City)) errors["city"] = "City is required.";
+        if (string.IsNullOrWhiteSpace(user.StreetAddress)) errors["streetAddress"] = "Street address is required.";
+        var postal = (user.PostalCode ?? "").Trim();
+        if (postal.Length != 5) errors["postalCode"] = "Postal code must be exactly 5 characters.";
+        if (errors.Count > 0)
+        {
+            var msg = errors.Count == 1 ? errors.Values.First() : "Please review your profile details and try again.";
+            return StableJson(new { success = false, message = msg, errors });
+        }
+
+        // Bind method from query when not provided by minimal API binder
+        string? mRaw = method;
+        if (string.IsNullOrWhiteSpace(mRaw))
+        {
+            try { mRaw = http.Request.Query["method"].ToString(); } catch { mRaw = ""; }
+        }
+        var m = (mRaw ?? "").Trim().ToLowerInvariant();
+        if (m == "cod")
+        {
+            // Transactional: update details and header atomically
+            await using var tx = await db.Database.BeginTransactionAsync();
+            foreach (var d in dets)
+            {
+                d.ItemStateId = ProductStateInOrder.Submitted;
+                d.LastModifiedById = currentUserId;
+                d.LastUpdatedDt = DateTime.Now;
+                d.Stamp = d.Stamp + 1;
+            }
+
+            contract.ContractState = ContractState.Submitted;
+            contract.LastModifiedById = currentUserId;
+            contract.LastUpdatedDt = DateTime.Now;
+            contract.Stamp = contract.Stamp + 1;
+            contract.AmtMatched = 0m;
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+            await LoggerHelper.LogEventAsync(db, EventType.Information, "Contract submitted (COD)", $"ContractId={id}", currentUserId);
+            return StableJson(new { success = true, message = "Your order was submitted successfully. We’ll contact you shortly." });
+        }
+        else if (m == "online")
+        {
+            // Initiate payment; keep contract in Draft until callback confirms
+            contract.LastModifiedById = currentUserId;
+            contract.LastUpdatedDt = DateTime.Now;
+            contract.Stamp = contract.Stamp + 1; // track submission attempt
+            await db.SaveChangesAsync();
+            await LoggerHelper.LogEventAsync(db, EventType.Information, "Contract payment initiated (Online)", $"ContractId={id}", currentUserId);
+            return StableJson(new { success = true, message = "Payment initiated. You'll be notified upon confirmation.", paymentStatus = "initiated", reference = id });
+        }
+        else
+        {
+            return StableJson(new { success = false, message = "Unknown submit method. Use 'cod' or 'online'." });
+        }
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Contract submit failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
     }
 }).RequireAuthorization();
 

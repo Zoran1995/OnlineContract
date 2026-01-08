@@ -41,14 +41,14 @@ public class CartService
 
         if (availableQty > 0 && quantity > availableQty)
         {
-            // Reject over-quantity
-            throw new InvalidOperationException("Nemamo toliko na stanju, molimo smanjite količinu.");
+            // Reject over-quantity with standardized message
+            throw new InvalidOperationException($"Insufficient stock: requested {quantity}, available {availableQty}.");
         }
 
         string? warning = null;
         if (availableQty == 0)
         {
-            warning = "Currently unavailable. We will contact you ASAP.";
+            warning = "Product is currently unavailable.";
         }
 
         // Find or create user's draft contract

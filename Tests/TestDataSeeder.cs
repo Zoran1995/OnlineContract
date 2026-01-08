@@ -20,6 +20,10 @@ public static class TestDataSeeder
             Id = 123,
             Code = "testuser",
             Email = "user@example.com",
+            Phone = "0612345678",
+            City = "Belgrade",
+            StreetAddress = "Knez Mihailova 1",
+            PostalCode = "11000",
             RoleId = 5, // Customer
             IsActive = true,
             IsDeleted = false,

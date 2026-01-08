@@ -13,6 +13,8 @@ namespace OnlineContract.Helpers
             string? stackTrace,
             int userId)
         {
+            // In test runs using SQLite, skip logging to SQL Server-specific tables
+            try { if (db.Database.IsSqlite()) return; } catch { }
             var validUser = await db.AxUsers.AnyAsync(u => u.Id == userId && u.IsActive && !u.IsDeleted);
 
             // Sanitize/encode inputs to avoid storing raw HTML/JS

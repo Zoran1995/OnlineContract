@@ -216,6 +216,49 @@ function _oc_updateCartVisibility() {
   cartWrap.classList.toggle('hidden', !shouldShow);
 }
 
+// Show a small badge on the cart when the logged-in customer
+// has at least one Draft contract. Hide otherwise.
+async function _oc_updateCartBadge() {
+  try {
+    const badge = document.getElementById('cartBadge');
+    if (!badge) return;
+    const logged = _oc_isLoggedIn();
+    const roleId = _oc_getRoleId();
+    if (!logged || roleId !== 5) {
+      badge.textContent = '';
+      badge.classList.add('hidden');
+      badge.style.display = 'none';
+      try { badge.setAttribute('aria-hidden', 'true'); } catch { }
+      return;
+    }
+
+    const qs = new URLSearchParams({ page: '1', pageSize: '1', state: 'Draft' });
+    const res = await fetch(`/api/contracts?${qs}`, { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' } });
+    if (!res.ok) { badge.textContent = ''; badge.classList.add('hidden'); badge.style.display = 'none'; try { badge.setAttribute('aria-hidden', 'true'); } catch { } return; }
+    const data = await res.json();
+    const count = Number(data?.totalCount || 0);
+    const show = count > 0;
+    badge.textContent = show ? '1' : '';
+    badge.classList.toggle('hidden', !show);
+    badge.style.display = show ? '' : 'none';
+    try { badge.setAttribute('aria-hidden', show ? 'false' : 'true'); } catch { }
+  } catch { }
+}
+
+// Expose small helpers for other modules/pages
+window.updateCartBadge = function(isDraftPresent) {
+  try {
+    const badge = document.getElementById('cartBadge');
+    if (!badge) return;
+    const show = !!isDraftPresent;
+    badge.textContent = show ? '1' : '';
+    badge.classList.toggle('hidden', !show);
+    badge.style.display = show ? '' : 'none';
+    try { badge.setAttribute('aria-hidden', show ? 'false' : 'true'); } catch { }
+  } catch { }
+};
+window.refreshCartBadge = function() { try { return _oc_updateCartBadge(); } catch { return Promise.resolve(); } };
+
 // Create notification UI (toast container, bell, panel) if it's not present in the page.
 function ensureNotificationUI() {
   // Ensure shared styles for notification panel and items exist (colors match toast variants)
@@ -532,7 +575,7 @@ function ensureNotificationUI() {
       bell.classList.remove('hidden');
     }
 
-    // --- CART: create button and place next to bell ---
+      // --- CART: create button and place next to bell ---
     (function ensureCartButtonPlacement() {
       // If it already exists, just place/refresh it
       let cartWrap = document.getElementById('hdrCart');
@@ -548,6 +591,25 @@ function ensureNotificationUI() {
         cartBtn.setAttribute('aria-label', 'Shopping cart');
         cartBtn.title = 'Shopping cart';
         cartBtn.innerHTML = '<span class="material-icons">shopping_cart</span>';
+
+        // Badge inside the cart wrapper, mirror bell badge styling
+        if (!document.getElementById('cartBadge')) {
+          const badge = document.createElement('span');
+          badge.id = 'cartBadge';
+          badge.className = 'badge badge-error rounded-none';
+          badge.textContent = '';
+          badge.setAttribute('aria-hidden', 'true');
+          badge.classList.add('hidden');
+          // Position same as bell badge
+          badge.style.position = 'absolute';
+          badge.style.top = '-6px';
+          badge.style.right = '-6px';
+          badge.style.maxWidth = '24px';
+          badge.style.maxHeight = '24px';
+          // Ensure wrapper provides positioning context
+          try { cartWrap.style.position = cartWrap.style.position || 'relative'; } catch { }
+          cartWrap.appendChild(badge);
+        }
 
         const CART_URL = '/contractshistory';
         const LOGIN_URL = '/login?mode=login';
@@ -614,6 +676,7 @@ function ensureNotificationUI() {
       }
 
       _oc_updateCartVisibility();
+          try { _oc_updateCartBadge(); } catch { }
     })();
 
   } catch { }
@@ -803,6 +866,7 @@ function ensureNotificationUI() {
 
       // --- Cart visibility rule: show for guests, or for logged-in Customer (roleId=5) ---
       try { _oc_updateCartVisibility(); } catch { }
+      try { _oc_updateCartBadge(); } catch { }
 
       // Navbar links:
       // - Users is privileged-only

@@ -29,7 +29,11 @@
   function updateButtonsState() {
     const hasSel = !!selectedId;
     if (btnOpen) btnOpen.disabled = !hasSel;
-    if (btnDelete) btnDelete.disabled = !hasSel;
+    // Delete enabled only for Draft rows
+    const sel = items.find(x => (x.id ?? x.contractId ?? x.contract_id) === selectedId);
+    const selState = String(sel?.contractState ?? sel?.contract_state ?? sel?.state ?? '').toLowerCase();
+    const canDelete = hasSel && selState === 'draft';
+    if (btnDelete) btnDelete.disabled = !canDelete;
   }
 
   function buildQuery() {
@@ -109,7 +113,8 @@
       });
       if (selectedId && it.id === selectedId) tr.classList.add('active');
 
-      const cells = [ String(it.id ?? ''), String(it.entryDt ?? it.entry_dt ?? it.entryDt ?? ''), String(it.state ?? ''), String(it.deliveredDt ?? ''), String(it.amount ?? 0) ];
+      const amt = Number(it.amount || 0).toFixed(2);
+      const cells = [ String(it.id ?? ''), String(it.entryDt ?? it.entry_dt ?? it.entryDt ?? ''), String(it.state ?? ''), String(it.deliveredDt ?? ''), amt ];
       cells.forEach(text => { const td = document.createElement('td'); td.textContent = text; tr.appendChild(td); });
       tbody.appendChild(tr);
     });
@@ -168,7 +173,7 @@
       });
       if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      try { showToast('info', 'Contract deleted successfully'); } catch {}
+      try { showToast('info', 'The contract was deleted successfully.'); } catch {}
       selectedId = null; updateButtonsState(); await load();
     } catch {
       try { showToast('error', 'Failed to delete contract'); } catch {}
@@ -206,8 +211,8 @@
 
     btnOpen?.addEventListener('click', () => {
       if (!selectedId) { try { showToast('warning', 'Select a contract first'); } catch {} return; }
-      // Reuse existing contract details route
-      window.open(`/contracts/${selectedId}`, '_blank');
+      // Navigate to items-only contract history page
+      window.location.href = `/contractshistory/${selectedId}`;
     });
     btnDelete?.addEventListener('click', () => { doDelete(); });
 

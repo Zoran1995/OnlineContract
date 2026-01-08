@@ -98,7 +98,7 @@ public class AnonCartCacheService
 
         if (availableQty > 0 && targetQty > availableQty)
         {
-            throw new InvalidOperationException("Nemamo toliko na stanju, molimo smanjite količinu.");
+            throw new InvalidOperationException("We don’t have enough items in stock. Please reduce the quantity and try again.");
         }
 
         // Upsert (store only variantId + qty; no price)
