@@ -1,7 +1,1 @@
-public class ClientErrorDto
-{
-    public string Description { get; set; } = "";
-    public string StackTrace { get; set; } = "";
-    public int UserId { get; set; }
-    public string? EventTypeOverride { get; set; }
-}
+// DTO moved to Dtos/ClientErrorDto.cs (namespace OnlineContract.Dtos)

@@ -8,7 +8,7 @@ namespace OnlineContract.Helpers
         public static async Task<string> GetLookupValueAsync(AppDbContext db, int lookupSetId)
         {
             var result = await db.Database
-                .SqlQueryRaw<string>("SELECT dbo.fn_get_lookup_value({0})", lookupSetId)
+                .SqlQueryRaw<string>("SELECT dbo.fn_get_lookup_value({0}) AS Value", lookupSetId)
                 .FirstOrDefaultAsync();
 
             return result ?? "Unknown";

@@ -129,6 +129,7 @@ BEGIN
         [rejected_dt] [datetime2](0) NOT NULL,
         [cancelled_dt] [datetime2](0) NOT NULL,
         [amount] [decimal](18, 2) NOT NULL,
+        [amt_matched] [decimal](18, 2) NOT NULL,
         CONSTRAINT [PK_contract] PRIMARY KEY CLUSTERED ([contract_id] ASC)
             WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
                   ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
@@ -151,6 +152,7 @@ BEGIN
     ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_cancelled_dt]
         DEFAULT (CONVERT([datetime2](0),'1900-01-01T00:00:00')) FOR [cancelled_dt];
     ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_amount]  DEFAULT ((0)) FOR [amount];
+    ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_amt_matched]  DEFAULT ((0)) FOR [amt_matched];
 
     ALTER TABLE [dbo].[contract]  WITH CHECK ADD  CONSTRAINT [FK_contract_input_user]
         FOREIGN KEY([input_user_id]) REFERENCES [dbo].[ax_user] ([ax_user_id]);
@@ -185,7 +187,7 @@ BEGIN
         [product_variant_id]  [int] NOT NULL,
         [quantity]            [int] NOT NULL,
         [amount]              [decimal](18,2) NOT NULL,
-        [amt_tax]             [decimal](18,2) NOT NULL,
+        [amt_tax]             AS ([amount] * 0.20) PERSISTED,
         [amt_gross]           AS (([quantity] * [amount])) PERSISTED,
         [product_name]        [nvarchar](255) NOT NULL,
         [size]                [nvarchar](50)  NOT NULL,
@@ -195,7 +197,7 @@ BEGIN
         [input_user_id]       [int] NOT NULL,
         [last_modified_by_id] [int] NOT NULL,
         [last_updated_dt]     [datetime2](0) NOT NULL,
-        [stamp]               ROWVERSION NOT NULL,
+        [stamp]               [int] NOT NULL,
         [is_active]           [bit] NOT NULL,
         [is_deleted]          [bit] NOT NULL,
 
@@ -225,9 +227,6 @@ BEGIN
     ALTER TABLE [dbo].[contract_det] ADD CONSTRAINT [DF_contract_det_item_state]
         DEFAULT ((21)) FOR [item_state_id];
 
-    ALTER TABLE [dbo].[contract_det] ADD CONSTRAINT [DF_contract_det_amt_tax]
-        DEFAULT ((0)) FOR [amt_tax];
-
     ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [FK_contract_det_contract]
         FOREIGN KEY([contract_id]) REFERENCES [dbo].[contract] ([contract_id]);
     ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [FK_contract_det_contract];
@@ -254,6 +253,10 @@ BEGIN
     ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [CK_contract_det_quantity]
         CHECK ([quantity] > 0);
     ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [CK_contract_det_quantity];
+
+    ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [CK_contract_det_stamp_nonneg]
+        CHECK ([stamp] >= 0);
+    ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [CK_contract_det_stamp_nonneg];
 
     ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [CK_contract_det_monetary_nonneg]
         CHECK ([amount] >= 0 AND [amt_gross] >= 0 AND [amt_tax] >= 0);
@@ -654,6 +657,14 @@ BEGIN
     RETURN ISNULL(@result, N'Unknown');
 END;
 GO
+
+CREATE OR ALTER FUNCTION [dbo].[GetLocalTime]()
+RETURNS datetime2
+AS
+BEGIN
+    RETURN CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Central European Standard Time' AS datetime2);
+END;
+
 
 CREATE OR ALTER FUNCTION [dbo].[fn_event_logs]
 (

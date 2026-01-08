@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="pastel">
+<head>
+  <meta charset="utf-8" />
+  <title>KidzStyle · Profile</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <link rel="icon" href="/resources/icons/person.svg" type="image/svg+xml" />
+  <link href="/css/login.css" rel="stylesheet" />
+  <link href="/dist/output.css" rel="stylesheet">
+</head>
+<body class="bg-base-200 text-base-content">
+  <div class="navbar bg-base-100 shadow sticky top-0 z-50">
+    <div class="flex-1">
+      <a href="/home" class="btn btn-ghost normal-case text-xl rounded-none">
+        <span class="material-icons mr-2">home</span> Home
+      </a>
+      <a href="/about" class="btn btn-ghost rounded-none">
+        <span class="material-icons mr-2">info</span> About
+      </a>
+      <a href="/address" class="btn btn-ghost rounded-none">
+        <span class="material-icons mr-2">location_on</span> Address
+      </a>
+      <a href="/eventlog" class="btn btn-ghost rounded-none">
+        <span class="material-icons mr-2">bug_report</span> EventLog
+      </a>
+    </div>
+    <div class="flex-none items-center gap-3">
+      <a id="navSignIn" href="/login" class="btn btn-outline rounded-none"><span class="material-icons mr-2">person_add</span> Sign In</a>
+      <a id="navLogIn" href="/login" class="btn btn-primary rounded-none"><span class="material-icons mr-2">login</span> Log In</a>
+    </div>
+  </div>
+
+  <main class="container mx-auto p-4">
+    <div class="flex items-center justify-between gap-3 mb-3">
+      <h1 class="text-2xl font-bold">My Profile</h1>
+        <button id="btnSave" class="btn btn-sm btn-primary">
+          <span class="material-icons mr-2">save</span> Save
+        </button>
+    </div>
+
+    <div role="tablist" class="tabs tabs-lifted">
+      <input type="radio" name="profile_tabs" role="tab" class="tab" aria-label="Basic Details" checked />
+      <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-none p-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">Username</span></label>
+            <input id="pCode" class="input input-bordered rounded-none" type="text" required />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Email</span></label>
+            <input id="pEmail" class="input input-bordered rounded-none" type="email" required />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">First Name</span></label>
+            <input id="pFirstName" class="input input-bordered rounded-none" type="text" required />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Last Name</span></label>
+            <input id="pLastName" class="input input-bordered rounded-none" type="text" required />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Phone Number</span></label>
+            <input id="pPhone" class="input input-bordered rounded-none" type="tel" required />
+          </div>
+        </div>
+        <div class="divider">Password Change</div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">Current Password</span></label>
+            <input id="pCur" class="input input-bordered" type="password" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">New Password</span></label>
+            <input id="pNew" class="input input-bordered" type="password" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Confirm New Password</span></label>
+            <input id="pNew2" class="input input-bordered" type="password" />
+          </div>
+        </div>
+      </div>
+
+      <input type="radio" name="profile_tabs" role="tab" class="tab" aria-label="Address" />
+      <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-none p-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">City</span></label>
+            <input id="pCity" class="input input-bordered rounded-none w-full" type="text" required />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Postal Code</span></label>
+            <input id="pPostal" class="input input-bordered rounded-none" type="text" required />
+          </div>
+          <div class="form-control md:col-span-2">
+            <label class="label"><span class="label-text">Street Address</span></label>
+            <input id="pStreet" class="input input-bordered rounded-none" type="text" required />
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/shared.js"></script>
+  <script src="/js/profile.js"></script>
+</body>
+</html>

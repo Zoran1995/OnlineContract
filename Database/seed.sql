@@ -44,8 +44,7 @@ USING (
     (21 , N'ProductStateInOrder', N'Draft'),
     (22 , N'ProductStateInOrder', N'Submitted'),
     (23 , N'ProductStateInOrder', N'Accepted'),
-    (24 , N'ProductStateInOrder', N'Partially Accepted'),
-    (25 , N'ProductStateInOrder', N'Rejected')
+    (24 , N'ProductStateInOrder', N'Rejected')
 ) AS src(lookup_set_id, set_name, value)
 ON (tgt.lookup_set_id = src.lookup_set_id)
 
@@ -218,13 +217,13 @@ IF NOT EXISTS (SELECT 1 FROM dbo.contract WHERE contract_id = 0)
 BEGIN
     INSERT dbo.contract (
         contract_id, input_dt, input_user_id, contract_state, last_modified_by_id, last_updated_dt,
-        stamp, is_active, is_deleted, delivered_dt, written_off_dt, rejected_dt, cancelled_dt, amount)
+        stamp, is_active, is_deleted, delivered_dt, written_off_dt, rejected_dt, cancelled_dt, amount, amt_matched)
     VALUES (
         0, CAST('1900-01-01T00:00:00' AS DATETIME2(0)), 0, 9, 0, CAST('1900-01-01T00:00:00' AS DATETIME2(0)),
         0, 0, 0,
         CAST('1900-01-01T00:00:00' AS DATETIME2(0)), CAST('1900-01-01T00:00:00' AS DATETIME2(0)),
         CAST('1900-01-01T00:00:00' AS DATETIME2(0)), CAST('1900-01-01T00:00:00' AS DATETIME2(0)),
-        CAST('0.00' AS DECIMAL(18,2))
+        CAST('0.00' AS DECIMAL(18,2)), CAST('0.00' AS DECIMAL(18,2))
     );
 END
 

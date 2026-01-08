@@ -19,6 +19,33 @@ function _oc_getNotificationKey() {
 // and prevents immediate document-level handlers from closing them.
 if (!window._oc_navbar_capture_bound) {
   window._oc_navbar_capture_bound = true;
+  // Inject global small CSS helpers (once)
+  try {
+    if (!document.getElementById('oc-global-style')) {
+      const st = document.createElement('style');
+      st.id = 'oc-global-style';
+      st.textContent = 
+        '.btn-add-to-cart[aria-disabled="true"], .btn-add-to-cart:disabled { opacity: .5; pointer-events: none; cursor: not-allowed; }';
+      document.head.appendChild(st);
+    }
+  } catch {}
+
+  // Ensure aria-live region for toasts exists
+  try {
+    if (!document.getElementById('toast-area')) {
+      const ta = document.createElement('div');
+      ta.id = 'toast-area';
+      ta.setAttribute('aria-live', 'polite');
+      ta.setAttribute('aria-atomic', 'true');
+      ta.style.position = 'fixed';
+      ta.style.top = '8px';
+      ta.style.right = '8px';
+      ta.style.zIndex = '99999';
+      ta.style.pointerEvents = 'none';
+      document.body.appendChild(ta);
+    }
+  } catch {}
+
   document.addEventListener('pointerdown', function (e) {
     try {
       const tgt = e.target;
@@ -356,7 +383,7 @@ function ensureNotificationUI() {
     if (!document.getElementById('notificationCount')) {
       const badge = document.createElement('span');
       badge.id = 'notificationCount';
-      badge.className = 'badge badge-error';
+      badge.className = 'badge badge-error rounded-none';
       // Initialize badge with current count and hidden state
       const initCount = (window.notifications || []).length;
       badge.textContent = initCount > 0 ? String(initCount) : '';
@@ -402,6 +429,7 @@ function ensureNotificationUI() {
         menu.style.right = 'auto';
         menu.style.top = 'calc(100% + 4px)';
         menu.innerHTML = `
+          <li><a href="/profile" id="ddProfile"><span class="material-icons mr-2">account_circle</span>Profile</a></li>
           <li><a href="#" id="ddLogout"><span class="material-icons mr-2">exit_to_app</span>Log Out</a></li>
         `;
         userDd.appendChild(activator);
@@ -833,6 +861,7 @@ function ensureNotificationUI() {
         menu.style.top = 'calc(100% + 4px)';
         menu.style.minWidth = '10rem';
         menu.innerHTML = `
+          <li><a href="/profile" id="ddProfile"><span class="material-icons mr-2">account_circle</span>Profile</a></li>
           <li><a href="#" id="ddLogout"><span class="material-icons mr-2">exit_to_app</span>Log Out</a></li>
         `;
         userDd.appendChild(activator);
@@ -904,6 +933,12 @@ function ensureNotificationUI() {
         adminLabel.style.overflow = 'hidden';
         adminLabel.style.maxWidth = '320px';
       }
+
+      // Show Profile option only for Customers (roleId = 5)
+      try {
+        const ddProfile = document.getElementById('ddProfile');
+        if (ddProfile) ddProfile.classList.toggle('hidden', !isCustomer);
+      } catch { }
 
       const ddLogout = document.getElementById('ddLogout');
       if (ddLogout && !ddLogout._oc_bound) {
@@ -1242,7 +1277,8 @@ function gateProtectedPages(auth) {
     '/products','/products.html',
     '/product-details','/product-details.html',
     '/notes','/notes.html',
-    '/contractshistory','/contractshistory.html'
+    '/contractshistory','/contractshistory.html',
+    '/profile','/profile.html'
   ];
   if (!protectedAny.includes(path)) return;
 
@@ -1261,6 +1297,7 @@ function gateProtectedPages(auth) {
   const isProductDetails = path === '/product-details' || path === '/product-details.html';
   const isNotes = path === '/notes' || path === '/notes.html';
   const isContractsHistory = path === '/contractshistory' || path === '/contractshistory.html';
+  const isProfile = path === '/profile' || path === '/profile.html';
 
   let deny = false;
 
@@ -1276,6 +1313,11 @@ function gateProtectedPages(auth) {
   } else {
     // Not logged in: deny all protected pages
     deny = true;
+  }
+
+  // Override for Profile page: allow only Customers; show Access Denied for others
+  if (isProfile) {
+    deny = !isCustomer;
   }
 
   if (!deny) return;
@@ -1792,27 +1834,18 @@ function openNotificationPanel() {
   const maxAllowed = Math.max(200, window.innerWidth - 48);
   let panelWidth = Math.max(panel.offsetWidth || 0, desiredWidth);
   if (panelWidth > maxAllowed) panelWidth = maxAllowed;
-  // Anchor panel's right edge to bell's right edge so it appears directly below the bell.
-  // Special-case: some pages (Collections) have layout rules that affect bounding rects;
-  // when on /collections, anchor relative to the navbar right edge to avoid jumping.
+  // Anchor panel: horizontally align to bell's right edge, vertically sit strictly below navbar.
   let desiredRight;
   let top;
   try {
-    const path = (location && location.pathname || '').toLowerCase();
-    if (path.includes('/collections')) {
-      const navbar = document.querySelector('.navbar');
-      const nrect = navbar ? navbar.getBoundingClientRect() : rect;
-      top = (nrect.bottom || rect.bottom) + 8;
-      // anchor to the navbar right edge so panel aligns with header controls
-      try {
-        const navbarRight = nrect.right || rect.right;
-        desiredRight = Math.max(8, Math.round(window.innerWidth - navbarRight + 8));
-      } catch { desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8)); }
-    } else {
-      desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8));
-      top = rect.bottom + 8; // viewport coordinates for fixed positioning
-    }
-  } catch { desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8)); top = rect.bottom + 8; }
+    const navbar = document.querySelector('.navbar');
+    const nrect = navbar ? navbar.getBoundingClientRect() : null;
+    desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8));
+    top = ((nrect ? nrect.bottom : rect.bottom) + 8);
+  } catch {
+    desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8));
+    top = rect.bottom + 8;
+  }
   // Apply right anchoring and clear left to avoid conflicting layout rules
   panel.style.left = '';
   panel.style.right = `${desiredRight}px`;
@@ -1873,8 +1906,10 @@ function openNotificationPanel() {
         const panel = document.getElementById('notificationPanel');
         if (!bell || !panel) return;
         const rect = bell.getBoundingClientRect();
+        const navbar = document.querySelector('.navbar');
+        const nrect = navbar ? navbar.getBoundingClientRect() : null;
         const desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8));
-        const top = rect.bottom + 8;
+        const top = ((nrect ? nrect.bottom : rect.bottom) + 8);
         panel.style.right = `${desiredRight}px`;
         panel.style.top = `${top}px`;
       } catch { }

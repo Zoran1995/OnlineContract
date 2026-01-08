@@ -30,19 +30,22 @@ namespace OnlineContract.Models
         public DateTime? LastUpdatedDt { get; set; }
 
         [Column("delivered_dt")]
-        public DateTime? DeliveredDt { get; set; }
+        public DateTime? DeliveredDt { get; set; } = new DateTime(1900, 01, 01);
 
         [Column("written_off_dt")]
-        public DateTime? WrittenOffDt { get; set; }
+        public DateTime? WrittenOffDt { get; set; } = new DateTime(1900, 01, 01);
 
         [Column("rejected_dt")]
-        public DateTime? RejectedDt { get; set; }
+        public DateTime? RejectedDt { get; set; } = new DateTime(1900, 01, 01);
 
         [Column("cancelled_dt")]
-        public DateTime? CancelledDt { get; set; }
+        public DateTime? CancelledDt { get; set; } = new DateTime(1900, 01, 01);
 
         [Column("amount")]
         public decimal Amount { get; set; }
+
+        [Column("amt_matched")]
+        public decimal AmtMatched { get; set; }
 
         [Column("stamp")]
         public int Stamp { get; set; }

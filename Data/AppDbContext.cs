@@ -16,6 +16,8 @@ namespace OnlineContract.Data
         public DbSet<ProductVariant> ProductVariants { get; set; }
         public DbSet<ProductInventory> ProductInventories { get; set; }
         public DbSet<Note> Notes { get; set; }
+        public DbSet<ContractDet> ContractDets { get; set; }
+        public DbSet<OnlineContract.Models.ContractStateLookup> ContractStates { get; set; }
         public DbSet<OnlineContract.Models.PasswordResetToken> PasswordResetTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -58,8 +60,54 @@ namespace OnlineContract.Data
                 entity.Property(e => e.RejectedDt).HasColumnName("rejected_dt");
                 entity.Property(e => e.CancelledDt).HasColumnName("cancelled_dt");
                 entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("decimal(18,2)");
+                entity.Property(e => e.AmtMatched).HasColumnName("amt_matched").HasColumnType("decimal(18,2)");
                 entity.Property(e => e.Stamp).HasColumnName("stamp");
                 entity.Ignore(e => e.CustomerFullName);
+            });
+
+            // Map ContractDet entity to dbo.contract_det
+            modelBuilder.Entity<ContractDet>(entity =>
+            {
+                entity.ToTable("contract_det", "dbo");
+                entity.HasKey(e => e.Id).HasName("PK_contract_det");
+                entity.Property(e => e.Id).HasColumnName("contract_det_id");
+                entity.Property(e => e.ContractId).HasColumnName("contract_id");
+                entity.Property(e => e.ProductVariantId).HasColumnName("product_variant_id");
+                entity.Property(e => e.Quantity).HasColumnName("quantity");
+                entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("decimal(18,2)");
+                // Computed columns: EF must not attempt to INSERT/UPDATE these
+                var amtTaxProp = entity.Property(e => e.AmtTax)
+                    .HasColumnName("amt_tax")
+                    .HasComputedColumnSql("([amount] * 0.20)", stored: true);
+                amtTaxProp.Metadata.SetBeforeSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+                amtTaxProp.Metadata.SetAfterSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+
+                var amtGrossProp = entity.Property(e => e.AmtGross)
+                    .HasColumnName("amt_gross")
+                    .HasComputedColumnSql("(([quantity] * [amount]))", stored: true);
+                amtGrossProp.Metadata.SetBeforeSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+                amtGrossProp.Metadata.SetAfterSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+                entity.Property(e => e.ProductName).HasColumnName("product_name");
+                entity.Property(e => e.Size).HasColumnName("size");
+                entity.Property(e => e.Color).HasColumnName("color");
+                entity.Property(e => e.ItemStateId).HasColumnName("item_state_id");
+                entity.Property(e => e.InputDt).HasColumnName("input_dt");
+                entity.Property(e => e.InputUserId).HasColumnName("input_user_id");
+                entity.Property(e => e.LastModifiedById).HasColumnName("last_modified_by_id");
+                entity.Property(e => e.LastUpdatedDt).HasColumnName("last_updated_dt");
+                entity.Property(e => e.Stamp).HasColumnName("stamp");
+                entity.Property(e => e.IsActive).HasColumnName("is_active");
+                entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
+            });
+
+            // Map ContractState lookup entity to dbo.contract_state
+            modelBuilder.Entity<OnlineContract.Models.ContractStateLookup>(entity =>
+            {
+                entity.ToTable("contract_state", "dbo");
+                entity.HasKey(e => e.LookupSetId).HasName("PK_contract_state_lookup");
+                entity.Property(e => e.LookupSetId).HasColumnName("lookup_set_id");
+                entity.Property(e => e.IsStartState).HasColumnName("is_start_state");
+                entity.Property(e => e.IsEndState).HasColumnName("is_end_state");
             });
 
             modelBuilder.Entity<Product>(entity =>
