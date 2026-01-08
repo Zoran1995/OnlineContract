@@ -168,22 +168,27 @@
 
       if (selectedId && it.id === selectedId) tr.classList.add('active');
 
+      function fmt2(n){ const v = Number(n); return Number.isFinite(v) ? v.toFixed(2) : (String(n||'')); }
       const cells = [
         String(it.id),
         String(it.customerFullName ?? ''),
-        String(it.amount ?? ''),
-        stateBadge(it.contractState),
-        String(it.entryDate ?? '')
+        fmt2(it.amount),
+        String(it.contractStateText || it.contractState || ''),
+        String(it.entryDate ?? ''),
+        String(it.deliveredDate ?? ''),
+        String(it.writtenOffDate ?? ''),
+        String(it.rejectedDate ?? ''),
+        String(it.cancelledDate ?? '')
       ];
       cells.forEach(html => {
         const td = document.createElement("td");
-        if (typeof html === "string" && html.startsWith("<")) td.innerHTML = html; else td.textContent = html;
+        td.textContent = html;
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
     });
     try {
-      const keys = ['id','customerFullName','amount','contractState','entryDate'];
+      const keys = ['id','customerFullName','amount','contractState','entryDate','','','',''];
       document.querySelectorAll('#grid thead th').forEach((th, idx) => {
         th.style.cursor = 'pointer';
         const ex = th.querySelector('.sort-indicator'); if (ex) ex.remove();
@@ -196,15 +201,7 @@
     } catch {}
   }
 
-  function stateBadge(state) {
-    const s = String(state || '')
-      .toLowerCase()
-      .replace(/\s+/g, ''); // "written off" -> "writtenoff"
-    const color = (s === 'accepted' || s === 'completed' || s === 'delivered') ? 'badge-ok'
-      : (s === 'rejected' || s === 'cancelled' || s === 'writtenoff') ? 'badge-bad'
-      : 'badge-mid';
-    return `<span class="badge ${color}">${state}</span>`;
-  }
+  // badge rendering removed; render plain lookup-based text from API
 
   function renderPager() {
     const pages = Math.max(1, Number(totalPages || 1));

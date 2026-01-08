@@ -1,0 +1,146 @@
+
+<!DOCTYPE html>
+<html lang="en" data-theme="pastel">
+<head>
+  <meta charset="utf-8" />
+  <title>KidzStyle · Contract Items</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link rel="icon" href="/resources/icons/clipboard-list.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/eventlog.css" />
+  <link rel="stylesheet" href="/css/login.css" />
+  <link href="/dist/output.css" rel="stylesheet">
+  <style>.hidden{display:none!important}</style>
+</head>
+<body class="bg-base-200 text-base-content">
+  <!-- Navbar (single, sticky) -->
+  <div class="navbar bg-base-100 shadow sticky top-0 z-50">
+    <div class="flex-1">
+      <a href="/home" class="btn btn-ghost normal-case text-xl">
+        <span class="material-icons mr-2">home</span> Home
+      </a>
+      <a href="/about" class="btn btn-ghost">
+        <span class="material-icons mr-2">info</span> About
+      </a>
+      <a href="/address" class="btn btn-ghost">
+        <span class="material-icons mr-2">location_on</span> Address
+      </a>
+      <a href="/eventlog" class="btn btn-ghost">
+        <span class="material-icons mr-2">bug_report</span> EventLog
+      </a>
+    </div>
+    <div class="flex-none items-center gap-2 pr-3"></div>
+  </div>
+
+  <main class="container mx-auto p-4">
+    <div class="flex items-center justify-between gap-3 mb-3">
+      <h1 id="title" class="text-2xl font-bold">Contract Items</h1>
+      <div class="flex items-center gap-2">
+        <button id="btnSave" class="btn btn-sm btn-outline">
+          <span class="material-icons mr-2">save</span>
+          <span>Save</span>
+        </button>
+        <div class="dropdown dropdown-end">
+          <label tabindex="0" class="btn btn-sm btn-primary">
+            <span class="material-icons mr-2">send</span>
+            <span>Submit</span>
+          </label>
+          <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
+            <li>
+              <a id="submitCOD" class="flex items-center gap-2">
+                <span class="material-icons mr-2">account_circle</span>
+                <span>Cash on Delivery</span>
+              </a>
+            </li>
+            <li>
+              <a id="submitOnline" class="flex items-center gap-2">
+                <span class="material-icons mr-2">credit_card</span>
+                <span>Online Payment</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 mb-3 justify-end">
+      <button id="btnOpen" class="btn btn-sm" disabled>
+        <span class="material-icons">open_in_new</span>
+        <span>Open</span>
+      </button>
+      <button id="btnDelete" class="btn btn-sm" disabled>
+        <span class="material-icons">delete</span>
+        <span>Delete</span>
+      </button>
+    </div>
+
+    <section id="accessDenied" class="hidden">
+      <div class="bg-base-100 rounded-xl shadow p-8 text-center">
+        <div class="flex items-center justify-center gap-2 mb-3">
+          <span class="material-icons text-rose-600">block</span>
+          <h2 class="text-2xl font-bold">Access Denied</h2>
+        </div>
+        <p class="text-gray-700">You are not allowed to see this page.</p>
+      </div>
+    </section>
+
+    <div id="itemsWrap" class="hidden">
+      <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
+        <table id="grid" class="table table-zebra w-full" aria-label="Contract items">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th style="width:120px">Size</th>
+              <th style="width:140px">Color</th>
+              <th style="width:120px">Qty</th>
+              <th style="width:140px">Amount</th>
+              <th style="width:140px">Total</th>
+              <th style="width:160px">State</th>
+              <th style="width:200px">Input Date</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="flex items-center gap-3 mt-3 grid-pagination">
+        <label class="text-sm">Rows per page:</label>
+        <select id="pageSize" class="select select-bordered w-20 select-sm">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+        <button id="prevPage" class="btn btn-outline btn-sm">
+          <span class="material-icons mr-2">chevron_left</span>
+          Previous
+        </button>
+        <span id="pageInfo" class="font-semibold"></span>
+        <button id="nextPage" class="btn btn-outline btn-sm">
+          Next <span class="material-icons ml-2">chevron_right</span>
+        </button>
+        <span id="pageCountInfo" class="page-count-info ml-auto">Total records: 0</span>
+      </div>
+    </div>
+  </main>
+
+  <div id="loadingOverlay" class="loading-overlay hidden"><div class="loading-box">Loading...</div></div>
+
+  <!-- Styled confirmation modal for item delete -->
+  <dialog id="itemDeleteConfirm" class="modal">
+    <form method="dialog" class="modal-box">
+      <h3 class="font-bold text-lg mb-2">Delete Item</h3>
+      <p class="mb-4">Are you sure you want to delete this item? This action cannot be undone.</p>
+      <div class="modal-action">
+        <button class="btn">Cancel</button>
+        <button id="itemConfirmOk" class="btn btn-error">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/js/shared.js"></script>
+  <script src="/js/variantModal.js"></script>
+  <script src="/js/contractshistory-details.js"></script>
+</body>
+</html>

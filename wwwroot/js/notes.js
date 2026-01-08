@@ -344,14 +344,14 @@
         if (meta.productId && Number(meta.productId) > 0) {
           const body = { Delete: [{ Id: selectedId, Stamp: meta.stamp }] };
           const r = await fetch(`/api/products/${meta.productId}/notes`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body) });
-          if (r && r.ok) { try { showToast('info','Note has been deleted.'); } catch {} 
+          if (r && r.ok) { try { showToast('info','The note was deleted successfully.'); } catch {} 
             // clear selection after action
             selectedId = null; selectedRow = null; try { render(); } catch {};
             await load(); updateMenuState(); } else { try { showToast('error','Failed to delete note.'); } catch {} }
         } else if (meta.contractId && Number(meta.contractId) > 0) {
           const body = { Delete: [{ Id: selectedId, Stamp: meta.stamp }] };
           const r = await fetch(`/api/contracts/${meta.contractId}/notes`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body) });
-          if (r && r.ok) { try { showToast('info','Note has been deleted.'); } catch {} 
+          if (r && r.ok) { try { showToast('info','The note was deleted successfully.'); } catch {} 
             selectedId = null; selectedRow = null; try { render(); } catch {};
             await load(); updateMenuState(); } else { try { showToast('error','Failed to delete note.'); } catch {} }
         } else {

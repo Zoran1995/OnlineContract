@@ -129,6 +129,7 @@ BEGIN
         [rejected_dt] [datetime2](0) NOT NULL,
         [cancelled_dt] [datetime2](0) NOT NULL,
         [amount] [decimal](18, 2) NOT NULL,
+        [amt_matched] [decimal](18, 2) NOT NULL,
         CONSTRAINT [PK_contract] PRIMARY KEY CLUSTERED ([contract_id] ASC)
             WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
                   ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
@@ -151,6 +152,7 @@ BEGIN
     ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_cancelled_dt]
         DEFAULT (CONVERT([datetime2](0),'1900-01-01T00:00:00')) FOR [cancelled_dt];
     ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_amount]  DEFAULT ((0)) FOR [amount];
+    ALTER TABLE [dbo].[contract] ADD  CONSTRAINT [DF_contract_amt_matched]  DEFAULT ((0)) FOR [amt_matched];
 
     ALTER TABLE [dbo].[contract]  WITH CHECK ADD  CONSTRAINT [FK_contract_input_user]
         FOREIGN KEY([input_user_id]) REFERENCES [dbo].[ax_user] ([ax_user_id]);
@@ -174,7 +176,119 @@ BEGIN
 END
 GO
 
-/* 2.4 contract_state */
+/* 2.4 contract_det */
+IF OBJECT_ID(N'dbo.contract_det', N'U') IS NULL
+BEGIN
+    SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
+
+    CREATE TABLE [dbo].[contract_det](
+        [contract_det_id]     [int] IDENTITY(1,1) NOT NULL,
+        [contract_id]         [int] NOT NULL,
+        [product_variant_id]  [int] NOT NULL,
+        [quantity]            [int] NOT NULL,
+        [amount]              [decimal](18,2) NOT NULL,
+        [amt_tax]             AS ([amount] * 0.20) PERSISTED,
+        [amt_gross]           AS (([quantity] * [amount])) PERSISTED,
+        [product_name]        [nvarchar](255) NOT NULL,
+        [size]                [nvarchar](50)  NOT NULL,
+        [color]               [nvarchar](50)  NOT NULL,
+        [item_state_id]       [int] NOT NULL,
+        [input_dt]            [datetime2](0) NOT NULL,
+        [input_user_id]       [int] NOT NULL,
+        [last_modified_by_id] [int] NOT NULL,
+        [last_updated_dt]     [datetime2](0) NOT NULL,
+        [stamp]               [int] NOT NULL,
+        [is_active]           [bit] NOT NULL,
+        [is_deleted]          [bit] NOT NULL,
+
+        CONSTRAINT [PK_contract_det] PRIMARY KEY CLUSTERED ([contract_det_id] ASC)
+            WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
+                  ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+    ) ON [PRIMARY];
+
+    ALTER TABLE [dbo].[contract_det] ADD CONSTRAINT [DF_contract_det_input_dt]
+        DEFAULT (dbo.GetLocalTime()) FOR [input_dt];
+
+    ALTER TABLE [dbo].[contract_det] ADD CONSTRAINT [DF_contract_det_input_user]
+        DEFAULT ((0)) FOR [input_user_id];
+
+    ALTER TABLE [dbo].[contract_det] ADD CONSTRAINT [DF_contract_det_last_mod_user]
+        DEFAULT ((0)) FOR [last_modified_by_id];
+
+    ALTER TABLE [dbo].[contract_det] ADD CONSTRAINT [DF_contract_det_last_updated_dt]
+        DEFAULT (dbo.GetLocalTime()) FOR [last_updated_dt];
+
+    ALTER TABLE [dbo].[contract_det] ADD CONSTRAINT [DF_contract_det_is_active]
+        DEFAULT ((1)) FOR [is_active];
+
+    ALTER TABLE [dbo].[contract_det] ADD CONSTRAINT [DF_contract_det_is_deleted]
+        DEFAULT ((0)) FOR [is_deleted];
+
+    ALTER TABLE [dbo].[contract_det] ADD CONSTRAINT [DF_contract_det_item_state]
+        DEFAULT ((21)) FOR [item_state_id];
+
+    ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [FK_contract_det_contract]
+        FOREIGN KEY([contract_id]) REFERENCES [dbo].[contract] ([contract_id]);
+    ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [FK_contract_det_contract];
+
+    ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [FK_contract_det_product_variant]
+        FOREIGN KEY([product_variant_id]) REFERENCES [dbo].[product_variant] ([product_variant_id]);
+    ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [FK_contract_det_product_variant];
+
+    ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [FK_contract_det_input_user]
+        FOREIGN KEY([input_user_id]) REFERENCES [dbo].[ax_user] ([ax_user_id]);
+    ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [FK_contract_det_input_user];
+
+    ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [FK_contract_det_last_mod_user]
+        FOREIGN KEY([last_modified_by_id]) REFERENCES [dbo].[ax_user] ([ax_user_id]);
+    ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [FK_contract_det_last_mod_user];
+
+    ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [FK_contract_det_item_state]
+        FOREIGN KEY([item_state_id]) REFERENCES [dbo].[lookup_set] ([lookup_set_id]);
+    ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [FK_contract_det_item_state];
+
+    ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [UQ_contract_det_contract_variant]
+        UNIQUE ([contract_id], [product_variant_id]);
+
+    ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [CK_contract_det_quantity]
+        CHECK ([quantity] > 0);
+    ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [CK_contract_det_quantity];
+
+    ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [CK_contract_det_stamp_nonneg]
+        CHECK ([stamp] >= 0);
+    ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [CK_contract_det_stamp_nonneg];
+
+    ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [CK_contract_det_monetary_nonneg]
+        CHECK ([amount] >= 0 AND [amt_gross] >= 0 AND [amt_tax] >= 0);
+    ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [CK_contract_det_monetary_nonneg];
+
+    ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [CK_contract_det_item_state_set]
+        CHECK ([item_state_id] IN (21, 22, 23, 24, 25));
+    ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [CK_contract_det_item_state_set];
+
+    ALTER TABLE [dbo].[contract_det]  WITH CHECK ADD CONSTRAINT [CK_contract_det_active_deleted_exclusive]
+        CHECK (NOT ([is_active] = 1 AND [is_deleted] = 1));
+    ALTER TABLE [dbo].[contract_det] CHECK CONSTRAINT [CK_contract_det_active_deleted_exclusive];
+
+    CREATE INDEX [IX_contract_det_contract]
+      ON [dbo].[contract_det] ([contract_id])
+      INCLUDE ([product_variant_id], [quantity], [amount], [amt_gross], [amt_tax], [is_deleted], [is_active]);
+
+    CREATE INDEX [IX_contract_det_product_variant]
+      ON [dbo].[contract_det] ([product_variant_id])
+      INCLUDE ([contract_id], [quantity], [amount], [amt_gross], [amt_tax], [is_deleted], [is_active]);
+
+    CREATE INDEX [IX_contract_det_active_notdeleted]
+      ON [dbo].[contract_det] ([is_active], [is_deleted])
+      INCLUDE ([contract_id], [product_variant_id], [quantity], [amount], [amt_gross], [amt_tax]);
+
+    CREATE INDEX [IX_contract_det_item_state]
+      ON [dbo].[contract_det] ([item_state_id])
+      INCLUDE ([contract_id], [product_variant_id], [quantity], [amount], [amt_gross], [amt_tax], [is_deleted], [is_active]);
+END
+GO
+
+/* 2.5 contract_state */
 IF OBJECT_ID(N'dbo.contract_state', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -202,7 +316,7 @@ BEGIN
 END
 GO
 
-/* 2.5 contract_state_transition */
+/* 2.6 contract_state_transition */
 IF OBJECT_ID(N'dbo.contract_state_transition', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -234,7 +348,7 @@ BEGIN
 END
 GO
 
-/* 2.6 event_log */
+/* 2.7 event_log */
 IF OBJECT_ID(N'dbo.event_log', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -265,7 +379,7 @@ BEGIN
 END
 GO
 
-/* 2.7 product */
+/* 2.8 product */
 IF OBJECT_ID(N'dbo.product', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -307,7 +421,7 @@ BEGIN
 END
 GO
 
-/* 2.8 product_variant */
+/* 2.9 product_variant */
 IF OBJECT_ID(N'dbo.product_variant', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -367,7 +481,7 @@ BEGIN
 END
 GO
 
-/* 2.9 store */
+/* 2.10 store */
 IF OBJECT_ID(N'dbo.store', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -396,7 +510,7 @@ BEGIN
 END
 GO
 
-/* 2.10 product_inventory */
+/* 2.11 product_inventory */
 IF OBJECT_ID(N'dbo.product_inventory', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -457,7 +571,7 @@ BEGIN
 END
 GO
 
-/* 2.11 note */
+/* 2.12 note */
 IF OBJECT_ID(N'dbo.note', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -511,7 +625,7 @@ BEGIN
 END
 GO
 
-/* 2.12 password_reset_token */
+/* 2.13 password_reset_token */
 IF OBJECT_ID(N'dbo.password_reset_token', N'U') IS NULL
 BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
@@ -543,6 +657,14 @@ BEGIN
     RETURN ISNULL(@result, N'Unknown');
 END;
 GO
+
+CREATE OR ALTER FUNCTION [dbo].[GetLocalTime]()
+RETURNS datetime2
+AS
+BEGIN
+    RETURN CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Central European Standard Time' AS datetime2);
+END;
+
 
 CREATE OR ALTER FUNCTION [dbo].[fn_event_logs]
 (

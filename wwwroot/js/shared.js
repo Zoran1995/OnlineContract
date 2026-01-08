@@ -19,6 +19,33 @@ function _oc_getNotificationKey() {
 // and prevents immediate document-level handlers from closing them.
 if (!window._oc_navbar_capture_bound) {
   window._oc_navbar_capture_bound = true;
+  // Inject global small CSS helpers (once)
+  try {
+    if (!document.getElementById('oc-global-style')) {
+      const st = document.createElement('style');
+      st.id = 'oc-global-style';
+      st.textContent = 
+        '.btn-add-to-cart[aria-disabled="true"], .btn-add-to-cart:disabled { opacity: .5; pointer-events: none; cursor: not-allowed; }';
+      document.head.appendChild(st);
+    }
+  } catch {}
+
+  // Ensure aria-live region for toasts exists
+  try {
+    if (!document.getElementById('toast-area')) {
+      const ta = document.createElement('div');
+      ta.id = 'toast-area';
+      ta.setAttribute('aria-live', 'polite');
+      ta.setAttribute('aria-atomic', 'true');
+      ta.style.position = 'fixed';
+      ta.style.top = '8px';
+      ta.style.right = '8px';
+      ta.style.zIndex = '99999';
+      ta.style.pointerEvents = 'none';
+      document.body.appendChild(ta);
+    }
+  } catch {}
+
   document.addEventListener('pointerdown', function (e) {
     try {
       const tgt = e.target;
@@ -189,6 +216,49 @@ function _oc_updateCartVisibility() {
   cartWrap.classList.toggle('hidden', !shouldShow);
 }
 
+// Show a small badge on the cart when the logged-in customer
+// has at least one Draft contract. Hide otherwise.
+async function _oc_updateCartBadge() {
+  try {
+    const badge = document.getElementById('cartBadge');
+    if (!badge) return;
+    const logged = _oc_isLoggedIn();
+    const roleId = _oc_getRoleId();
+    if (!logged || roleId !== 5) {
+      badge.textContent = '';
+      badge.classList.add('hidden');
+      badge.style.display = 'none';
+      try { badge.setAttribute('aria-hidden', 'true'); } catch { }
+      return;
+    }
+
+    const qs = new URLSearchParams({ page: '1', pageSize: '1', state: 'Draft' });
+    const res = await fetch(`/api/contracts?${qs}`, { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' } });
+    if (!res.ok) { badge.textContent = ''; badge.classList.add('hidden'); badge.style.display = 'none'; try { badge.setAttribute('aria-hidden', 'true'); } catch { } return; }
+    const data = await res.json();
+    const count = Number(data?.totalCount || 0);
+    const show = count > 0;
+    badge.textContent = show ? '1' : '';
+    badge.classList.toggle('hidden', !show);
+    badge.style.display = show ? '' : 'none';
+    try { badge.setAttribute('aria-hidden', show ? 'false' : 'true'); } catch { }
+  } catch { }
+}
+
+// Expose small helpers for other modules/pages
+window.updateCartBadge = function(isDraftPresent) {
+  try {
+    const badge = document.getElementById('cartBadge');
+    if (!badge) return;
+    const show = !!isDraftPresent;
+    badge.textContent = show ? '1' : '';
+    badge.classList.toggle('hidden', !show);
+    badge.style.display = show ? '' : 'none';
+    try { badge.setAttribute('aria-hidden', show ? 'false' : 'true'); } catch { }
+  } catch { }
+};
+window.refreshCartBadge = function() { try { return _oc_updateCartBadge(); } catch { return Promise.resolve(); } };
+
 // Create notification UI (toast container, bell, panel) if it's not present in the page.
 function ensureNotificationUI() {
   // Ensure shared styles for notification panel and items exist (colors match toast variants)
@@ -356,7 +426,7 @@ function ensureNotificationUI() {
     if (!document.getElementById('notificationCount')) {
       const badge = document.createElement('span');
       badge.id = 'notificationCount';
-      badge.className = 'badge badge-error';
+      badge.className = 'badge badge-error rounded-none';
       // Initialize badge with current count and hidden state
       const initCount = (window.notifications || []).length;
       badge.textContent = initCount > 0 ? String(initCount) : '';
@@ -402,6 +472,7 @@ function ensureNotificationUI() {
         menu.style.right = 'auto';
         menu.style.top = 'calc(100% + 4px)';
         menu.innerHTML = `
+          <li><a href="/profile" id="ddProfile"><span class="material-icons mr-2">account_circle</span>Profile</a></li>
           <li><a href="#" id="ddLogout"><span class="material-icons mr-2">exit_to_app</span>Log Out</a></li>
         `;
         userDd.appendChild(activator);
@@ -504,7 +575,7 @@ function ensureNotificationUI() {
       bell.classList.remove('hidden');
     }
 
-    // --- CART: create button and place next to bell ---
+      // --- CART: create button and place next to bell ---
     (function ensureCartButtonPlacement() {
       // If it already exists, just place/refresh it
       let cartWrap = document.getElementById('hdrCart');
@@ -521,7 +592,26 @@ function ensureNotificationUI() {
         cartBtn.title = 'Shopping cart';
         cartBtn.innerHTML = '<span class="material-icons">shopping_cart</span>';
 
-        const CART_URL = '/contracts';
+        // Badge inside the cart wrapper, mirror bell badge styling
+        if (!document.getElementById('cartBadge')) {
+          const badge = document.createElement('span');
+          badge.id = 'cartBadge';
+          badge.className = 'badge badge-error rounded-none';
+          badge.textContent = '';
+          badge.setAttribute('aria-hidden', 'true');
+          badge.classList.add('hidden');
+          // Position same as bell badge
+          badge.style.position = 'absolute';
+          badge.style.top = '-6px';
+          badge.style.right = '-6px';
+          badge.style.maxWidth = '24px';
+          badge.style.maxHeight = '24px';
+          // Ensure wrapper provides positioning context
+          try { cartWrap.style.position = cartWrap.style.position || 'relative'; } catch { }
+          cartWrap.appendChild(badge);
+        }
+
+        const CART_URL = '/contractshistory';
         const LOGIN_URL = '/login?mode=login';
         const RETURN_URL = location.pathname + location.search;
 
@@ -529,7 +619,7 @@ function ensureNotificationUI() {
         cartBtn.addEventListener('click', (e) => {
           e.preventDefault();
 
-          const CART_URL = '/contracts';
+          const CART_URL = '/contractshistory';
           const LOGIN_URL = '/login?mode=login';
           const RETURN_URL = location.pathname + location.search;
 
@@ -586,6 +676,7 @@ function ensureNotificationUI() {
       }
 
       _oc_updateCartVisibility();
+          try { _oc_updateCartBadge(); } catch { }
     })();
 
   } catch { }
@@ -775,10 +866,11 @@ function ensureNotificationUI() {
 
       // --- Cart visibility rule: show for guests, or for logged-in Customer (roleId=5) ---
       try { _oc_updateCartVisibility(); } catch { }
+      try { _oc_updateCartBadge(); } catch { }
 
       // Navbar links:
       // - Users is privileged-only
-      // - EventLog link is used as the Menu anchor; keep it visible for any logged-in user
+      // - Menu (EventLog anchor) is visible only for Worker/Admin/Manager
       const userLinks = Array.from(document.querySelectorAll('.navbar a'))
         .filter(a => (a.getAttribute('href') || '').toLowerCase().includes('/users'));
       userLinks.forEach(a => a.classList.toggle('hidden', !isPrivileged));
@@ -790,10 +882,11 @@ function ensureNotificationUI() {
       if (logIn) logIn.classList.toggle('hidden', isLoggedIn);
       if (logOut) logOut.classList.toggle('hidden', !isLoggedIn);
 
-      // Hide the Menu anchor (EventLog link) unless logged in
+      // Hide the Menu anchor (EventLog link) unless role is Worker/Admin/Manager
       const eventLogLinks = Array.from(document.querySelectorAll('.navbar a'))
         .filter(a => (a.getAttribute('href') || '').toLowerCase().includes('/eventlog'));
-      eventLogLinks.forEach(a => a.classList.toggle('hidden', !isLoggedIn));
+      const canSeeMenu = isLoggedIn && (roleId === 6 || roleId === 7 || roleId === 8);
+      eventLogLinks.forEach(a => a.classList.toggle('hidden', !canSeeMenu));
 
       // Export button rules:
       // - EventLog export is privileged-only
@@ -832,6 +925,7 @@ function ensureNotificationUI() {
         menu.style.top = 'calc(100% + 4px)';
         menu.style.minWidth = '10rem';
         menu.innerHTML = `
+          <li><a href="/profile" id="ddProfile"><span class="material-icons mr-2">account_circle</span>Profile</a></li>
           <li><a href="#" id="ddLogout"><span class="material-icons mr-2">exit_to_app</span>Log Out</a></li>
         `;
         userDd.appendChild(activator);
@@ -903,6 +997,12 @@ function ensureNotificationUI() {
         adminLabel.style.overflow = 'hidden';
         adminLabel.style.maxWidth = '320px';
       }
+
+      // Show Profile option only for Customers (roleId = 5)
+      try {
+        const ddProfile = document.getElementById('ddProfile');
+        if (ddProfile) ddProfile.classList.toggle('hidden', !isCustomer);
+      } catch { }
 
       const ddLogout = document.getElementById('ddLogout');
       if (ddLogout && !ddLogout._oc_bound) {
@@ -1062,7 +1162,10 @@ function ensureNotificationUI() {
           // Toggle dropdown visibility: show Menu only when authenticated.
           // Privileged-only entries stay hidden for non-privileged users.
           const dd = document.getElementById('eventlogDropdown');
-          if (dd) dd.classList.toggle('hidden', !isLoggedIn);
+          if (dd) {
+            const canSeeMenu = isLoggedIn && (roleId === 6 || roleId === 7 || roleId === 8);
+            dd.classList.toggle('hidden', !canSeeMenu);
+          }
 
           try {
             const ddChangeStore = document.getElementById('ddChangeStore');
@@ -1230,25 +1333,57 @@ function ensureNotificationUI() {
 // Gate protected pages and show an inline Access Denied panel instead of redirecting
 function gateProtectedPages(auth) {
   const path = (window.location && window.location.pathname || '').toLowerCase();
-  const protectedAny = ['/users', '/users.html', '/eventlog', '/eventlog.html', '/changestore', '/changestore.html', '/contracts', '/contracts.html'];
+  const protectedAny = [
+    '/users','/users.html',
+    '/eventlog','/eventlog.html',
+    '/changestore','/changestore.html',
+    '/contracts','/contracts.html',
+    '/products','/products.html',
+    '/product-details','/product-details.html',
+    '/notes','/notes.html',
+    '/contractshistory','/contractshistory.html',
+    '/profile','/profile.html'
+  ];
   if (!protectedAny.includes(path)) return;
 
   const isAuth = !!auth?.isAuthenticated;
   const roleIdRaw = auth?.roleId ?? 0;
   const roleId = parseInt(String(roleIdRaw), 10) || 0;
-  const isPrivileged = isAuth && (roleId === 7 || roleId === 8);
+  const isAdminManager = isAuth && (roleId === 7 || roleId === 8);
+  const isWorker = isAuth && roleId === 6;
   const isCustomer = isAuth && roleId === 5;
 
-  // EventLog and Change Store require privileged roles; Users page requires authentication only
-  const requiresPrivilege = (p) =>
-    ['/eventlog', '/eventlog.html', '/changestore', '/changestore.html', '/users', '/users.html'].includes(p);
+  const isUsers = path === '/users' || path === '/users.html';
+  const isEventLog = path === '/eventlog' || path === '/eventlog.html';
+  const isStore = path === '/changestore' || path === '/changestore.html';
+  const isContracts = path === '/contracts' || path === '/contracts.html';
+  const isProducts = path === '/products' || path === '/products.html';
+  const isProductDetails = path === '/product-details' || path === '/product-details.html';
+  const isNotes = path === '/notes' || path === '/notes.html';
+  const isContractsHistory = path === '/contractshistory' || path === '/contractshistory.html';
+  const isProfile = path === '/profile' || path === '/profile.html';
 
-  const mustBePrivileged = requiresPrivilege(path);
+  let deny = false;
 
-  const isContractsPage = path === '/contracts' || path === '/contracts.html';
-  const denyContracts = isContractsPage && (!isAuth);
+  // Admin/Manager: all Menu pages allowed, but not Contract History
+  if (isAdminManager) {
+    deny = isContractsHistory; // cannot access /contractshistory
+  } else if (isWorker) {
+    // Worker: can access only Notes/Products/Contracts (+ product-details). Deny the rest
+    deny = (isUsers || isEventLog || isStore || isContractsHistory) || (!isNotes && !isProducts && !isProductDetails && !isContracts);
+  } else if (isCustomer) {
+    // Customer: can access Contract History only; deny products/product-details/notes/contracts and admin pages
+    deny = (isUsers || isEventLog || isStore || isProducts || isProductDetails || isNotes || isContracts) || (!isContractsHistory);
+  } else {
+    // Not logged in: deny all protected pages
+    deny = true;
+  }
 
-  const deny = denyContracts || (!isAuth) || (mustBePrivileged && !isPrivileged);
+  // Override for Profile page: allow only Customers; show Access Denied for others
+  if (isProfile) {
+    deny = !isCustomer;
+  }
+
   if (!deny) return;
 
   // Hide known main content containers
@@ -1763,27 +1898,18 @@ function openNotificationPanel() {
   const maxAllowed = Math.max(200, window.innerWidth - 48);
   let panelWidth = Math.max(panel.offsetWidth || 0, desiredWidth);
   if (panelWidth > maxAllowed) panelWidth = maxAllowed;
-  // Anchor panel's right edge to bell's right edge so it appears directly below the bell.
-  // Special-case: some pages (Collections) have layout rules that affect bounding rects;
-  // when on /collections, anchor relative to the navbar right edge to avoid jumping.
+  // Anchor panel: horizontally align to bell's right edge, vertically sit strictly below navbar.
   let desiredRight;
   let top;
   try {
-    const path = (location && location.pathname || '').toLowerCase();
-    if (path.includes('/collections')) {
-      const navbar = document.querySelector('.navbar');
-      const nrect = navbar ? navbar.getBoundingClientRect() : rect;
-      top = (nrect.bottom || rect.bottom) + 8;
-      // anchor to the navbar right edge so panel aligns with header controls
-      try {
-        const navbarRight = nrect.right || rect.right;
-        desiredRight = Math.max(8, Math.round(window.innerWidth - navbarRight + 8));
-      } catch { desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8)); }
-    } else {
-      desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8));
-      top = rect.bottom + 8; // viewport coordinates for fixed positioning
-    }
-  } catch { desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8)); top = rect.bottom + 8; }
+    const navbar = document.querySelector('.navbar');
+    const nrect = navbar ? navbar.getBoundingClientRect() : null;
+    desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8));
+    top = ((nrect ? nrect.bottom : rect.bottom) + 8);
+  } catch {
+    desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8));
+    top = rect.bottom + 8;
+  }
   // Apply right anchoring and clear left to avoid conflicting layout rules
   panel.style.left = '';
   panel.style.right = `${desiredRight}px`;
@@ -1844,8 +1970,10 @@ function openNotificationPanel() {
         const panel = document.getElementById('notificationPanel');
         if (!bell || !panel) return;
         const rect = bell.getBoundingClientRect();
+        const navbar = document.querySelector('.navbar');
+        const nrect = navbar ? navbar.getBoundingClientRect() : null;
         const desiredRight = Math.max(8, Math.round(window.innerWidth - rect.right + 8));
-        const top = rect.bottom + 8;
+        const top = ((nrect ? nrect.bottom : rect.bottom) + 8);
         panel.style.right = `${desiredRight}px`;
         panel.style.top = `${top}px`;
       } catch { }
@@ -2714,5 +2842,3 @@ document.addEventListener('DOMContentLoaded', () => {
     try { setupNavbarDropdown('userDropdown', 'adminLabel'); } catch { }
   });
 })();
-
-// (duplicate toolbar initializer removed; the unified initializer above handles both btnToolbarMenu and btnMore)

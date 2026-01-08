@@ -7,6 +7,8 @@ using System.Security.Claims;
 using OnlineContract.Data;
 using OnlineContract.Helpers;
 using OnlineContract.Models;
+using OnlineContract.Dtos;
+using System.Text.Json;
 // Load local .env into process environment (development only).
 // This avoids hard-coding secrets while allowing local dev to store values in a .env file.
 try
@@ -50,14 +52,49 @@ var builder = WebApplication.CreateBuilder(args);
 // -------------------------
 
 // DbContext
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    // In tests, the factory will override with a persistent in-memory SQLite connection
+    builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite("DataSource=:memory:"));
+}
+else
+{
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+}
 
 // Memory cache (used by ForgotPasswordService for rate limiting)
 builder.Services.AddMemoryCache();
 
+// Distributed cache + Session (for pending Add to Cart)
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddDistributedMemoryCache();
+// PROD Redis (ready for production; keep commented until configured):
+// builder.Services.AddStackExchangeRedisCache(options => {
+//     options.Configuration = builder.Configuration["Redis:Configuration"];
+//     options.InstanceName = "onlinecontract:";
+// });
+// Add session except in Testing to avoid PipeWriter issues
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddSession(options =>
+    {
+        options.Cookie.Name = ".OnlineContract.Session";
+        options.IdleTimeout = TimeSpan.FromHours(4);
+        options.Cookie.HttpOnly = true;
+        options.Cookie.IsEssential = true;
+    });
+}
+
 // Email services: register the SMTP MailKit sender and adapter to the existing IEmailService helper
 builder.Services.AddScoped<OnlineContract.Services.IEmailService, OnlineContract.Services.EmailService>();
+// Register new services
+builder.Services.AddScoped<OnlineContract.Services.ProductQueryService>();
+builder.Services.AddScoped<OnlineContract.Services.CartService>();
+builder.Services.AddSingleton<OnlineContract.Services.SessionBridgeService>();
+builder.Services.AddScoped<OnlineContract.Services.AnonCartCacheService>();
+builder.Services.AddScoped<OnlineContract.Services.CartMergeService>();
+builder.Services.AddScoped<OnlineContract.Services.VariantAvailabilityService>();
 
 // Cookie Authentication + Authorization
 builder.Services
@@ -177,11 +214,12 @@ var rewriteOptions = new RewriteOptions()
     .AddRewrite("(?i)^changestore$", "changestore.html", skipRemainingRules: true)
     .AddRewrite("(?i)^users$", "users.html", skipRemainingRules: true)
     .AddRewrite("(?i)^contracts$", "contracts.html", skipRemainingRules: true)
-    .AddRewrite("(?i)^reset$", "reset-password.html", skipRemainingRules: true);
+    .AddRewrite("(?i)^reset$", "reset-password.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^contractshistory$", "contractshistory.html", skipRemainingRules: true);
 
 app.UseRewriter(rewriteOptions);
 
-if (!app.Environment.IsDevelopment())
+if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing"))
 {
     app.UseHttpsRedirection();
 }
@@ -199,6 +237,10 @@ if (!string.IsNullOrEmpty(appOrigin))
 
 app.UseAuthentication();
 app.UseAuthorization();
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseSession();
+}
 
 // -------------------------
 // Cache
@@ -238,6 +280,13 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
+// Map physical product images folder to /product-images
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(@"C:\Projects\Build\InstallDocs"),
+    RequestPath = "/product-images"
+});
+
 // -------------------------
 // Routes
 // -------------------------
@@ -248,6 +297,22 @@ app.MapGet("/", context =>
     context.Response.Redirect("/login");
     return Task.CompletedTask;
 });
+
+// Helper: stable JSON in Testing (Results.Text) vs normal JSON otherwise
+IResult StableJson(object payload)
+{
+    return app.Environment.IsEnvironment("Testing")
+        ? Results.Text(JsonSerializer.Serialize(payload), "application/json")
+        : Results.Json(payload);
+}
+
+// Helper: stable JSON with explicit status code (avoids PipeWriter in Testing)
+IResult StableJsonStatus(object payload, int statusCode)
+{
+    return app.Environment.IsEnvironment("Testing")
+        ? Results.Text(JsonSerializer.Serialize(payload), "application/json", statusCode: statusCode)
+        : Results.Json(payload, statusCode: statusCode);
+}
 
 // Contract details page shell
 app.MapGet("/contracts/{id:int}", (HttpContext context, int id) =>
@@ -262,6 +327,41 @@ app.MapGet("/contracts", (HttpContext context) =>
 {
     if (!CanManageProducts(context)) return Results.Redirect("/home");
     var filePath = Path.Combine(app.Environment.WebRootPath, "contracts.html");
+    return Results.File(filePath, "text/html");
+}).RequireAuthorization();
+
+// Profile page
+app.MapGet("/profile", (HttpContext context) =>
+{
+    if (!(context.User?.Identity?.IsAuthenticated ?? false))
+        return Results.Redirect("/login?mode=login");
+    var filePath = Path.Combine(app.Environment.WebRootPath, "profile.html");
+    return Results.File(filePath, "text/html");
+}).RequireAuthorization();
+
+// Customer-only Contracts History page
+static bool IsCustomer(HttpContext http)
+{
+    try
+    {
+        var rc = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type.EndsWith("/role", StringComparison.OrdinalIgnoreCase))?.Value;
+        return int.TryParse(rc, out var roleId) && roleId == 5;
+    }
+    catch { return false; }
+}
+
+app.MapGet("/contractshistory", (HttpContext context) =>
+{
+    if (!IsCustomer(context)) return Results.Redirect("/home");
+    var filePath = Path.Combine(app.Environment.WebRootPath, "contractshistory.html");
+    return Results.File(filePath, "text/html");
+}).RequireAuthorization();
+
+// Customer-only Contract History Details (items-only) page shell
+app.MapGet("/contractshistory/{id:int}", (HttpContext context, int id) =>
+{
+    if (!IsCustomer(context)) return Results.Redirect("/home");
+    var filePath = Path.Combine(app.Environment.WebRootPath, "contractshistory-details.html");
     return Results.File(filePath, "text/html");
 }).RequireAuthorization();
 
@@ -337,7 +437,7 @@ app.MapPost("/api/product-variants/{id:int}/delete", async (AppDbContext db, Htt
     try
     {
         var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
-        if (v == null) return Results.NotFound(new { message = "Inventory row not found. It may have been removed." });
+        if (v == null) return Results.NotFound(new { message = "The inventory row was not found. It may have been removed." });
         // Prevent variant/inventory changes when parent product is inactive or deleted
         var parentProduct = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == v.ProductId);
         if (parentProduct == null || !parentProduct.IsActive || parentProduct.IsDeleted)
@@ -414,6 +514,207 @@ app.MapFallback(context =>
 });
 
 // -------------------------
+// Collections & Product Cards + Variant endpoints
+// -------------------------
+
+app.MapGet("/api/products/cards", async (OnlineContract.Services.ProductQueryService svc, HttpContext http) =>
+{
+    var cards = await svc.GetProductCardsAsync(http.RequestAborted);
+    // Log minimal telemetry
+    try { await LoggerHelper.LogEventAsync(http.RequestServices.GetRequiredService<AppDbContext>(), OnlineContract.Helpers.EventType.Information, "Product cards load", $"Count={cards.Count}", GetCurrentUserId(http)); } catch { }
+    return Results.Json(cards);
+}).AllowAnonymous();
+
+app.MapGet("/api/products/{productId:int}/variants", async (OnlineContract.Services.ProductQueryService svc, int productId, HttpContext http) =>
+{
+    var resp = await svc.GetDistinctSizesColorsAsync(productId, http.RequestAborted);
+    return Results.Json(resp);
+}).AllowAnonymous();
+
+app.MapGet("/api/variants/by-selection", async (OnlineContract.Services.ProductQueryService svc, int productId, string size, string color, HttpContext http) =>
+{
+    var row = await svc.GetVariantBySelectionAsync(productId, size, color, http.RequestAborted);
+    if (row == null) return Results.NotFound(new { message = "Variant not found." });
+    return Results.Json(row);
+}).AllowAnonymous();
+
+app.MapGet("/api/variants/{variantId:int}/availability", async (OnlineContract.Services.ProductQueryService svc, int variantId, HttpContext http) =>
+{
+    var list = await svc.GetAvailabilityAsync(variantId, http.RequestAborted);
+    return Results.Json(list);
+}).AllowAnonymous();
+
+// -------------------------
+// Session bridge for pending Add to Cart
+// -------------------------
+app.MapPost("/api/session/pending-add", async (OnlineContract.Services.SessionBridgeService sessionSvc, HttpContext http) =>
+{
+    try
+    {
+        var dto = await http.Request.ReadFromJsonAsync<System.Collections.Generic.Dictionary<string, int>>();
+        var productId = dto != null && dto.TryGetValue("productId", out var pid) ? pid : 0;
+        if (productId <= 0) return Results.BadRequest(new { message = "productId is required" });
+        sessionSvc.SetPendingAdd(http, productId);
+        try { await LoggerHelper.LogEventAsync(http.RequestServices.GetRequiredService<AppDbContext>(), OnlineContract.Helpers.EventType.Information, "PendingAddToCart set", $"ProductId={productId}", GetCurrentUserId(http)); } catch { }
+        return Results.Ok(new { success = true });
+    }
+    catch { return Results.StatusCode(500); }
+}).AllowAnonymous();
+
+app.MapDelete("/api/session/pending-add", async (OnlineContract.Services.SessionBridgeService sessionSvc, HttpContext http) =>
+{
+    try
+    {
+        sessionSvc.ClearPendingAdd(http);
+        try { await LoggerHelper.LogEventAsync(http.RequestServices.GetRequiredService<AppDbContext>(), OnlineContract.Helpers.EventType.Information, "PendingAddToCart cleared", "", GetCurrentUserId(http)); } catch { }
+        return Results.Ok(new { success = true });
+    }
+    catch { return Results.StatusCode(500); }
+}).AllowAnonymous();
+
+app.MapGet("/api/session/pending-add", (OnlineContract.Services.SessionBridgeService sessionSvc, HttpContext http) =>
+{
+    try
+    {
+        var pid = sessionSvc.GetPendingAdd(http) ?? 0;
+        return Results.Json(new { productId = pid });
+    }
+    catch { return Results.Json(new { productId = 0 }); }
+}).AllowAnonymous();
+
+// -------------------------
+// Cart API
+// -------------------------
+app.MapPost("/api/cart/items", async (OnlineContract.Services.CartService cartSvc, HttpContext http) =>
+{
+    try
+    {
+        var dto = await http.Request.ReadFromJsonAsync<OnlineContract.Dtos.AddToCartRequest>();
+        if (dto == null || dto.ProductVariantId <= 0 || dto.Quantity < 1)
+            return StableJsonStatus(new { message = "Invalid payload" }, StatusCodes.Status400BadRequest);
+
+        var uid = GetCurrentUserId(http);
+        var res = await cartSvc.AddToCartAsync(uid, dto.ProductVariantId, dto.Quantity, http.RequestAborted);
+        try { await LoggerHelper.LogEventAsync(http.RequestServices.GetRequiredService<AppDbContext>(), OnlineContract.Helpers.EventType.Information, "AddToCart", $"VariantId={dto.ProductVariantId}; Qty={dto.Quantity}; ContractId={res.ContractId}", uid); } catch { }
+        return StableJson(res);
+    }
+    catch (InvalidOperationException ex)
+    {
+        // Business rule violations
+        return StableJsonStatus(new { message = ex.Message }, StatusCodes.Status400BadRequest);
+    }
+    catch (Exception ex)
+    {
+        try { await LoggerHelper.LogEventAsync(http.RequestServices.GetRequiredService<AppDbContext>(), OnlineContract.Helpers.EventType.Error, "AddToCart failed", ex.ToString(), GetCurrentUserId(http)); } catch { }
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+// -------------------------
+// Anonymous Cart API (cache + cookie)
+// -------------------------
+app.MapPost("/api/anon-cart/items", async (OnlineContract.Services.AnonCartCacheService svc, HttpContext http) =>
+{
+    try
+    {
+        var dto = await http.Request.ReadFromJsonAsync<OnlineContract.Dtos.AddToCartRequest>();
+        if (dto == null || dto.ProductVariantId <= 0 || dto.Quantity < 1)
+            return Results.BadRequest(new { message = "Invalid request" });
+        var anonId = svc.GetOrCreateAnonId();
+        await svc.UpsertAsync(anonId, dto.ProductVariantId, dto.Quantity, http.RequestAborted);
+        try { await LoggerHelper.LogEventAsync(http.RequestServices.GetRequiredService<AppDbContext>(), OnlineContract.Helpers.EventType.Information, "Anon AddToCart", $"VariantId={dto.ProductVariantId}; Qty={dto.Quantity}; AnonId={anonId}", 0); } catch { }
+        return Results.Text(JsonSerializer.Serialize(new { anonCartId = anonId }), "application/json");
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.StatusCode(StatusCodes.Status400BadRequest);
+    }
+    catch (Exception ex)
+    {
+        try { await LoggerHelper.LogEventAsync(http.RequestServices.GetRequiredService<AppDbContext>(), OnlineContract.Helpers.EventType.Error, "Anon AddToCart failed", ex.ToString(), 0); } catch { }
+        return Results.StatusCode(500);
+    }
+}).AllowAnonymous();
+
+app.MapGet("/api/anon-cart/summary", async (OnlineContract.Services.AnonCartCacheService svc, CancellationToken ct) =>
+{
+    try
+    {
+        if (!svc.TryGetAnonId(out var anonId))
+            return Results.Text(JsonSerializer.Serialize(new { itemCount = 0, items = Array.Empty<object>() }), "application/json");
+        var items = await svc.GetAsync(anonId, ct);
+        var count = items.Sum(i => i.Qty);
+        var payload = new { itemCount = count, items = items.Select(i => new { variantId = i.VariantId, qty = i.Qty }) };
+        return Results.Text(JsonSerializer.Serialize(payload), "application/json");
+    }
+    catch { return Results.Text(JsonSerializer.Serialize(new { itemCount = 0, items = Array.Empty<object>() }), "application/json"); }
+}).AllowAnonymous();
+
+app.MapDelete("/api/anon-cart", async (OnlineContract.Services.AnonCartCacheService svc, CancellationToken ct) =>
+{
+    try
+    {
+        if (svc.TryGetAnonId(out var anonId))
+        {
+            await svc.ClearAsync(anonId, ct);
+        }
+        return Results.NoContent();
+    }
+    catch { return Results.NoContent(); }
+}).AllowAnonymous();
+
+// Merge anon cart into authenticated draft (auth required)
+app.MapPost("/api/cart/merge-anon", async (ClaimsPrincipal user, OnlineContract.Services.AnonCartCacheService anonSvc, OnlineContract.Services.CartMergeService mergeSvc, HttpContext http) =>
+{
+    try
+    {
+        var userIdClaim = user.FindFirst("sub") ?? user.FindFirst("userId") ?? user.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim is null) return Results.Unauthorized();
+        if (!anonSvc.TryGetAnonId(out var anonId)) return Results.Ok();
+        await mergeSvc.MergeAnonIntoUserDraftAsync(int.Parse(userIdClaim.Value), anonId, http.RequestAborted);
+        return Results.Text("{\"success\":true}", "application/json");
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.StatusCode(StatusCodes.Status400BadRequest);
+    }
+    catch (Exception ex)
+    {
+        try { await LoggerHelper.LogEventAsync(http.RequestServices.GetRequiredService<AppDbContext>(), OnlineContract.Helpers.EventType.Error, "Merge anon failed", ex.ToString(), 0); } catch { }
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+// -------------------------
+// Checkout route (server-side anon merge)
+// -------------------------
+static int? TryGetUserId(HttpContext ctx)
+{
+    var claim = ctx.User.FindFirst("sub")
+        ?? ctx.User.FindFirst("userId")
+        ?? ctx.User.FindFirst(ClaimTypes.NameIdentifier);
+    if (claim == null) return null;
+    return int.TryParse(claim.Value, out var id) ? id : (int?)null;
+}
+
+app.MapGet("/checkout", async (HttpContext ctx, OnlineContract.Services.CartMergeService mergeSvc, OnlineContract.Services.AnonCartCacheService anonSvc) =>
+{
+    var userId = TryGetUserId(ctx);
+    if (userId is null)
+    {
+        var returnUrl = "/checkout";
+        return Results.Redirect($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
+    }
+    if (anonSvc.TryGetAnonId(out var anonId))
+    {
+        await mergeSvc.MergeAnonIntoUserDraftAsync(userId.Value, anonId, ctx.RequestAborted);
+        // After success the anon cookie/cache are cleared.
+    }
+    // Redirect to existing contracts page (acts as checkout/cart view in this app)
+    return Results.Redirect("/contracts");
+}).AllowAnonymous();
+
+// -------------------------
 // Auth API
 // -------------------------
 
@@ -426,35 +727,35 @@ app.MapPost("/api/login", async (AppDbContext db, LoginDto dto, HttpContext http
         if (user == null)
         {
             await LoggerHelper.LogEventAsync(db, EventType.Warning, "Login failed - invalid user code", $"Code={dto.Code}", 2);
-            return Results.Json(new { success = false, message = "Invalid user code. Please check your credentials and try again." });
+            return Results.Text(JsonSerializer.Serialize(new { success = false, message = "Invalid user code. Please check your credentials and try again." }), "application/json");
         }
 
         // verify password first so we can detect the case of correct credentials but deactivated account
         if (!PasswordHelper.VerifyPassword(dto.Password, user.Password))
         {
             await LoggerHelper.LogEventAsync(db, EventType.Warning, "Login failed - invalid password", $"Code={dto.Code}", user.Id);
-            return Results.Json(new { success = false, message = "Invalid password. Please check your credentials and try again." });
+            return Results.Text(JsonSerializer.Serialize(new { success = false, message = "Invalid password. Please check your credentials and try again." }), "application/json");
         }
 
         // disallow signing in with team/group accounts
         if (user.IsGroup)
         {
             await LoggerHelper.LogEventAsync(db, EventType.Warning, "Login failed - team account attempted", $"Code={dto.Code}", user.Id);
-            return Results.Json(new { success = false, message = "Team accounts cannot be used to sign in. Please use a personal account or contact our administrator for access." });
+            return Results.Text(JsonSerializer.Serialize(new { success = false, message = "Team accounts cannot be used to sign in. Please use a personal account or contact our administrator for access." }), "application/json");
         }
 
         // If user must change password, interrupt normal login and prompt client to change it now
         if (user.IsTempPassword)
         {
             await LoggerHelper.LogEventAsync(db, EventType.Warning, "Login blocked - temp password requires change", $"Code={dto.Code}", user.Id);
-            return Results.Json(new { success = false, mustChangePassword = true, message = "Your account requires a password change before you can continue. Please set a new password now.", stamp = user.Stamp });
+            return Results.Text(JsonSerializer.Serialize(new { success = false, mustChangePassword = true, message = "Your account requires a password change before you can continue. Please set a new password now.", stamp = user.Stamp }), "application/json");
         }
 
         // correct credentials but account inactive -> return a friendly, specific message
         if (!user.IsActive)
         {
             await LoggerHelper.LogEventAsync(db, EventType.Warning, "Login failed - deactivated account", $"Code={dto.Code}", user.Id);
-            return Results.Json(new { success = false, message = "Your account has been deactivated. If you need it reactivated, please contact our administrator." });
+            return Results.Text(JsonSerializer.Serialize(new { success = false, message = "Your account has been deactivated. If you need it reactivated, please contact our administrator." }), "application/json");
         }
 
         var claims = new List<Claim>
@@ -467,18 +768,18 @@ app.MapPost("/api/login", async (AppDbContext db, LoginDto dto, HttpContext http
         var principal = new ClaimsPrincipal(identity);
 
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
-            new AuthenticationProperties { IsPersistent = true, AllowRefresh = true, ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8) });
+            new AuthenticationProperties { IsPersistent = true, AllowRefresh = true, ExpiresUtc = DateTimeOffset.Now.AddHours(8) });
         // record last-login time using server local time
         user.LastLoginDt = DateTime.Now;
         await db.SaveChangesAsync();
 
         await LoggerHelper.LogEventAsync(db, EventType.Information, "Login successful", $"User {user.Code} logged in.", user.Id);
-        return Results.Json(new { success = true, userId = user.Id, roleId = user.RoleId });
+        return Results.Text(JsonSerializer.Serialize(new { success = true, userId = user.Id, roleId = user.RoleId }), "application/json");
     }
     catch (Exception ex)
     {
         await LoggerHelper.LogEventAsync(db, EventType.Error, "Login endpoint exception", ex.ToString(), 2);
-        return Results.Json(new { success = false, message = "Login failed due to a server error. Please try again later." });
+        return Results.Text(JsonSerializer.Serialize(new { success = false, message = "Login failed due to a server error. Please try again later." }), "application/json");
     }
 });
 
@@ -560,7 +861,7 @@ app.MapPost("/api/auth/reset-password", async (AppDbContext db, HttpContext http
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         var principal = new ClaimsPrincipal(identity);
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
-            new AuthenticationProperties { IsPersistent = true, AllowRefresh = true, ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8) });
+            new AuthenticationProperties { IsPersistent = true, AllowRefresh = true, ExpiresUtc = DateTimeOffset.Now.AddHours(8) });
 
         await LoggerHelper.LogEventAsync(db, EventType.Information, "Password reset completed", $"UserId={user.Id}", user.Id);
         return Results.Json(new { success = true, userId = user.Id, roleId = user.RoleId });
@@ -654,7 +955,7 @@ app.MapPost("/api/register", async (AppDbContext db, RegisterDto dto, HttpContex
         var principal = new ClaimsPrincipal(identity);
 
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
-            new AuthenticationProperties { IsPersistent = true, AllowRefresh = true, ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8) });
+            new AuthenticationProperties { IsPersistent = true, AllowRefresh = true, ExpiresUtc = DateTimeOffset.Now.AddHours(8) });
 
         await LoggerHelper.LogEventAsync(db, EventType.Information, "New Account successfully created", $"User {username} created and signed in.", newUser.Id);
         return Results.Json(new { success = true, userId = newUser.Id, roleId = newUser.RoleId });
@@ -854,7 +1155,7 @@ app.MapPost("/api/users/change-temp-password", async (AppDbContext db, ChangeTem
         var principal = new System.Security.Claims.ClaimsPrincipal(identity);
 
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
-            new AuthenticationProperties { IsPersistent = true, AllowRefresh = true, ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8) });
+            new AuthenticationProperties { IsPersistent = true, AllowRefresh = true, ExpiresUtc = DateTimeOffset.Now.AddHours(8) });
 
         await LoggerHelper.LogEventAsync(db, EventType.Information, "Temporary password changed and user signed in", $"User {u.Code}", u.Id);
         return Results.Json(new { success = true, userId = u.Id, roleId = u.RoleId });
@@ -1486,7 +1787,9 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
         var isCustomer = roleId == (int)UserRole.Customer;
 
         // Build base contracts query (entity) so we can apply server-side sorting before projection
-        var contractsQuery = db.Contracts.AsNoTracking().Where(c => c.Id > 0 && (!isCustomer || (c.InputUserId ?? 0) == currentUserId));
+        // For customers: restrict to own contracts that are active and not deleted
+        var contractsQuery = db.Contracts.AsNoTracking().Where(c =>
+            c.Id > 0 && (!isCustomer || ((c.InputUserId ?? 0) == currentUserId && c.IsActive && !c.IsDeleted)));
 
         var qUserJoin =
             from c in contractsQuery
@@ -1566,13 +1869,18 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
             from c in orderedContracts
             join u0 in db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug2
             from u in ug2.DefaultIfEmpty()
-            where !isCustomer || (c.InputUserId ?? 0) == currentUserId
+            where !isCustomer || ((c.InputUserId ?? 0) == currentUserId && c.IsActive && !c.IsDeleted)
             select new
             {
                 c.Id,
                 c.EntryDate,
                 c.ContractState,
                 c.Amount,
+                c.AmtMatched,
+                c.DeliveredDt,
+                c.WrittenOffDt,
+                c.RejectedDt,
+                c.CancelledDt,
                 CustomerFullName = u == null
                     ? ""
                     : ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim(),
@@ -1582,16 +1890,43 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
             .Take(size)
             .ToListAsync();
 
-        var items = pageRows.Select(x => new
+        // Helper to format dates with "1900-01-01" sentinel as empty
+        static string FmtDt(DateTime? d)
         {
-            id = x.Id,
-            customerFullName = x.CustomerFullName,
-            amount = x.Amount,
-            contractState = x.ContractState.ToString(),
-            entryDate = x.EntryDate.ToString("yyyy-MM-dd HH:mm:ss")
-        });
+            if (!d.HasValue) return "";
+            var v = d.Value;
+            if (v.Year == 1900 && v.Month == 1 && v.Day == 1) return "";
+            return v.ToString("yyyy-MM-dd HH:mm:ss");
+        }
 
-        return Results.Json(new
+        // Resolve human-readable contract state via lookup_set; fall back to enum text if not available
+        var items = new List<object>();
+        foreach (var x in pageRows)
+        {
+            string stateText = x.ContractState.ToString();
+            try
+            {
+                stateText = await OnlineContract.Helpers.LookupHelper.GetLookupValueAsync(db, (int)x.ContractState);
+            }
+            catch { /* fallback already set */ }
+
+            items.Add(new
+            {
+                id = x.Id,
+                customerFullName = x.CustomerFullName,
+                amount = x.Amount,
+                amtMatched = x.AmtMatched,
+                contractState = x.ContractState.ToString(),
+                contractStateText = stateText,
+                entryDate = x.EntryDate.ToString("yyyy-MM-dd HH:mm:ss"),
+                deliveredDate = FmtDt(x.DeliveredDt),
+                writtenOffDate = FmtDt(x.WrittenOffDt),
+                rejectedDate = FmtDt(x.RejectedDt),
+                cancelledDate = FmtDt(x.CancelledDt)
+            });
+        }
+
+        return StableJson(new
         {
             items,
             totalCount,
@@ -1603,13 +1938,13 @@ app.MapGet("/api/contracts", async (AppDbContext db, HttpContext http, string? s
     catch (Exception ex)
     {
         await LoggerHelper.LogEventAsync(db, OnlineContract.Helpers.EventType.Error, "Contracts fetch failed", ex.ToString(), 2);
-        return Results.Json(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
+        return StableJson(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
     }
 }).RequireAuthorization();
 
 app.MapGet("/api/contracts/{id:int}", async (AppDbContext db, HttpContext http, int id) =>
 {
-    if (id <= 0) return Results.NotFound(new { message = "Contract not found. Please verify the contract ID and try again." });
+    if (id <= 0) return StableJsonStatus(new { message = "Contract not found. Please verify the contract ID and try again." }, StatusCodes.Status404NotFound);
 
     var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
     int.TryParse(roleClaim, out var roleId);
@@ -1617,11 +1952,17 @@ app.MapGet("/api/contracts/{id:int}", async (AppDbContext db, HttpContext http, 
     int.TryParse(userIdClaim, out var currentUserId);
     var isCustomer = roleId == (int)UserRole.Customer;
 
+    var contractEntity = await db.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+    if (contractEntity == null) return StableJsonStatus(new { message = "Contract not found. The contract may have been removed." }, StatusCodes.Status404NotFound);
+    if (isCustomer && (contractEntity.InputUserId ?? 0) != currentUserId) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
     var row = await (
         from c in db.Contracts.AsNoTracking()
         join u0 in db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug
         from u in ug.DefaultIfEmpty()
-        where c.Id > 0 && c.Id == id && (!isCustomer || (c.InputUserId ?? 0) == currentUserId)
+        join u1 in db.AxUsers.AsNoTracking() on c.LastModifiedById equals (int?)u1.Id into ug1
+        from lm in ug1.DefaultIfEmpty()
+        where c.Id == id
         select new
         {
             c.Id,
@@ -1631,25 +1972,593 @@ app.MapGet("/api/contracts/{id:int}", async (AppDbContext db, HttpContext http, 
             c.LastModifiedById,
             c.LastUpdatedDt,
             c.Stamp,
+            c.Amount,
+            c.AmtMatched,
             CustomerFullName = u == null
                 ? ""
                 : ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim(),
+            InputUserCode = u == null ? "" : (u.Code ?? ""),
+            LastModifiedByCode = lm == null ? "" : (lm.Code ?? "")
         }
     ).FirstOrDefaultAsync();
 
-    if (row == null) return Results.NotFound(new { message = "Contract not found. The contract may have been removed." });
+    if (row == null)
+        return StableJsonStatus(new { message = "Contract not found. The contract may have been removed." }, StatusCodes.Status404NotFound);
 
-    return Results.Json(new
+    string contractStateText = row.ContractState.ToString();
+    try { contractStateText = await OnlineContract.Helpers.LookupHelper.GetLookupValueAsync(db, (int)row.ContractState); } catch {}
+
+    return StableJson(new
     {
         id = row.Id,
         customerFullName = row.CustomerFullName,
         inputUserId = row.InputUserId,
         contractState = row.ContractState.ToString(),
+        contractStateText,
         entryDate = row.EntryDate.ToString("yyyy-MM-dd HH:mm:ss"),
         lastModifiedById = row.LastModifiedById,
+        inputUserCode = row.InputUserCode,
+        lastModifiedByCode = row.LastModifiedByCode,
         lastUpdatedDt = row.LastUpdatedDt?.ToString("yyyy-MM-dd HH:mm:ss"),
-        stamp = row.Stamp
+        stamp = row.Stamp,
+        amount = row.Amount,
+        amtMatched = row.AmtMatched
     });
+}).RequireAuthorization();
+
+// Contract items (read-only list for details page)
+app.MapGet("/api/contracts/{id:int}/items", async (AppDbContext db, HttpContext http, int id, int page, int pageSize) =>
+{
+    if (id <= 0) return StableJsonStatus(new { message = "Contract not found. Please verify the contract ID and try again." }, StatusCodes.Status404NotFound);
+
+    var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+    int.TryParse(roleClaim, out var roleId);
+    var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+    int.TryParse(userIdClaim, out var currentUserId);
+    var isCustomer = roleId == (int)UserRole.Customer;
+
+    var contractEntity = await db.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+    if (contractEntity == null) return StableJsonStatus(new { message = "Contract not found. The contract may have been removed." }, StatusCodes.Status404NotFound);
+    if (isCustomer && (contractEntity.InputUserId ?? 0) != currentUserId) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    try
+    {
+        var pageIndex = page < 1 ? 1 : page;
+        var size = pageSize <= 0 ? 10 : (pageSize > 200 ? 200 : pageSize);
+
+        var baseQ = db.ContractDets.AsNoTracking().Where(d => d.ContractId == id && !d.IsDeleted);
+        var totalCount = await baseQ.CountAsync();
+
+        var rows = await (
+            from d in baseQ
+            join v in db.ProductVariants.AsNoTracking() on d.ProductVariantId equals v.Id
+            orderby d.Id
+            select new
+            {
+                d.Id,
+                d.ProductName,
+                d.Size,
+                d.Color,
+                d.Quantity,
+                d.Amount,
+                d.AmtGross,
+                d.ItemStateId,
+                d.InputDt,
+                d.IsActive,
+                d.ProductVariantId,
+                d.Stamp,
+                ProductId = v.ProductId
+            })
+            .Skip(Math.Max(0, (pageIndex - 1) * size))
+            .Take(size)
+            .ToListAsync();
+
+        var items = new List<object>();
+        foreach (var r in rows)
+        {
+            string stateText = r.ItemStateId.ToString();
+            try { stateText = await OnlineContract.Helpers.LookupHelper.GetLookupValueAsync(db, (int)r.ItemStateId); } catch { /* fallback already set */ }
+            string? photoFileName = null;
+            try
+            {
+                photoFileName = await db.ProductVariants.AsNoTracking()
+                    .Where(v => v.Id == r.ProductVariantId)
+                    .Select(v => v.PhotoFileName)
+                    .FirstOrDefaultAsync();
+            }
+            catch { }
+            items.Add(new
+            {
+                id = r.Id,
+                productName = r.ProductName ?? "",
+                size = r.Size ?? "",
+                color = r.Color ?? "",
+                quantity = r.Quantity,
+                amount = r.Amount,
+                amtGross = r.AmtGross,
+                itemStateId = r.ItemStateId,
+                itemStateText = stateText,
+                inputDt = r.InputDt.ToString("yyyy-MM-dd HH:mm:ss"),
+                isActive = r.IsActive,
+                photoFileName,
+                productId = r.ProductId,
+                stamp = r.Stamp
+            });
+        }
+
+        return StableJson(new
+        {
+            items,
+            totalCount,
+            totalPages = (int)Math.Ceiling(totalCount / (double)size)
+        });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, OnlineContract.Helpers.EventType.Error, "Contract items fetch failed", ex.ToString(), 2);
+        return StableJson(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
+    }
+}).RequireAuthorization();
+
+// Contract items delete (Draft only, owner-only)
+app.MapPost("/api/contracts/{id:int}/items/{itemId:int}/delete", async (AppDbContext db, HttpContext http, int id, int itemId) =>
+{
+    if (id <= 0 || itemId <= 0) return Results.StatusCode(StatusCodes.Status404NotFound);
+
+    try
+    {
+        var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+        int.TryParse(roleClaim, out var roleId);
+        var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        int.TryParse(userIdClaim, out var currentUserId);
+        var isCustomer = roleId == (int)UserRole.Customer;
+        if (!isCustomer) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+        if (contract == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        if ((contract.InputUserId ?? 0) != currentUserId) return Results.StatusCode(StatusCodes.Status403Forbidden);
+        if (contract.ContractState != ContractState.Draft) return Results.StatusCode(StatusCodes.Status409Conflict);
+
+        await using var tx = await db.Database.BeginTransactionAsync();
+
+        var det = await db.ContractDets.FirstOrDefaultAsync(d => d.Id == itemId && d.ContractId == id && !d.IsDeleted);
+        if (det == null) { await tx.RollbackAsync(); return Results.StatusCode(StatusCodes.Status404NotFound); }
+
+        // Soft-delete detail (respect DB CHECK on active/deleted exclusivity)
+        det.IsDeleted = true;
+        det.IsActive = false;
+        det.LastModifiedById = currentUserId;
+        det.LastUpdatedDt = DateTime.Now;
+        det.Stamp = det.Stamp + 1;
+        await db.SaveChangesAsync();
+
+        // Recompute header amount from remaining active/not-deleted lines as sum of AmtGross
+        var newAmount = await db.ContractDets.AsNoTracking()
+            .Where(d => d.ContractId == id && d.IsActive && !d.IsDeleted)
+            .Select(d => (decimal?)d.AmtGross)
+            .SumAsync() ?? 0m;
+        contract.Amount = newAmount;
+        contract.LastModifiedById = currentUserId;
+        contract.LastUpdatedDt = DateTime.Now;
+        contract.Stamp = contract.Stamp + 1;
+        await db.SaveChangesAsync();
+
+        // If this was the last active detail, soft-delete the contract header as well
+        var remainingActive = await db.ContractDets.AsNoTracking()
+            .CountAsync(d => d.ContractId == id && d.IsActive && !d.IsDeleted);
+        if (remainingActive == 0)
+        {
+            contract.IsDeleted = true;
+            contract.IsActive = false;
+            contract.LastModifiedById = currentUserId;
+            contract.LastUpdatedDt = DateTime.Now;
+            contract.Stamp = contract.Stamp + 1;
+            await db.SaveChangesAsync();
+        }
+
+        await tx.CommitAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Contract item deleted", $"ContractId={id}; ItemId={itemId}", currentUserId);
+        return StableJson(new { success = true, message = "The item was deleted successfully." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Contract item delete failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+// Save contract (Draft only, owner-only). No-op that bumps audit/stamp.
+app.MapPost("/api/contracts/{id:int}/save", async (AppDbContext db, HttpContext http, int id) =>
+{
+    if (id <= 0) return Results.StatusCode(StatusCodes.Status404NotFound);
+    try
+    {
+        var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+        int.TryParse(roleClaim, out var roleId);
+        var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        int.TryParse(userIdClaim, out var currentUserId);
+        var isCustomer = roleId == (int)UserRole.Customer;
+        if (!isCustomer) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+        if (contract == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        if ((contract.InputUserId ?? 0) != currentUserId) return Results.StatusCode(StatusCodes.Status403Forbidden);
+        if (contract.ContractState != ContractState.Draft) return Results.StatusCode(StatusCodes.Status409Conflict);
+
+        // Optional concurrency check: client can pass stamp in body
+        try
+        {
+            var body = await http.Request.ReadFromJsonAsync<Dictionary<string, int?>>();
+            if (body != null && body.TryGetValue("contractStamp", out var cs) && cs.HasValue && contract.Stamp != cs.Value)
+                return Results.StatusCode(StatusCodes.Status409Conflict);
+        }
+        catch { }
+
+        // Re-validate stock for all active lines (standardized message)
+        var dets = await db.ContractDets.Where(d => d.ContractId == id && !d.IsDeleted).ToListAsync();
+        foreach (var d in dets)
+        {
+            var ok = await new OnlineContract.Services.VariantAvailabilityService(db)
+                .CheckVariantAvailabilityAsync(d.ProductVariantId, d.Quantity);
+            if (!ok)
+            {
+                var available = await db.ProductInventories.AsNoTracking()
+                    .Where(i => i.ProductVariantId == d.ProductVariantId && i.IsActive && !i.IsDeleted)
+                    .Select(i => (int?)i.QtyOnHand).SumAsync() ?? 0;
+                return StableJson(new { success = false, message = $"Insufficient stock: requested {d.Quantity}, available {available}." });
+            }
+        }
+
+        // Recompute header amount as sum of AmtGross for active/not-deleted lines
+        var newAmount = await db.ContractDets.AsNoTracking()
+            .Where(d => d.ContractId == id && d.IsActive && !d.IsDeleted)
+            .Select(d => (decimal?)d.AmtGross)
+            .SumAsync() ?? 0m;
+        contract.Amount = newAmount;
+
+        contract.LastModifiedById = currentUserId;
+        contract.LastUpdatedDt = DateTime.Now;
+        contract.Stamp = contract.Stamp + 1;
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Contract saved", $"ContractId={id}", currentUserId);
+        return StableJson(new { success = true, message = "Your changes have been saved successfully." });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Contract save failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+// Edit contract item (Draft only, owner-only) with variant+stock validation and concurrency checks
+app.MapPost("/api/contracts/{id:int}/items/{itemId:int}/edit", async (
+    AppDbContext db,
+    HttpContext http,
+    OnlineContract.Services.VariantAvailabilityService stockSvc,
+    int id,
+    int itemId) =>
+{
+    if (id <= 0 || itemId <= 0) return Results.StatusCode(StatusCodes.Status404NotFound);
+    try
+    {
+        var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+        int.TryParse(roleClaim, out var roleId);
+        var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        int.TryParse(userIdClaim, out var currentUserId);
+        var isCustomer = roleId == (int)UserRole.Customer;
+        if (!isCustomer) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+        var dto = await http.Request.ReadFromJsonAsync<OnlineContract.Dtos.ContractItemUpdateDto>();
+        if (dto == null) return Results.StatusCode(StatusCodes.Status400BadRequest);
+        if (dto.ItemId != 0 && dto.ItemId != itemId) return Results.StatusCode(StatusCodes.Status400BadRequest);
+        if (dto.Quantity <= 0) return StableJson(new { success = false, message = "Quantity must be greater than 0." });
+
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+        if (contract == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        if ((contract.InputUserId ?? 0) != currentUserId) return Results.StatusCode(StatusCodes.Status403Forbidden);
+        if (contract.ContractState != ContractState.Draft) return Results.StatusCode(StatusCodes.Status409Conflict);
+        if (contract.Stamp != dto.ContractStamp) return Results.StatusCode(StatusCodes.Status409Conflict);
+
+        var det = await db.ContractDets.FirstOrDefaultAsync(d => d.Id == itemId && d.ContractId == id && !d.IsDeleted);
+        if (det == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        if (det.Stamp != dto.ItemStamp) return Results.StatusCode(StatusCodes.Status409Conflict);
+
+        // Resolve product
+        var existingVariant = await db.ProductVariants.AsNoTracking().FirstOrDefaultAsync(v => v.Id == det.ProductVariantId);
+        if (existingVariant == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        var productId = existingVariant.ProductId;
+
+        // Variant and stock validation for requested size/color/qty
+        var vr = await stockSvc.CheckVariantAvailabilityAsync(productId, dto.Color ?? string.Empty, dto.Size ?? string.Empty, dto.Quantity, dto.StoreId, http.RequestAborted);
+        if (vr.FoundVariantId <= 0)
+        {
+            return StableJson(new { success = false, message = "Selected color/size variant is not available." });
+        }
+        if (!vr.IsAvailable)
+        {
+            var err = vr.Errors.FirstOrDefault() ?? $"Insufficient stock: requested {dto.Quantity}, available {vr.AvailableQty}.";
+            return StableJson(new { success = false, message = err });
+        }
+
+        // Apply edits: do not change Amount (unit price). Update variant, qty, size, color, audit, stamp
+        det.ProductVariantId = vr.FoundVariantId;
+        det.Quantity = dto.Quantity;
+        det.Size = (dto.Size ?? string.Empty).Trim();
+        det.Color = (dto.Color ?? string.Empty).Trim();
+        det.LastModifiedById = currentUserId;
+        det.LastUpdatedDt = DateTime.Now;
+        det.Stamp = det.Stamp + 1;
+
+        // Persist the line change first so computed AmtGross reflects the new quantity
+        await db.SaveChangesAsync();
+
+        // Recompute header amount: sum of AmtGross for active/not-deleted lines
+        var newAmount = await db.ContractDets.AsNoTracking()
+            .Where(d => d.ContractId == id && d.IsActive && !d.IsDeleted)
+            .Select(d => (decimal?)d.AmtGross)
+            .SumAsync() ?? 0m;
+        contract.Amount = newAmount;
+        contract.LastModifiedById = currentUserId;
+        contract.LastUpdatedDt = DateTime.Now;
+        contract.Stamp = contract.Stamp + 1;
+
+        await db.SaveChangesAsync();
+        await LoggerHelper.LogEventAsync(db, EventType.Information, "Contract item edited", $"ContractId={id}; ItemId={itemId}; VariantId={det.ProductVariantId}", currentUserId);
+        return StableJson(new { success = true, message = "Item has been successfully updated.", stamp = det.Stamp, contractStamp = contract.Stamp });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Contract item edit failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+// Payment webhook (idempotent) to mark AmtMatched when payment succeeds
+app.MapPost("/api/payments/webhook", async (AppDbContext db, HttpContext http) =>
+{
+    try
+    {
+        var payload = await http.Request.ReadFromJsonAsync<Dictionary<string, object?>>();
+        if (payload == null) return Results.StatusCode(StatusCodes.Status400BadRequest);
+        var status = (payload.TryGetValue("status", out var s) ? (s?.ToString() ?? "") : "").Trim().ToLowerInvariant();
+        if (status != "success") return Results.Ok(new { ignored = true });
+        if (!payload.TryGetValue("contractId", out var cidObj)) return Results.StatusCode(StatusCodes.Status400BadRequest);
+        if (!int.TryParse(cidObj?.ToString(), out var contractId) || contractId <= 0) return Results.StatusCode(StatusCodes.Status400BadRequest);
+
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == contractId && !c.IsDeleted);
+        if (contract == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        // Idempotent: only update if not already fully matched
+        if (contract.AmtMatched < contract.Amount)
+        {
+            contract.AmtMatched = contract.Amount;
+            contract.LastUpdatedDt = DateTime.Now;
+            contract.Stamp = contract.Stamp + 1;
+            await db.SaveChangesAsync();
+            await LoggerHelper.LogEventAsync(db, EventType.Information, "Payment matched", $"ContractId={contractId}; AmtMatched={contract.AmtMatched}", 2);
+        }
+        return Results.Ok(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Payment webhook failed", ex.ToString(), 2);
+        return Results.StatusCode(500);
+    }
+});
+
+// WSPay/Monri callback (idempotent): expects { status: 'success'|'failure', contractId: number }
+app.MapPost("/api/payments/wspay/callback", async (AppDbContext db, HttpContext http) =>
+{
+    try
+    {
+        var payload = await http.Request.ReadFromJsonAsync<Dictionary<string, object?>>();
+        if (payload == null) return Results.StatusCode(StatusCodes.Status400BadRequest);
+        var status = (payload.TryGetValue("status", out var s) ? (s?.ToString() ?? "") : "").Trim().ToLowerInvariant();
+        if (!payload.TryGetValue("contractId", out var cidObj)) return Results.StatusCode(StatusCodes.Status400BadRequest);
+        if (!int.TryParse(cidObj?.ToString(), out var contractId) || contractId <= 0) return Results.StatusCode(StatusCodes.Status400BadRequest);
+
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == contractId && !c.IsDeleted);
+        if (contract == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+
+        if (status == "success")
+        {
+            // If already matched and submitted, no-op
+            if (contract.ContractState == ContractState.Submitted && contract.AmtMatched >= contract.Amount)
+                return StableJson(new { success = true, idempotent = true });
+
+            var dets = await db.ContractDets.Where(d => d.ContractId == contractId && !d.IsDeleted).ToListAsync();
+            foreach (var d in dets)
+            {
+                d.ItemStateId = ProductStateInOrder.Submitted;
+                d.LastUpdatedDt = DateTime.Now;
+                d.Stamp = d.Stamp + 1;
+            }
+            // Recompute header amount by summing per-line gross with rounding
+            decimal newAmount = 0m;
+            foreach (var ln in dets)
+            {
+                var net = ln.Amount * ln.Quantity;
+                var tax = Math.Round(net * 0.20m, 2, MidpointRounding.AwayFromZero);
+                var gross = Math.Round(net + tax, 2, MidpointRounding.AwayFromZero);
+                newAmount += gross;
+            }
+            contract.Amount = newAmount;
+            contract.ContractState = ContractState.Submitted;
+            contract.AmtMatched = contract.Amount;
+            contract.LastUpdatedDt = DateTime.Now;
+            contract.Stamp = contract.Stamp + 1;
+            await db.SaveChangesAsync();
+            await LoggerHelper.LogEventAsync(db, EventType.Information, "WSPay payment matched", $"ContractId={contractId}; AmtMatched={contract.AmtMatched}", 2);
+            return StableJson(new { success = true });
+        }
+        else
+        {
+            await LoggerHelper.LogEventAsync(db, EventType.Warning, "WSPay payment failed", $"ContractId={contractId}", 2);
+            return StableJson(new { success = false, message = "Payment failed. Please try again." });
+        }
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "WSPay callback failed", ex.ToString(), 2);
+        return Results.StatusCode(500);
+    }
+});
+
+// Submit contract (Draft only, owner-only). method=cod|online
+app.MapPost("/api/contracts/{id:int}/submit", async (AppDbContext db, HttpContext http, OnlineContract.Services.VariantAvailabilityService stockSvc, int id, string? method) =>
+{
+    if (id <= 0) return Results.StatusCode(StatusCodes.Status404NotFound);
+    try
+    {
+        var roleClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+        int.TryParse(roleClaim, out var roleId);
+        var userIdClaim = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        int.TryParse(userIdClaim, out var currentUserId);
+        var isCustomer = roleId == (int)UserRole.Customer;
+        if (!isCustomer) return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+        if (contract == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+        if ((contract.InputUserId ?? 0) != currentUserId) return Results.StatusCode(StatusCodes.Status403Forbidden);
+        if (contract.ContractState != ContractState.Draft) return Results.StatusCode(StatusCodes.Status409Conflict);
+
+        // Recompute header amount: sum of AmtGross for active/not-deleted lines
+        var sumAmount = await db.ContractDets.AsNoTracking()
+            .Where(d => d.ContractId == id && d.IsActive && !d.IsDeleted)
+            .Select(d => (decimal?)d.AmtGross)
+            .SumAsync() ?? 0m;
+        contract.Amount = sumAmount;
+
+        // Validate variant availability for each non-deleted item before submission
+        var dets = await db.ContractDets.Where(d => d.ContractId == id && !d.IsDeleted).ToListAsync();
+        foreach (var d in dets)
+        {
+            var ok = await stockSvc.CheckVariantAvailabilityAsync(d.ProductVariantId, d.Quantity);
+            if (!ok)
+            {
+                // Compute available quantity to return standardized message
+                var available = await db.ProductInventories.AsNoTracking()
+                    .Where(i => i.ProductVariantId == d.ProductVariantId && i.IsActive && !i.IsDeleted)
+                    .Select(i => (int?)i.QtyOnHand).SumAsync() ?? 0;
+                return StableJson(new { success = false, message = $"Insufficient stock: requested {d.Quantity}, available {available}." });
+            }
+        }
+
+        // Validate profile completeness (after stock check)
+        var user = await db.AxUsers.FirstOrDefaultAsync(u => u.Id == currentUserId && !u.IsDeleted);
+        if (user == null) return Results.StatusCode(StatusCodes.Status403Forbidden);
+        var errors = new Dictionary<string, string>();
+        if (string.IsNullOrWhiteSpace(user.Email)) errors["email"] = "Email is required.";
+        else if (!user.Email.Contains('@')) errors["email"] = "Email format is invalid.";
+        var phone = user.Phone ?? "";
+        var (okPhone, _, phoneErr) = PhoneHelper.NormalizeSerbianPhone(phone);
+        if (!okPhone) errors["phoneNumber"] = phoneErr ?? "Phone number format is invalid.";
+        if (string.IsNullOrWhiteSpace(user.City)) errors["city"] = "City is required.";
+        if (string.IsNullOrWhiteSpace(user.StreetAddress)) errors["streetAddress"] = "Street address is required.";
+        var postal = (user.PostalCode ?? "").Trim();
+        if (postal.Length != 5) errors["postalCode"] = "Postal code must be exactly 5 characters.";
+        if (errors.Count > 0)
+        {
+            var msg = errors.Count == 1 ? errors.Values.First() : "Please review your profile details and try again.";
+            return StableJson(new { success = false, message = msg, errors });
+        }
+
+        // Bind method from query when not provided by minimal API binder
+        string? mRaw = method;
+        if (string.IsNullOrWhiteSpace(mRaw))
+        {
+            try { mRaw = http.Request.Query["method"].ToString(); } catch { mRaw = ""; }
+        }
+        var m = (mRaw ?? "").Trim().ToLowerInvariant();
+        if (m == "cod")
+        {
+            // Transactional: update details and header atomically
+            await using var tx = await db.Database.BeginTransactionAsync();
+            foreach (var d in dets)
+            {
+                d.ItemStateId = ProductStateInOrder.Submitted;
+                d.LastModifiedById = currentUserId;
+                d.LastUpdatedDt = DateTime.Now;
+                d.Stamp = d.Stamp + 1;
+            }
+
+            contract.ContractState = ContractState.Submitted;
+            contract.LastModifiedById = currentUserId;
+            contract.LastUpdatedDt = DateTime.Now;
+            contract.Stamp = contract.Stamp + 1;
+            contract.AmtMatched = 0m;
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+            await LoggerHelper.LogEventAsync(db, EventType.Information, "Contract submitted (COD)", $"ContractId={id}", currentUserId);
+            return StableJson(new { success = true, message = "Your order was submitted successfully. We’ll contact you shortly." });
+        }
+        else if (m == "online")
+        {
+            // Initiate payment; keep contract in Draft until callback confirms
+            contract.LastModifiedById = currentUserId;
+            contract.LastUpdatedDt = DateTime.Now;
+            contract.Stamp = contract.Stamp + 1; // track submission attempt
+            await db.SaveChangesAsync();
+            await LoggerHelper.LogEventAsync(db, EventType.Information, "Contract payment initiated (Online)", $"ContractId={id}", currentUserId);
+            return StableJson(new { success = true, message = "Payment initiated. You'll be notified upon confirmation.", paymentStatus = "initiated", reference = id });
+        }
+        else
+        {
+            return StableJson(new { success = false, message = "Unknown submit method. Use 'cod' or 'online'." });
+        }
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, EventType.Error, "Contract submit failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+// Change State modal data for a specific contract item
+app.MapGet("/api/contracts/items/{contractDetId:int}/state/modal-data", async (AppDbContext db, HttpContext http, int contractDetId, CancellationToken ct) =>
+{
+    try
+    {
+        var svc = new OnlineContract.Services.ContractItemWorkflowService(db);
+        var dto = await svc.GetModalDataAsync(contractDetId, ct);
+        return StableJson(dto);
+    }
+    catch (KeyNotFoundException)
+    {
+        return Results.StatusCode(StatusCodes.Status404NotFound);
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, OnlineContract.Helpers.EventType.Error, "Contract item modal data failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
+// Set state for a specific contract item
+app.MapPost("/api/contracts/items/{contractDetId:int}/state/set", async (AppDbContext db, HttpContext http, int contractDetId, CancellationToken ct) =>
+{
+    try
+    {
+        var bodyDto = await http.Request.ReadFromJsonAsync<OnlineContract.Dtos.SetStateDto>(cancellationToken: ct);
+        if (bodyDto == null) return Results.StatusCode(StatusCodes.Status400BadRequest);
+
+        var claimUid = GetCurrentUserId(http);
+        var svc = new OnlineContract.Services.ContractItemWorkflowService(db);
+        var (newId, newName) = await svc.SetStateAsync(contractDetId, bodyDto.NextStateId, claimUid, ct);
+        return StableJson(new { updated = true, contractDetId, newStateId = newId, newStateName = newName });
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.StatusCode(StatusCodes.Status400BadRequest);
+    }
+    catch (KeyNotFoundException)
+    {
+        return Results.StatusCode(StatusCodes.Status404NotFound);
+    }
+    catch (Exception ex)
+    {
+        await LoggerHelper.LogEventAsync(db, OnlineContract.Helpers.EventType.Error, "Contract item set state failed", ex.ToString(), GetCurrentUserId(http));
+        return Results.StatusCode(500);
+    }
 }).RequireAuthorization();
 
 app.MapGet("/api/contracts/export", async (AppDbContext db, HttpContext http, string? state, string? name, string? fromDate, string? toDate) =>
@@ -1673,6 +2582,7 @@ app.MapGet("/api/contracts/export", async (AppDbContext db, HttpContext http, st
                 c.EntryDate,
                 c.ContractState,
                 c.Amount,
+                c.AmtMatched,
                 CustomerFullName = u == null
                     ? ""
                     : ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim(),
@@ -1718,7 +2628,7 @@ app.MapGet("/api/contracts/export", async (AppDbContext db, HttpContext http, st
         }
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Id,CustomerFullName,Amount,ContractState,EntryDate");
+        sb.AppendLine("Id,CustomerFullName,Amount,AmtMatched,ContractState,EntryDate");
         foreach (var r in rows)
         {
             sb.Append(CsvEscape(r.Id.ToString()));
@@ -1726,6 +2636,8 @@ app.MapGet("/api/contracts/export", async (AppDbContext db, HttpContext http, st
             sb.Append(CsvEscape(r.CustomerFullName));
             sb.Append(',');
             sb.Append(CsvEscape(r.Amount.ToString()));
+            sb.Append(',');
+            sb.Append(CsvEscape(r.AmtMatched.ToString()));
             sb.Append(',');
             sb.Append(CsvEscape(r.ContractState.ToString()));
             sb.Append(',');
@@ -1758,6 +2670,121 @@ static int GetCurrentUserId(HttpContext http)
     }
     catch { return 2; }
 }
+
+// -------------------------
+// Profile API
+// -------------------------
+
+app.MapGet("/api/profile", async (AppDbContext db, HttpContext http) =>
+{
+    if (!http.User?.Identity?.IsAuthenticated ?? true) return Results.StatusCode(StatusCodes.Status401Unauthorized);
+    var uid = GetCurrentUserId(http);
+    var u = await db.AxUsers.AsNoTracking().FirstOrDefaultAsync(x => x.Id == uid && !x.IsDeleted);
+    if (u == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+    var dto = new OnlineContract.Dtos.ProfileDto
+    {
+        Id = u.Id,
+        Code = u.Code ?? string.Empty,
+        FirstName = u.FirstName ?? string.Empty,
+        LastName = u.LastName ?? string.Empty,
+        Email = u.Email ?? string.Empty,
+        PhoneNumber = u.Phone ?? string.Empty,
+        City = u.City ?? string.Empty,
+        StreetAddress = u.StreetAddress ?? string.Empty,
+        PostalCode = u.PostalCode ?? string.Empty,
+        Stamp = u.Stamp
+    };
+    return StableJson(dto);
+}).RequireAuthorization();
+
+app.MapPut("/api/profile", async (AppDbContext db, HttpContext http) =>
+{
+    if (!http.User?.Identity?.IsAuthenticated ?? true) return Results.StatusCode(StatusCodes.Status401Unauthorized);
+    var uid = GetCurrentUserId(http);
+    var dto = await http.Request.ReadFromJsonAsync<OnlineContract.Dtos.ProfileUpdateDto>();
+    if (dto == null) return Results.StatusCode(StatusCodes.Status400BadRequest);
+
+    // Basic required checks
+    string err(string m) => m;
+    if (string.IsNullOrWhiteSpace(dto.Code)) return StableJson(new { success = false, message = err("Username is required." )});
+    if (string.IsNullOrWhiteSpace(dto.FirstName)) return StableJson(new { success = false, message = err("First name is required.") });
+    if (string.IsNullOrWhiteSpace(dto.LastName)) return StableJson(new { success = false, message = err("Last name is required.") });
+    if (string.IsNullOrWhiteSpace(dto.Email)) return StableJson(new { success = false, message = err("Email is required.") });
+    if (string.IsNullOrWhiteSpace(dto.PhoneNumber)) return StableJson(new { success = false, message = err("Phone number is required.") });
+    if (string.IsNullOrWhiteSpace(dto.City)) return StableJson(new { success = false, message = err("City is required.") });
+    if (string.IsNullOrWhiteSpace(dto.StreetAddress)) return StableJson(new { success = false, message = err("Street address is required.") });
+    if (string.IsNullOrWhiteSpace(dto.PostalCode)) return StableJson(new { success = false, message = err("Postal code is required.") });
+    // Postal code length must be exactly 5
+    var postal = dto.PostalCode.Trim();
+    if (postal.Length != 5)
+        return StableJson(new { success = false, message = "Postal code must be exactly 5 characters." });
+
+    // Username format (fallback rule if no central validator)
+    var code = dto.Code.Trim();
+    if (!System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Za-z][A-Za-z0-9._-]{2,29}$"))
+        return StableJson(new { success = false, message = "Username must start with a letter and be 3-30 chars (letters, digits, ., _, -)." });
+
+    // Email format
+    var email = dto.Email.Trim();
+    var emailAttr = new System.ComponentModel.DataAnnotations.EmailAddressAttribute();
+    if (!emailAttr.IsValid(email)) return StableJson(new { success = false, message = "Email format is invalid." });
+
+    // Phone normalize via PhoneHelper
+    var (okPhone, normalizedPhone, phoneErr) = OnlineContract.Helpers.PhoneHelper.NormalizeSerbianPhone(dto.PhoneNumber);
+    if (!okPhone) return StableJson(new { success = false, message = phoneErr });
+
+    // Uniqueness checks (exclude soft-deleted and current user)
+    var existsCode = await db.AxUsers.AnyAsync(x => x.Code == code && !x.IsDeleted && x.Id != uid);
+    if (existsCode) return StableJson(new { success = false, message = "Username is already taken." });
+    var existsEmail = await db.AxUsers.AnyAsync(x => (x.Email ?? "") == email && !x.IsDeleted && x.Id != uid);
+    if (existsEmail) return StableJson(new { success = false, message = "Email is already in use." });
+
+    // Load current for update with concurrency check
+    var user = await db.AxUsers.FirstOrDefaultAsync(x => x.Id == uid && !x.IsDeleted);
+    if (user == null) return Results.StatusCode(StatusCodes.Status404NotFound);
+    if (user.Stamp != dto.Stamp)
+        return Results.StatusCode(StatusCodes.Status409Conflict);
+
+    // Password change logic
+    var changingPassword = !string.IsNullOrWhiteSpace(dto.CurrentPassword) || !string.IsNullOrWhiteSpace(dto.NewPassword) || !string.IsNullOrWhiteSpace(dto.ConfirmNewPassword);
+    bool passwordActuallyChanged = false;
+    if (changingPassword)
+    {
+        var cur = (dto.CurrentPassword ?? "").Trim();
+        var np = (dto.NewPassword ?? "").Trim();
+        var cp = (dto.ConfirmNewPassword ?? "").Trim();
+        if (string.IsNullOrEmpty(cur) || string.IsNullOrEmpty(np) || string.IsNullOrEmpty(cp))
+            return StableJson(new { success = false, message = "To change your password, fill all three fields: current, new, and confirm." });
+        if (!OnlineContract.Helpers.PasswordHelper.VerifyPassword(cur, user.Password))
+            return StableJson(new { success = false, message = "Current password is incorrect." });
+        if (np != cp) return StableJson(new { success = false, message = "New password and confirmation do not match." });
+        // Password complexity: require length >= 8, at least one uppercase letter, and at least one digit.
+        // Special characters are allowed but not required; lowercase is optional.
+        if (np.Length < 8 || !np.Any(char.IsUpper) || !np.Any(char.IsDigit))
+            return StableJson(new { success = false, message = "New password must be at least 8 chars and include an uppercase letter and a digit." });
+        // Must differ from existing
+        if (OnlineContract.Helpers.PasswordHelper.VerifyPassword(np, user.Password))
+            return StableJson(new { success = false, message = "New password must be different from the current password." });
+        // Ok: hash and set; mark password changed
+        user.Password = OnlineContract.Helpers.PasswordHelper.HashPassword(np);
+        user.PasswordDt = DateTime.Now;
+        passwordActuallyChanged = true;
+    }
+
+    // Apply other field updates
+    user.Code = code;
+    user.FirstName = dto.FirstName.Trim();
+    user.LastName = dto.LastName.Trim();
+    user.Email = email;
+    user.Phone = normalizedPhone ?? dto.PhoneNumber.Trim();
+    user.City = dto.City.Trim();
+    user.StreetAddress = dto.StreetAddress.Trim();
+    user.PostalCode = dto.PostalCode.Trim();
+    user.Stamp = user.Stamp + 1;
+
+    await db.SaveChangesAsync();
+    return StableJson(new { success = true, passwordChanged = passwordActuallyChanged, stamp = user.Stamp });
+}).RequireAuthorization();
 
 static bool IsValidEmail(string? email)
 {
@@ -1941,7 +2968,7 @@ app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q,
             stamp = r.Stamp
         });
 
-        return Results.Json(new
+        return StableJson(new
         {
             items,
             totalCount,
@@ -1951,7 +2978,7 @@ app.MapGet("/api/products", async (AppDbContext db, HttpContext http, string? q,
     catch (Exception ex)
     {
         await LoggerHelper.LogEventAsync(db, EventType.Error, "Products fetch failed", ex.ToString(), 2);
-        return Results.Json(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
+        return StableJson(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
     }
 }).RequireAuthorization();
 
@@ -2375,16 +3402,16 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
             var notesDto = dto.Notes;
             // Reuse similar logic as /api/products/{id}/notes endpoint but operate within this transaction
             // Add
-            foreach (var add in notesDto.Add ?? new List<OnlineContract.Models.NoteCreateDto>())
+            foreach (var add in notesDto.Add ?? new List<OnlineContract.Dtos.NoteCreateDto>())
             {
                 var text = (add.Comment ?? "").Trim();
                 if (string.IsNullOrWhiteSpace(text)) continue;
-                await db.Database.ExecuteSqlInterpolatedAsync($@"INSERT INTO dbo.note (product_id, contract_id, comment, subject, is_main, is_deleted, is_active, input_dt, input_user_id, last_modified_by_id, last_updated_dt, stamp) VALUES ({id}, NULL, {text}, '', 0, 0, {(add.IsActive ? 1 : 0)}, GETUTCDATE(), {GetCurrentUserId(http)}, {GetCurrentUserId(http)}, GETUTCDATE(), 0);");
+                await db.Database.ExecuteSqlInterpolatedAsync($@"INSERT INTO dbo.note (product_id, contract_id, comment, subject, is_main, is_deleted, is_active, input_dt, input_user_id, last_modified_by_id, last_updated_dt, stamp) VALUES ({id}, NULL, {text}, '', 0, 0, {(add.IsActive ? 1 : 0)}, dbo.GetLocalTime(), {GetCurrentUserId(http)}, {GetCurrentUserId(http)}, dbo.GetLocalTime(), 0);");
             }
 
             // Update
-            var updatedIds = (notesDto.Update ?? new List<OnlineContract.Models.NoteUpdateDto>()).Select(u => u.Id).ToList();
-            foreach (var upd in notesDto.Update ?? new List<OnlineContract.Models.NoteUpdateDto>())
+            var updatedIds = (notesDto.Update ?? new List<OnlineContract.Dtos.NoteUpdateDto>()).Select(u => u.Id).ToList();
+            foreach (var upd in notesDto.Update ?? new List<OnlineContract.Dtos.NoteUpdateDto>())
             {
                 var existing = await db.Notes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == upd.Id && x.ProductId == id && !x.IsDeleted);
                 if (existing == null) continue;
@@ -2399,7 +3426,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
                     return Results.Json(new { success = false, message = $"Your changes to note {upd.Id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
                 }
 
-                var sql = "UPDATE dbo.note SET comment = @pComment, is_deleted = @pDeleted, is_active = @pActive, is_main = @pMain, last_modified_by_id = @pUid, last_updated_dt = GETUTCDATE() WHERE note_id = @pNid AND product_id = @pPid AND stamp = @pStamp;";
+                var sql = "UPDATE dbo.note SET comment = @pComment, is_deleted = @pDeleted, is_active = @pActive, is_main = @pMain, last_modified_by_id = @pUid, last_updated_dt = dbo.GetLocalTime() WHERE note_id = @pNid AND product_id = @pPid AND stamp = @pStamp;";
                 var pComment = new Microsoft.Data.SqlClient.SqlParameter("@pComment", System.Data.SqlDbType.NVarChar, -1) { Value = (object)(newComment ?? string.Empty) };
                 var pDeleted = new Microsoft.Data.SqlClient.SqlParameter("@pDeleted", System.Data.SqlDbType.Int) { Value = (newIsDeleted ? 1 : 0) };
                 var pActive = new Microsoft.Data.SqlClient.SqlParameter("@pActive", System.Data.SqlDbType.Int) { Value = (newIsActive ? 1 : 0) };
@@ -2418,10 +3445,10 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
             }
 
             // Delete
-            var delItems = (notesDto.Delete ?? new List<OnlineContract.Models.NoteDeleteDto>()).Where(x => x.Id > 0).ToList();
+            var delItems = (notesDto.Delete ?? new List<OnlineContract.Dtos.NoteDeleteDto>()).Where(x => x.Id > 0).ToList();
             if (delItems.Count > 0)
             {
-                var sql = "UPDATE dbo.note SET is_deleted = 1, last_modified_by_id = @pUid, last_updated_dt = GETUTCDATE() WHERE product_id = @pPid AND note_id = @pNid AND stamp = @pStamp;";
+                var sql = "UPDATE dbo.note SET is_deleted = 1, last_modified_by_id = @pUid, last_updated_dt = dbo.GetLocalTime() WHERE product_id = @pPid AND note_id = @pNid AND stamp = @pStamp;";
                 foreach (var did in delItems)
                 {
                     if (!did.Stamp.HasValue)
@@ -2447,8 +3474,8 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
             if (notesDto.SetMainId.HasValue && notesDto.SetMainId.Value > 0)
             {
                 var targetId = notesDto.SetMainId.Value;
-                updatedIds = (notesDto.Update ?? new List<OnlineContract.Models.NoteUpdateDto>()).Select(u => u.Id).ToList();
-                var unsetSql = "UPDATE dbo.note SET is_main = 0, last_modified_by_id = @pUid, last_updated_dt = GETUTCDATE() WHERE product_id = @pPid AND is_deleted = 0 AND is_main = 1 AND note_id != @pTarget";
+                updatedIds = (notesDto.Update ?? new List<OnlineContract.Dtos.NoteUpdateDto>()).Select(u => u.Id).ToList();
+                var unsetSql = "UPDATE dbo.note SET is_main = 0, last_modified_by_id = @pUid, last_updated_dt = dbo.GetLocalTime() WHERE product_id = @pPid AND is_deleted = 0 AND is_main = 1 AND note_id != @pTarget";
                 if (updatedIds != null && updatedIds.Count > 0)
                 {
                     unsetSql += " AND note_id NOT IN (" + string.Join(',', updatedIds) + ")";
@@ -2460,7 +3487,7 @@ async (AppDbContext db, HttpContext http, int id, HttpRequest request) =>
 
                 if (!(updatedIds?.Contains(targetId) ?? false))
                 {
-                    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.note SET is_main = 1, last_modified_by_id = {GetCurrentUserId(http)}, last_updated_dt = GETUTCDATE() WHERE note_id = {targetId} AND product_id = {id} AND is_deleted = 0;");
+                    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.note SET is_main = 1, last_modified_by_id = {GetCurrentUserId(http)}, last_updated_dt = dbo.GetLocalTime() WHERE note_id = {targetId} AND product_id = {id} AND is_deleted = 0;");
                 }
             }
         }
@@ -2933,7 +3960,7 @@ app.MapPut("/api/notes/{id:int}", async (AppDbContext db, int id, NoteCreateSimp
             id = id,
             stamp = refreshed?.Stamp ?? 0,
             lastUpdatedDt = (refreshed?.LastUpdatedDt.HasValue == true)
-                ? DateTime.SpecifyKind(refreshed.LastUpdatedDt.Value, DateTimeKind.Utc).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                ? refreshed.LastUpdatedDt.Value.ToString("yyyy-MM-dd HH:mm:ss")
                 : now.ToString("yyyy-MM-dd HH:mm:ss"),
             lastModifiedByCode = lastModifiedByCode ?? ""
         });
@@ -2995,7 +4022,7 @@ app.MapGet("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
             .Take(size)
             .ToListAsync();
 
-        var items = rows.Select(r => new OnlineContract.Models.NoteDto
+        var items = rows.Select(r => new OnlineContract.Dtos.NoteDto
         {
             Id = r.Id,
             Comment = r.Comment ?? "",
@@ -3060,17 +4087,17 @@ app.MapPut("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
         }
 
         // Use direct SQL operations to avoid EF OUTPUT clause issues when DB triggers are present
-        foreach (var add in dto.Add ?? new List<OnlineContract.Models.NoteCreateDto>())
+        foreach (var add in dto.Add ?? new List<OnlineContract.Dtos.NoteCreateDto>())
         {
             var text = (add.Comment ?? "").Trim();
             if (string.IsNullOrWhiteSpace(text)) continue;
             await db.Database.ExecuteSqlInterpolatedAsync($@"
                 INSERT INTO dbo.note (product_id, contract_id, comment, subject, is_main, is_deleted, is_active, input_dt, input_user_id, last_modified_by_id, last_updated_dt, stamp)
-                VALUES ({id}, NULL, {text}, '', 0, 0, {(add.IsActive ? 1 : 0)}, GETUTCDATE(), {uid}, {uid}, GETUTCDATE(), 0);");
+                VALUES ({id}, NULL, {text}, '', 0, 0, {(add.IsActive ? 1 : 0)}, dbo.GetLocalTime(), {uid}, {uid}, dbo.GetLocalTime(), 0);");
         }
 
-        var updatedIds = (dto.Update ?? new List<OnlineContract.Models.NoteUpdateDto>()).Select(u => u.Id).ToList();
-        foreach (var upd in dto.Update ?? new List<OnlineContract.Models.NoteUpdateDto>())
+        var updatedIds = (dto.Update ?? new List<OnlineContract.Dtos.NoteUpdateDto>()).Select(u => u.Id).ToList();
+        foreach (var upd in dto.Update ?? new List<OnlineContract.Dtos.NoteUpdateDto>())
         {
             var existing = await db.Notes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == upd.Id && x.ProductId == id && !x.IsDeleted);
             if (existing == null) continue;
@@ -3086,7 +4113,7 @@ app.MapPut("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
                 return Results.Json(new { success = false, message = $"Your changes to note {upd.Id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
             }
 
-            var sql = "UPDATE dbo.note SET comment = @pComment, is_deleted = @pDeleted, is_active = @pActive, is_main = @pMain, last_modified_by_id = @pUid, last_updated_dt = GETUTCDATE() WHERE note_id = @pNid AND product_id = @pPid AND stamp = @pStamp;";
+            var sql = "UPDATE dbo.note SET comment = @pComment, is_deleted = @pDeleted, is_active = @pActive, is_main = @pMain, last_modified_by_id = @pUid, last_updated_dt = dbo.GetLocalTime() WHERE note_id = @pNid AND product_id = @pPid AND stamp = @pStamp;";
             var pComment = new Microsoft.Data.SqlClient.SqlParameter("@pComment", System.Data.SqlDbType.NVarChar, -1) { Value = (object)(newComment ?? string.Empty) };
             var pDeleted = new Microsoft.Data.SqlClient.SqlParameter("@pDeleted", System.Data.SqlDbType.Int) { Value = (newIsDeleted ? 1 : 0) };
             var pActive = new Microsoft.Data.SqlClient.SqlParameter("@pActive", System.Data.SqlDbType.Int) { Value = (newIsActive ? 1 : 0) };
@@ -3104,11 +4131,11 @@ app.MapPut("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
             }
         }
 
-        var delItems = (dto.Delete ?? new List<OnlineContract.Models.NoteDeleteDto>()).Where(x => x.Id > 0).ToList();
+        var delItems = (dto.Delete ?? new List<OnlineContract.Dtos.NoteDeleteDto>()).Where(x => x.Id > 0).ToList();
         if (delItems.Count > 0)
         {
             // update matching notes to mark deleted - do per-item with stamp check
-            var sql = "UPDATE dbo.note SET is_deleted = 1, last_modified_by_id = @pUid, last_updated_dt = GETUTCDATE() WHERE product_id = @pPid AND note_id = @pNid AND stamp = @pStamp;";
+            var sql = "UPDATE dbo.note SET is_deleted = 1, last_modified_by_id = @pUid, last_updated_dt = dbo.GetLocalTime() WHERE product_id = @pPid AND note_id = @pNid AND stamp = @pStamp;";
             foreach (var did in delItems)
             {
                 if (!did.Stamp.HasValue)
@@ -3135,7 +4162,7 @@ app.MapPut("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
         {
             var targetId = dto.SetMainId.Value;
             // Unset existing mains for notes that are not part of the per-note updates (avoid double-updating same row)
-            var unsetSql = "UPDATE dbo.note SET is_main = 0, last_modified_by_id = @pUid, last_updated_dt = GETUTCDATE() WHERE product_id = @pPid AND is_deleted = 0 AND is_main = 1 AND note_id != @pTarget";
+            var unsetSql = "UPDATE dbo.note SET is_main = 0, last_modified_by_id = @pUid, last_updated_dt = dbo.GetLocalTime() WHERE product_id = @pPid AND is_deleted = 0 AND is_main = 1 AND note_id != @pTarget";
             if (updatedIds != null && updatedIds.Count > 0)
             {
                 // Exclude updatedIds from this unset to avoid touching them twice
@@ -3149,7 +4176,7 @@ app.MapPut("/api/products/{id:int}/notes", async (AppDbContext db, HttpContext h
             // If the target wasn't part of per-note updates, set it explicitly
             if (!(updatedIds?.Contains(targetId) ?? false))
             {
-                await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.note SET is_main = 1, last_modified_by_id = {uid}, last_updated_dt = GETUTCDATE() WHERE note_id = {targetId} AND product_id = {id} AND is_deleted = 0;");
+                await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.note SET is_main = 1, last_modified_by_id = {uid}, last_updated_dt = dbo.GetLocalTime() WHERE note_id = {targetId} AND product_id = {id} AND is_deleted = 0;");
             }
         }
         await tx.CommitAsync();
@@ -3176,7 +4203,7 @@ app.MapGet("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
     try
     {
         var c = await db.Contracts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
-        if (c == null) return Results.NotFound(new { message = "Contract not found. The contract may have been removed." });
+        if (c == null) return Results.StatusCode(StatusCodes.Status404NotFound);
 
         var pageIndex = page < 1 ? 1 : page;
         var size = pageSize <= 0 ? 10 : (pageSize > 200 ? 200 : pageSize);
@@ -3220,7 +4247,7 @@ app.MapGet("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
             .Take(size)
             .ToListAsync();
 
-        var items = rows.Select(r => new OnlineContract.Models.NoteDto
+        var items = rows.Select(r => new OnlineContract.Dtos.NoteDto
         {
             Id = r.Id,
             Comment = r.Comment ?? "",
@@ -3236,7 +4263,7 @@ app.MapGet("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
             Stamp = r.Stamp
         });
 
-        return Results.Json(new
+        return StableJson(new
         {
             items,
             totalCount,
@@ -3246,11 +4273,11 @@ app.MapGet("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
     catch (Exception ex)
     {
         await LoggerHelper.LogEventAsync(db, EventType.Error, "Contract notes fetch failed", ex.ToString(), GetCurrentUserId(http));
-        return Results.Json(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
+        return StableJson(new { items = Array.Empty<object>(), totalCount = 0, totalPages = 0 });
     }
 }).RequireAuthorization();
 
-app.MapPut("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext http, int id, NotesBulkSaveDto dto) =>
+app.MapPut("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext http, int id) =>
 {
     if (!http.User?.Identity?.IsAuthenticated ?? true) return Results.StatusCode(StatusCodes.Status401Unauthorized);
 
@@ -3258,10 +4285,11 @@ app.MapPut("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
     try
     {
         var c = await db.Contracts.FirstOrDefaultAsync(x => x.Id == id);
-        if (c == null) return Results.NotFound(new { message = "Contract not found. The contract may have been removed." });
+        if (c == null) return Results.StatusCode(StatusCodes.Status404NotFound);
 
         int uid = GetCurrentUserId(http);
-
+        var dto = await http.Request.ReadFromJsonAsync<NotesBulkSaveDto>();
+        if (dto == null) return Results.StatusCode(StatusCodes.Status400BadRequest);
         // If client requested SetMainId, validate target exists, is active and stamp matches (cannot set inactive or stale note as main)
         if (dto.SetMainId.HasValue && dto.SetMainId.Value > 0)
         {
@@ -3269,129 +4297,223 @@ app.MapPut("/api/contracts/{id:int}/notes", async (AppDbContext db, HttpContext 
             var targetNote = await db.Notes.AsNoTracking().FirstOrDefaultAsync(n => n.Id == targetCheckId && n.ContractId == id && !n.IsDeleted);
             if (targetNote == null)
             {
-                return Results.Json(new { success = false, message = "The selected note was not found. Please refresh and try again." });
+                return StableJson(new { success = false, message = "The selected note was not found. Please refresh and try again." });
             }
             if (!targetNote.IsActive)
             {
-                return Results.Json(new { success = false, message = "Cannot set an inactive note as main. Please activate the note first and try again." });
+                return StableJson(new { success = false, message = "Cannot set an inactive note as main. Please activate the note first and try again." });
             }
             if (targetNote.IsMain)
             {
-                return Results.Json(new { success = false, message = "This note is already set as main. No changes were made." });
+                return StableJson(new { success = false, message = "This note is already set as main. No changes were made." });
             }
             if (!dto.SetMainStamp.HasValue || dto.SetMainStamp.Value != targetNote.Stamp)
             {
                 await LoggerHelper.LogEventAsync(db, EventType.Warning, "Note save conflict - setmain stamp mismatch", $"ContractId={id}; NoteId={targetCheckId}", GetCurrentUserId(http));
-                return Results.Json(new { success = false, message = $"Your changes to note {targetCheckId} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
+                return StableJson(new { success = false, message = $"Your changes to note {targetCheckId} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
             }
         }
 
-        // Use direct SQL operations to avoid EF OUTPUT clause issues when DB triggers are present
-        foreach (var add in dto.Add ?? new List<OnlineContract.Models.NoteCreateDto>())
-        {
-            var comment = (add.Comment ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(comment)) continue;
-            var sqlIns = "INSERT INTO dbo.note (product_id, contract_id, comment, subject, is_main, is_deleted, is_active, input_dt, input_user_id, last_modified_by_id, last_updated_dt, stamp) VALUES (NULL, @pId, @pComment, '', 0, 0, @pActive, GETUTCDATE(), @pUid, @pUid, GETUTCDATE(), 0);";
-            var pId = new Microsoft.Data.SqlClient.SqlParameter("@pId", System.Data.SqlDbType.Int) { Value = id };
-            var pComment = new Microsoft.Data.SqlClient.SqlParameter("@pComment", System.Data.SqlDbType.NVarChar, -1) { Value = (object)comment };
-            var pActive = new Microsoft.Data.SqlClient.SqlParameter("@pActive", System.Data.SqlDbType.Int) { Value = (add.IsActive ? 1 : 0) };
-            var pUid = new Microsoft.Data.SqlClient.SqlParameter("@pUid", System.Data.SqlDbType.Int) { Value = uid };
-            await db.Database.ExecuteSqlRawAsync(sqlIns, pId, pComment, pActive, pUid);
-        }
+        var isSqlite = db.Database.ProviderName?.IndexOf("Sqlite", StringComparison.OrdinalIgnoreCase) >= 0;
 
-        var updatedIds = (dto.Update ?? new List<OnlineContract.Models.NoteUpdateDto>()).Select(u => u.Id).ToList();
-        foreach (var upd in dto.Update ?? new List<OnlineContract.Models.NoteUpdateDto>())
+        if (!isSqlite)
         {
-            var existing = await db.Notes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == upd.Id && x.ContractId == id && !x.IsDeleted);
-            if (existing == null) continue;
-            var newComment = (upd.Comment != null) ? upd.Comment.Trim() : existing.Comment;
-            var newIsActive = upd.IsActive.HasValue ? upd.IsActive.Value : existing.IsActive;
-            var newIsDeleted = upd.IsDeleted.HasValue ? upd.IsDeleted.Value : existing.IsDeleted;
-            // Determine desired is_main for this note (if SetMain requested)
-            var newIsMain = (dto.SetMainId.HasValue && dto.SetMainId.Value == upd.Id) ? 1 : (existing.IsMain ? 1 : 0);
-
-            if (!upd.Stamp.HasValue)
+            // SQL Server path: use direct SQL operations to avoid EF OUTPUT clause issues when DB triggers are present
+            foreach (var add in dto.Add ?? new List<OnlineContract.Dtos.NoteCreateDto>())
             {
-                await tx.RollbackAsync();
-                await LoggerHelper.LogEventAsync(db, EventType.Warning, "Note save conflict - missing stamp for update", $"ContractId={id}; NoteId={upd.Id}", uid);
-                return Results.Json(new { success = false, message = $"Your changes to note {upd.Id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
+                var comment = (add.Comment ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(comment)) continue;
+                var sqlIns = "INSERT INTO dbo.note (product_id, contract_id, comment, subject, is_main, is_deleted, is_active, input_dt, input_user_id, last_modified_by_id, last_updated_dt, stamp) VALUES (NULL, @pId, @pComment, @pSubject, 0, 0, @pActive, dbo.GetLocalTime(), @pUid, @pUid, dbo.GetLocalTime(), 0);";
+                var pId = new Microsoft.Data.SqlClient.SqlParameter("@pId", System.Data.SqlDbType.Int) { Value = id };
+                var pComment = new Microsoft.Data.SqlClient.SqlParameter("@pComment", System.Data.SqlDbType.NVarChar, -1) { Value = (object)comment };
+                var pSubject = new Microsoft.Data.SqlClient.SqlParameter("@pSubject", System.Data.SqlDbType.NVarChar, 255) { Value = (object)((add.Subject ?? "").Trim()) };
+                var pActive = new Microsoft.Data.SqlClient.SqlParameter("@pActive", System.Data.SqlDbType.Int) { Value = (add.IsActive ? 1 : 0) };
+                var pUid = new Microsoft.Data.SqlClient.SqlParameter("@pUid", System.Data.SqlDbType.Int) { Value = uid };
+                await db.Database.ExecuteSqlRawAsync(sqlIns, pId, pComment, pSubject, pActive, pUid);
             }
 
-            var sql = "UPDATE dbo.note SET comment = @pComment, is_deleted = @pDeleted, is_active = @pActive, is_main = @pMain, last_modified_by_id = @pUid, last_updated_dt = GETUTCDATE() WHERE note_id = @pNid AND contract_id = @pCid AND stamp = @pStamp;";
-            var pCommentU = new Microsoft.Data.SqlClient.SqlParameter("@pComment", System.Data.SqlDbType.NVarChar, -1) { Value = (object)(newComment ?? string.Empty) };
-            var pDeletedU = new Microsoft.Data.SqlClient.SqlParameter("@pDeleted", System.Data.SqlDbType.Int) { Value = (newIsDeleted ? 1 : 0) };
-            var pActiveU = new Microsoft.Data.SqlClient.SqlParameter("@pActive", System.Data.SqlDbType.Int) { Value = (newIsActive ? 1 : 0) };
-            var pMainU = new Microsoft.Data.SqlClient.SqlParameter("@pMain", System.Data.SqlDbType.Int) { Value = newIsMain };
-            var pUidU = new Microsoft.Data.SqlClient.SqlParameter("@pUid", System.Data.SqlDbType.Int) { Value = uid };
-            var pNidU = new Microsoft.Data.SqlClient.SqlParameter("@pNid", System.Data.SqlDbType.Int) { Value = upd.Id };
-            var pCid = new Microsoft.Data.SqlClient.SqlParameter("@pCid", System.Data.SqlDbType.Int) { Value = id };
-            var pStampU = new Microsoft.Data.SqlClient.SqlParameter("@pStamp", System.Data.SqlDbType.Int) { Value = upd.Stamp.Value };
-            var affectedU = await db.Database.ExecuteSqlRawAsync(sql, pCommentU, pDeletedU, pActiveU, pMainU, pUidU, pNidU, pCid, pStampU);
-            if (affectedU == 0)
+            var updatedIds = (dto.Update ?? new List<OnlineContract.Dtos.NoteUpdateDto>()).Select(u => u.Id).ToList();
+            foreach (var upd in dto.Update ?? new List<OnlineContract.Dtos.NoteUpdateDto>())
             {
-                await tx.RollbackAsync();
-                await LoggerHelper.LogEventAsync(db, EventType.Warning, "Note save conflict - update", $"ContractId={id}; NoteId={upd.Id}", uid);
-                return Results.Json(new { success = false, message = $"Your changes to note {upd.Id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
-            }
-        }
+                var existing = await db.Notes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == upd.Id && x.ContractId == id && !x.IsDeleted);
+                if (existing == null) continue;
+                var newComment = (upd.Comment != null) ? upd.Comment.Trim() : existing.Comment;
+                var newIsActive = upd.IsActive.HasValue ? upd.IsActive.Value : existing.IsActive;
+                var newIsDeleted = upd.IsDeleted.HasValue ? upd.IsDeleted.Value : existing.IsDeleted;
+                var newIsMain = (dto.SetMainId.HasValue && dto.SetMainId.Value == upd.Id) ? 1 : (existing.IsMain ? 1 : 0);
 
-        var delItems = (dto.Delete ?? new List<OnlineContract.Models.NoteDeleteDto>()).Where(x => x.Id > 0).ToList();
-        if (delItems.Count > 0)
-        {
-            var sqlDel = "UPDATE dbo.note SET is_deleted = 1, last_modified_by_id = @pUid, last_updated_dt = GETUTCDATE() WHERE contract_id = @pCid AND note_id = @pNid AND stamp = @pStamp;";
-            foreach (var did in delItems)
-            {
-                if (!did.Stamp.HasValue)
+                if (!upd.Stamp.HasValue)
                 {
                     await tx.RollbackAsync();
-                    await LoggerHelper.LogEventAsync(db, EventType.Warning, "Note save conflict - missing stamp for delete", $"ContractId={id}; NoteId={did.Id}", uid);
-                    return Results.Json(new { success = false, message = $"Your changes to note {did.Id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
+                    await LoggerHelper.LogEventAsync(db, EventType.Warning, "Note save conflict - missing stamp for update", $"ContractId={id}; NoteId={upd.Id}", uid);
+                    return StableJson(new { success = false, message = $"Your changes to note {upd.Id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
                 }
-                var pUidD = new Microsoft.Data.SqlClient.SqlParameter("@pUid", System.Data.SqlDbType.Int) { Value = uid };
-                var pCidD = new Microsoft.Data.SqlClient.SqlParameter("@pCid", System.Data.SqlDbType.Int) { Value = id };
-                var pNidD = new Microsoft.Data.SqlClient.SqlParameter("@pNid", System.Data.SqlDbType.Int) { Value = did.Id };
-                var pStampD = new Microsoft.Data.SqlClient.SqlParameter("@pStamp", System.Data.SqlDbType.Int) { Value = did.Stamp.Value };
-                var affectedD = await db.Database.ExecuteSqlRawAsync(sqlDel, pUidD, pCidD, pNidD, pStampD);
-                if (affectedD == 0)
+
+                var sql = "UPDATE dbo.note SET comment = @pComment, is_deleted = @pDeleted, is_active = @pActive, is_main = @pMain, last_modified_by_id = @pUid, last_updated_dt = dbo.GetLocalTime() WHERE note_id = @pNid AND contract_id = @pCid AND stamp = @pStamp;";
+                var pCommentU = new Microsoft.Data.SqlClient.SqlParameter("@pComment", System.Data.SqlDbType.NVarChar, -1) { Value = (object)(newComment ?? string.Empty) };
+                var pDeletedU = new Microsoft.Data.SqlClient.SqlParameter("@pDeleted", System.Data.SqlDbType.Int) { Value = (newIsDeleted ? 1 : 0) };
+                var pActiveU = new Microsoft.Data.SqlClient.SqlParameter("@pActive", System.Data.SqlDbType.Int) { Value = (newIsActive ? 1 : 0) };
+                var pMainU = new Microsoft.Data.SqlClient.SqlParameter("@pMain", System.Data.SqlDbType.Int) { Value = newIsMain };
+                var pUidU = new Microsoft.Data.SqlClient.SqlParameter("@pUid", System.Data.SqlDbType.Int) { Value = uid };
+                var pNidU = new Microsoft.Data.SqlClient.SqlParameter("@pNid", System.Data.SqlDbType.Int) { Value = upd.Id };
+                var pCid = new Microsoft.Data.SqlClient.SqlParameter("@pCid", System.Data.SqlDbType.Int) { Value = id };
+                var pStampU = new Microsoft.Data.SqlClient.SqlParameter("@pStamp", System.Data.SqlDbType.Int) { Value = upd.Stamp.Value };
+                var affectedU = await db.Database.ExecuteSqlRawAsync(sql, pCommentU, pDeletedU, pActiveU, pMainU, pUidU, pNidU, pCid, pStampU);
+                if (affectedU == 0)
+                {
+                    await tx.RollbackAsync();
+                    await LoggerHelper.LogEventAsync(db, EventType.Warning, "Note save conflict - update", $"ContractId={id}; NoteId={upd.Id}", uid);
+                    return StableJson(new { success = false, message = $"Your changes to note {upd.Id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
+                }
+            }
+
+            var delItems = (dto.Delete ?? new List<OnlineContract.Dtos.NoteDeleteDto>()).Where(x => x.Id > 0).ToList();
+            if (delItems.Count > 0)
+            {
+                var sqlDel = "UPDATE dbo.note SET is_deleted = 1, last_modified_by_id = @pUid, last_updated_dt = dbo.GetLocalTime() WHERE contract_id = @pCid AND note_id = @pNid AND stamp = @pStamp;";
+                foreach (var did in delItems)
+                {
+                    if (!did.Stamp.HasValue)
+                    {
+                        await tx.RollbackAsync();
+                        await LoggerHelper.LogEventAsync(db, EventType.Warning, "Note save conflict - missing stamp for delete", $"ContractId={id}; NoteId={did.Id}", uid);
+                        return StableJson(new { success = false, message = $"Your changes to note {did.Id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
+                    }
+                    var pUidD = new Microsoft.Data.SqlClient.SqlParameter("@pUid", System.Data.SqlDbType.Int) { Value = uid };
+                    var pCidD = new Microsoft.Data.SqlClient.SqlParameter("@pCid", System.Data.SqlDbType.Int) { Value = id };
+                    var pNidD = new Microsoft.Data.SqlClient.SqlParameter("@pNid", System.Data.SqlDbType.Int) { Value = did.Id };
+                    var pStampD = new Microsoft.Data.SqlClient.SqlParameter("@pStamp", System.Data.SqlDbType.Int) { Value = did.Stamp.Value };
+                    var affectedD = await db.Database.ExecuteSqlRawAsync(sqlDel, pUidD, pCidD, pNidD, pStampD);
+                    if (affectedD == 0)
+                    {
+                        await tx.RollbackAsync();
+                        await LoggerHelper.LogEventAsync(db, EventType.Warning, "Note save conflict - delete", $"ContractId={id}; NoteId={did.Id}", uid);
+                        return StableJson(new { success = false, message = $"Your changes to note {did.Id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
+                    }
+                }
+            }
+
+            if (dto.SetMainId.HasValue && dto.SetMainId.Value > 0)
+            {
+                var targetId = dto.SetMainId.Value;
+                var unsetSql = "UPDATE dbo.note SET is_main = 0, last_modified_by_id = @pUid, last_updated_dt = dbo.GetLocalTime() WHERE contract_id = @pCid AND is_deleted = 0 AND is_main = 1 AND note_id != @pTarget";
+                if (updatedIds != null && updatedIds.Count > 0)
+                {
+                    unsetSql += " AND note_id NOT IN (" + string.Join(',', updatedIds) + ")";
+                }
+                var pUidU = new Microsoft.Data.SqlClient.SqlParameter("@pUid", System.Data.SqlDbType.Int) { Value = uid };
+                var pCidU = new Microsoft.Data.SqlClient.SqlParameter("@pCid", System.Data.SqlDbType.Int) { Value = id };
+                var pTargetU = new Microsoft.Data.SqlClient.SqlParameter("@pTarget", System.Data.SqlDbType.Int) { Value = targetId };
+                await db.Database.ExecuteSqlRawAsync(unsetSql, pUidU, pCidU, pTargetU);
+
+                if (!(updatedIds?.Contains(targetId) ?? false))
+                {
+                    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.note SET is_main = 1, last_modified_by_id = {uid}, last_updated_dt = dbo.GetLocalTime() WHERE note_id = {targetId} AND contract_id = {id} AND is_deleted = 0;");
+                }
+            }
+        }
+        else
+        {
+            // SQLite path: perform operations via EF Core
+            foreach (var add in dto.Add ?? new List<OnlineContract.Dtos.NoteCreateDto>())
+            {
+                var comment = (add.Comment ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(comment)) continue;
+                var note = new OnlineContract.Models.Note
+                {
+                    ProductId = null,
+                    ContractId = id,
+                    Comment = comment,
+                    Subject = (add.Subject ?? "").Trim(),
+                    IsMain = false,
+                    IsDeleted = false,
+                    IsActive = add.IsActive,
+                    InputDt = DateTime.Now,
+                    InputUserId = uid,
+                    LastModifiedById = uid,
+                    LastUpdatedDt = DateTime.Now,
+                    Stamp = 0
+                };
+                db.Notes.Add(note);
+            }
+
+            var updatedIds = (dto.Update ?? new List<OnlineContract.Dtos.NoteUpdateDto>()).Select(u => u.Id).ToList();
+            foreach (var upd in dto.Update ?? new List<OnlineContract.Dtos.NoteUpdateDto>())
+            {
+                var existing = await db.Notes.FirstOrDefaultAsync(x => x.Id == upd.Id && x.ContractId == id && !x.IsDeleted);
+                if (existing == null) continue;
+                if (!upd.Stamp.HasValue || upd.Stamp.Value != existing.Stamp)
+                {
+                    await tx.RollbackAsync();
+                    await LoggerHelper.LogEventAsync(db, EventType.Warning, "Note save conflict - update", $"ContractId={id}; NoteId={upd.Id}", uid);
+                    return StableJson(new { success = false, message = $"Your changes to note {upd.Id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
+                }
+
+                existing.Comment = (upd.Comment != null) ? upd.Comment.Trim() : existing.Comment;
+                existing.IsActive = upd.IsActive.HasValue ? upd.IsActive.Value : existing.IsActive;
+                existing.IsDeleted = upd.IsDeleted.HasValue ? upd.IsDeleted.Value : existing.IsDeleted;
+                existing.IsMain = (dto.SetMainId.HasValue && dto.SetMainId.Value == upd.Id) ? true : existing.IsMain;
+                existing.LastModifiedById = uid;
+                existing.LastUpdatedDt = DateTime.Now;
+                existing.Stamp = existing.Stamp + 1;
+            }
+
+            var delItems = (dto.Delete ?? new List<OnlineContract.Dtos.NoteDeleteDto>()).Where(x => x.Id > 0).ToList();
+            foreach (var did in delItems)
+            {
+                var existing = await db.Notes.FirstOrDefaultAsync(x => x.Id == did.Id && x.ContractId == id && !x.IsDeleted);
+                if (existing == null) continue;
+                if (!did.Stamp.HasValue || did.Stamp.Value != existing.Stamp)
                 {
                     await tx.RollbackAsync();
                     await LoggerHelper.LogEventAsync(db, EventType.Warning, "Note save conflict - delete", $"ContractId={id}; NoteId={did.Id}", uid);
-                    return Results.Json(new { success = false, message = $"Your changes to note {did.Id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
+                    return StableJson(new { success = false, message = $"Your changes to note {did.Id} cannot be saved because another user has changed it. You need to discard your changes and reapply them." });
+                }
+                existing.IsDeleted = true;
+                existing.LastModifiedById = uid;
+                existing.LastUpdatedDt = DateTime.Now;
+                existing.Stamp = existing.Stamp + 1;
+            }
+
+            if (dto.SetMainId.HasValue && dto.SetMainId.Value > 0)
+            {
+                var targetId = dto.SetMainId.Value;
+                var others = await db.Notes.Where(n => n.ContractId == id && !n.IsDeleted && n.Id != targetId).ToListAsync();
+                foreach (var n in others)
+                {
+                    n.IsMain = false;
+                    n.LastModifiedById = uid;
+                    n.LastUpdatedDt = DateTime.Now;
+                }
+                if (!(updatedIds?.Contains(targetId) ?? false))
+                {
+                    var tgt = await db.Notes.FirstOrDefaultAsync(n => n.Id == targetId && n.ContractId == id && !n.IsDeleted);
+                    if (tgt != null)
+                    {
+                        tgt.IsMain = true;
+                        tgt.LastModifiedById = uid;
+                        tgt.LastUpdatedDt = DateTime.Now;
+                    }
                 }
             }
-        }
 
-        if (dto.SetMainId.HasValue && dto.SetMainId.Value > 0)
-        {
-            var targetId = dto.SetMainId.Value;
-            var unsetSql = "UPDATE dbo.note SET is_main = 0, last_modified_by_id = @pUid, last_updated_dt = GETUTCDATE() WHERE contract_id = @pCid AND is_deleted = 0 AND is_main = 1 AND note_id != @pTarget";
-            if (updatedIds != null && updatedIds.Count > 0)
-            {
-                unsetSql += " AND note_id NOT IN (" + string.Join(',', updatedIds) + ")";
-            }
-            var pUidU = new Microsoft.Data.SqlClient.SqlParameter("@pUid", System.Data.SqlDbType.Int) { Value = uid };
-            var pCidU = new Microsoft.Data.SqlClient.SqlParameter("@pCid", System.Data.SqlDbType.Int) { Value = id };
-            var pTargetU = new Microsoft.Data.SqlClient.SqlParameter("@pTarget", System.Data.SqlDbType.Int) { Value = targetId };
-            await db.Database.ExecuteSqlRawAsync(unsetSql, pUidU, pCidU, pTargetU);
-
-            if (!(updatedIds?.Contains(targetId) ?? false))
-            {
-                await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.note SET is_main = 1, last_modified_by_id = {uid}, last_updated_dt = GETUTCDATE() WHERE note_id = {targetId} AND contract_id = {id} AND is_deleted = 0;");
-            }
+            await db.SaveChangesAsync();
         }
+        await db.SaveChangesAsync();
         await tx.CommitAsync();
 
         await LoggerHelper.LogEventAsync(db, EventType.Information, "Contract notes saved", $"ContractId={id}", uid);
-        return Results.Json(new { success = true, message = "All note changes have been saved successfully." });
+        return StableJson(new { success = true, message = "All note changes have been saved successfully." });
     }
     catch (Exception ex)
     {
         await tx.RollbackAsync();
         try { db.ChangeTracker.Clear(); } catch { }
         await LoggerHelper.LogEventAsync(db, EventType.Error, "Save contract notes failed", ex.ToString(), GetCurrentUserId(http));
-        return Results.Json(new { success = false, message = "Failed to save notes. Please try again later." });
+        return StableJson(new { success = false, message = "Failed to save notes. Please try again later." });
     }
 }).RequireAuthorization();
+
 
 // Lifecycle log
 var lifetime = app.Lifetime;

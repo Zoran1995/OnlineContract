@@ -30,4 +30,12 @@ namespace OnlineContract.Helpers
         Cancelled = 19,
         WrittenOff = 20
     }
+
+    public enum ProductStateInOrder
+    {
+        Draft = 21,
+        Submitted = 22,
+        Accepted = 23,       
+        Rejected = 24,
+    }
 }

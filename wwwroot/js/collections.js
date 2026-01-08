@@ -172,5 +172,52 @@
 
     window.addEventListener('resize', fixNotificationPanel);
     window.addEventListener('scroll', fixNotificationPanel, { passive: true });
+
+    // --- Product cards + Add to Cart flow ---
+    const grid = document.getElementById('productGrid');
+    if (grid) {
+      loadCards();
+    }
   });
+
+  async function isAuthenticated() {
+    try {
+      const res = await fetch('/whoami', { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' } });
+      if (!res.ok) return false;
+      const j = await res.json();
+      return !!j?.isAuthenticated;
+    } catch { return false; }
+  }
+
+  async function loadCards() {
+    try {
+      const grid = document.getElementById('productGrid');
+      if (!grid) return;
+      const res = await fetch('/api/products/cards', { method: 'GET', headers: { 'Accept': 'application/json' } });
+      if (!res.ok) throw new Error('Failed to load cards');
+      const items = await res.json();
+      grid.innerHTML = '';
+      items.forEach(it => {
+        const card = document.createElement('div');
+        card.className = 'bg-base-100 rounded-xl shadow overflow-hidden';
+        const imgSrc = it.photoFileName ? `/product-images/${encodeURIComponent(it.photoFileName)}` : '/resources/photos/placeholder.png';
+        const price = Number(it.minAmount || 0).toFixed(2);
+        card.innerHTML = `
+          <img src="${imgSrc}" alt="${(it.productName || '').replace(/\"/g,'&quot;')}" class="w-full aspect-video object-cover" loading="lazy" />
+          <div class="p-5">
+            <div class="flex items-center gap-2 mb-2">
+              <h3 class="text-xl font-bold">${it.productName || ''}</h3>
+            </div>
+            <div class="text-sm text-gray-700 mb-2">${it.mainComment || ''}</div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-lg font-semibold">From ${price} RSD</span>
+              <div class="flex gap-2">
+                <button class="btn btn-primary btn-sm btn-add-to-cart" data-product-id="${it.productId}" data-product-name="${it.productName || ''}" data-photo-file="${it.photoFileName || ''}">Add to Cart</button>
+              </div>
+            </div>
+          </div>`;
+        grid.appendChild(card);
+      });
+    } catch { /* noop */ }
+  }
 })();
