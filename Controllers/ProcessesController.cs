@@ -46,8 +46,8 @@ namespace OnlineContract.Controllers
                         lastStartDt = p.LastStartDt,
                         lastEndDt = p.LastEndDt,
                         nextRunDt = p.NextRunDt,
-                        duration = p.Duration,
-                        statusId = p.Status,
+                        durationSec = p.DurationSec,
+                        durationFmt = p.DurationFmt,
                         isActive = p.IsActive,
                         stamp = p.Stamp
                     })

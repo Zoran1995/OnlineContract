@@ -57,12 +57,11 @@ USING (
     (34 , N'TaskStatus', N'Cancelled'),
     (35 , N'TaskStatus', N'Completed'),
     (36 , N'TaskStatus', N'Failed'),
-    (37 , N'ProcessResult', N'Successful'),
-    (38 , N'ProcessResult', N'Warning'),
-    (39 , N'ProcessResult', N'Failed'),
-    (40 , N'ProcessResult', N'Successful Nothing Processed'),
-    (41 , N'ApprovalRuleContext', N'Refund Payment'),
-    (42 , N'ApprovalRuleContext', N'Contract Write-Off')
+    (37 , N'TaskStatus', N'Successful'),
+    (38 , N'TaskStatus', N'Warning'),
+    (39 , N'TaskStatus', N'Successful Nothing Processed'),
+    (40 , N'ApprovalRuleContext', N'Refund Payment'),
+    (41 , N'ApprovalRuleContext', N'Contract Write-Off')
 ) AS src(lookup_set_id, set_name, value)
 ON (tgt.lookup_set_id = src.lookup_set_id)
 

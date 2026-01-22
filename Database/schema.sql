@@ -848,54 +848,55 @@ BEGIN
     SET QUOTED_IDENTIFIER ON;
 
     CREATE TABLE [dbo].[scheduler_process] (
-        [scheduler_process_id]  int               NOT NULL,
-        [name]                 nvarchar           NOT NULL,
-        [description]          nvarchar           NULL,
-        [last_end_dt]          datetime2          NULL,
-        [last_start_dt]        datetime2          NULL,
-        [next_run_dt]          datetime2          NULL,
-        [duration]             [int]              NULL,
-        [status]               [int]              NOT NULL,
-        [is_active]            [bit]              NOT NULL,
-        [is_deleted]           [bit]              NOT NULL,
-        [stamp]                [int]              NOT NULL,
+        [scheduler_process_id]  int         NOT NULL,
+        [name]                  nvarchar    NOT NULL,
+        [description]           nvarchar    NULL,
+        [last_end_dt]           datetime2   NULL,
+        [last_start_dt]         datetime2   NULL,
+        [next_run_dt]           datetime2   NULL,
+
+        [duration_sec] AS (
+            CASE 
+                WHEN [last_start_dt] IS NOT NULL AND [last_end_dt] IS NOT NULL 
+                THEN DATEDIFF(SECOND, [last_start_dt], [last_end_dt])
+            END
+        ) PERSISTED,
+
+        [duration_fmt] AS (
+            CASE 
+                WHEN [last_start_dt] IS NOT NULL AND [last_end_dt] IS NOT NULL 
+                THEN 
+                    CONVERT(nvarchar(20), (DATEDIFF(SECOND, [last_start_dt], [last_end_dt]) / 3600)) + N'h ' +
+                    RIGHT(N'0' + CONVERT(nvarchar(2), ((DATEDIFF(SECOND, [last_start_dt], [last_end_dt]) % 3600) / 60)), 2) + N'm ' +
+                    RIGHT(N'0' + CONVERT(nvarchar(2), (DATEDIFF(SECOND, [last_start_dt], [last_end_dt]) % 60)), 2) + N's'
+            END
+        ) PERSISTED,
+
+        [is_active]             bit         NOT NULL CONSTRAINT [DF_scheduler_process_is_active]  DEFAULT ((1)),
+        [is_deleted]            bit         NOT NULL CONSTRAINT [DF_scheduler_process_is_deleted] DEFAULT ((0)),
+        [stamp]                 int         NOT NULL CONSTRAINT [DF_scheduler_process_stamp]      DEFAULT ((0)),
+
         CONSTRAINT [PK_scheduler_process] PRIMARY KEY CLUSTERED ([scheduler_process_id] ASC)
             WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
                   ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
             ON [PRIMARY]
     ) ON [PRIMARY];
 
-    ALTER TABLE [dbo].[scheduler_process] ADD CONSTRAINT [DF_scheduler_process_is_active]  DEFAULT ((1)) FOR [is_active];
-    ALTER TABLE [dbo].[scheduler_process] ADD CONSTRAINT [DF_scheduler_process_is_deleted] DEFAULT ((0)) FOR [is_deleted];
-    ALTER TABLE [dbo].[scheduler_process] ADD CONSTRAINT [DF_scheduler_process_stamp]      DEFAULT ((0)) FOR [stamp];
-
-    ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [FK_scheduler_process_status]
-        FOREIGN KEY([status]) REFERENCES [dbo].[lookup_set] ([lookup_set_id]);
-    ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [FK_scheduler_process_status];
-
-    ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [CK_scheduler_process_status_set]
-        CHECK ([status] IN (37, 38, 39, 40));
-    ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [CK_scheduler_process_status_set];
-
     ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [CK_scheduler_process_active_deleted_exclusive]
         CHECK (NOT ([is_active] = 1 AND [is_deleted] = 1));
     ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [CK_scheduler_process_active_deleted_exclusive];
-
-    ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [CK_scheduler_process_duration_nonneg]
-        CHECK ([duration] IS NULL OR [duration] >= 0);
-    ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [CK_scheduler_process_duration_nonneg];
 
     ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [CK_scheduler_process_stamp_nonneg]
         CHECK ([stamp] >= 0);
     ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [CK_scheduler_process_stamp_nonneg];
 
+    ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [CK_scheduler_process_end_ge_start]
+        CHECK ([last_end_dt] IS NULL OR [last_start_dt] IS NULL OR [last_end_dt] >= [last_start_dt]);
+    ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [CK_scheduler_process_end_ge_start];
+
     CREATE INDEX [IX_scheduler_process_next_run]
       ON [dbo].[scheduler_process] ([next_run_dt])
-      INCLUDE ([status], [is_active], [is_deleted]);
-
-    CREATE INDEX [IX_scheduler_process_status]
-      ON [dbo].[scheduler_process] ([status])
-      INCLUDE ([next_run_dt], [last_start_dt], [last_end_dt], [duration]);
+      INCLUDE ([is_active], [is_deleted]);
 END
 GO
 

@@ -278,8 +278,8 @@ namespace OnlineContract.Data
                 entity.Property(e => e.LastEndDt).HasColumnName("last_end_dt");
                 entity.Property(e => e.LastStartDt).HasColumnName("last_start_dt");
                 entity.Property(e => e.NextRunDt).HasColumnName("next_run_dt");
-                entity.Property(e => e.Duration).HasColumnName("duration");
-                entity.Property(e => e.Status).HasColumnName("status");
+                entity.Property(e => e.DurationSec).HasColumnName("duration_sec");
+                entity.Property(e => e.DurationFmt).HasColumnName("duration_fmt");
                 entity.Property(e => e.IsActive).HasColumnName("is_active");
                 entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
                 entity.Property(e => e.Stamp).HasColumnName("stamp");
