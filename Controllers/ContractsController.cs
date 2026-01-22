@@ -429,7 +429,16 @@ namespace OnlineContract.Controllers
                         comment = comment.Trim();
                     }
                 }
-                catch { }
+                catch (System.Exception ex)
+                {
+                    await LoggerHelper.LogEventAsync(
+                        _db,
+                        EventType.Error,
+                        "Failed to parse next state/change request body",
+                        ex.ToString(),
+                        Infrastructure.UserContextHelper.GetCurrentUserId(HttpContext));
+                    return JsonResultHelper.StableJson(_env, new { message = "Invalid request payload." }, StatusCodes.Status400BadRequest);
+                }
                 if (nextStateId <= 0) return JsonResultHelper.StableJson(_env, new { message = "Next state is required." }, StatusCodes.Status400BadRequest);
 
                 var contract = await _db.Contracts.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
