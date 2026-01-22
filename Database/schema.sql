@@ -848,17 +848,16 @@ BEGIN
     SET QUOTED_IDENTIFIER ON;
 
     CREATE TABLE [dbo].[scheduler_process] (
-        [scheduler_process_id]  int               NOT NULL,
-        [name]                 nvarchar           NOT NULL,
-        [description]          nvarchar           NULL,
-        [last_end_dt]          datetime2          NULL,
-        [last_start_dt]        datetime2          NULL,
-        [next_run_dt]          datetime2          NULL,
-        [duration]             [int]              NULL,
-        [status]               [int]              NOT NULL,
-        [is_active]            [bit]              NOT NULL,
-        [is_deleted]           [bit]              NOT NULL,
-        [stamp]                [int]              NOT NULL,
+        [scheduler_process_id]  int         NOT NULL,
+        [name]                  nvarchar    NOT NULL,
+        [description]           nvarchar    NULL,
+        [last_end_dt]           datetime2   NULL,
+        [last_start_dt]         datetime2   NULL,
+        [next_run_dt]           datetime2   NULL,
+        [duration]              int         NULL,
+        [is_active]             bit         NOT NULL,
+        [is_deleted]            bit         NOT NULL,
+        [stamp]                 int         NOT NULL,
         CONSTRAINT [PK_scheduler_process] PRIMARY KEY CLUSTERED ([scheduler_process_id] ASC)
             WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
                   ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
@@ -868,14 +867,6 @@ BEGIN
     ALTER TABLE [dbo].[scheduler_process] ADD CONSTRAINT [DF_scheduler_process_is_active]  DEFAULT ((1)) FOR [is_active];
     ALTER TABLE [dbo].[scheduler_process] ADD CONSTRAINT [DF_scheduler_process_is_deleted] DEFAULT ((0)) FOR [is_deleted];
     ALTER TABLE [dbo].[scheduler_process] ADD CONSTRAINT [DF_scheduler_process_stamp]      DEFAULT ((0)) FOR [stamp];
-
-    ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [FK_scheduler_process_status]
-        FOREIGN KEY([status]) REFERENCES [dbo].[lookup_set] ([lookup_set_id]);
-    ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [FK_scheduler_process_status];
-
-    ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [CK_scheduler_process_status_set]
-        CHECK ([status] IN (37, 38, 39, 40));
-    ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [CK_scheduler_process_status_set];
 
     ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [CK_scheduler_process_active_deleted_exclusive]
         CHECK (NOT ([is_active] = 1 AND [is_deleted] = 1));
@@ -891,11 +882,7 @@ BEGIN
 
     CREATE INDEX [IX_scheduler_process_next_run]
       ON [dbo].[scheduler_process] ([next_run_dt])
-      INCLUDE ([status], [is_active], [is_deleted]);
-
-    CREATE INDEX [IX_scheduler_process_status]
-      ON [dbo].[scheduler_process] ([status])
-      INCLUDE ([next_run_dt], [last_start_dt], [last_end_dt], [duration]);
+      INCLUDE ([is_active], [is_deleted]);
 END
 GO
 
