@@ -369,7 +369,21 @@ namespace OnlineContract.Controllers
                 if (p == null) return NotFound(new { message = "Product not found. The product may have been removed." });
 
                 int uid = CurrentUserId();
-                try { await LoggerHelper.LogEventAsync(_db, EventType.Information, "ProductDetails received", $"ProductId={id}; Variants={(dto.Variants?.Count ?? 0)}; DeletedIds={(dto.DeletedVariantIds?.Count ?? 0)}; StampPresent={dto.Stamp.HasValue}", uid); } catch { }
+                try
+                {
+                    await LoggerHelper.LogEventAsync(
+                        _db,
+                        EventType.Information,
+                        "ProductDetails received",
+                        $"ProductId={id}; Variants={(dto.Variants?.Count ?? 0)}; DeletedIds={(dto.DeletedVariantIds?.Count ?? 0)}; StampPresent={dto.Stamp.HasValue}",
+                        uid);
+                }
+                catch (Exception logEx)
+                {
+                    // Swallow logging failures so they don't affect the main operation,
+                    // but emit a debug trace to aid diagnosis during development.
+                    System.Diagnostics.Debug.WriteLine($"Failed to log 'ProductDetails received' event: {logEx}");
+                }
 
                 if (!dto.Stamp.HasValue)
                 {
@@ -761,7 +775,22 @@ namespace OnlineContract.Controllers
             }
             catch (Exception ex)
             {
-                try { await tx.RollbackAsync(); } catch { }
+                try
+                {
+                    await tx.RollbackAsync();
+                }
+                catch (Exception rollbackEx)
+                {
+                    // Log rollback failure but do not change the response to the client.
+                    try
+                    {
+                        await LoggerHelper.LogEventAsync(_db, EventType.Error, "Rollback transaction failed during product delete", rollbackEx.ToString(), CurrentUserId());
+                    }
+                    catch
+                    {
+                        // Suppress any logging errors to avoid masking the original exception
+                    }
+                }
                 await LoggerHelper.LogEventAsync(_db, EventType.Error, "Delete product failed", ex.ToString(), CurrentUserId());
                 return StatusCode(StatusCodes.Status500InternalServerError);
             }

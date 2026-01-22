@@ -305,11 +305,8 @@ namespace OnlineContract.Controllers
                 if (!u.IsGroup && dto.Password != null)
                 {
                     var pwd = dto.Password ?? "";
-                    if (pwd == "••••••••" || pwd == "********")
-                    {
-                        // Masked password received from UI; treat this as "no change" and leave existing password unchanged.
-                    }
-                    else
+                    var isMaskedPassword = pwd == "••••••••" || pwd == "********";
+                    if (!isMaskedPassword)
                     {
                         if (string.IsNullOrWhiteSpace(pwd))
                             return JsonResultHelper.StableJson(_env, new { success = false, message = "Password is required when updating a user. Please provide a password." });

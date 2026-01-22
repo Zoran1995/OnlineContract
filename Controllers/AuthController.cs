@@ -303,9 +303,11 @@ namespace OnlineContract.Controllers
                     c.Type == ClaimTypes.Role || c.Type.EndsWith("/role", StringComparison.OrdinalIgnoreCase))?.Value;
                 if (!string.IsNullOrEmpty(roleClaim)) int.TryParse(roleClaim, out roleId);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // If there is any issue resolving or parsing the role claim, fall back to the default roleId (0).
+                // Log the exception so that unexpected issues can be investigated.
+                System.Diagnostics.Debug.WriteLine($"Failed to resolve or parse role claim in WhoAmI: {ex}");
                 roleId = 0;
             }
 
