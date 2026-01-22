@@ -307,7 +307,7 @@ namespace OnlineContract.Controllers
             {
                 // If there is any issue resolving or parsing the role claim, fall back to the default roleId (0).
                 // Log the exception so that unexpected issues can be investigated.
-                Console.Error.WriteLine($"Failed to resolve or parse role claim in WhoAmI: {ex}");
+                System.Diagnostics.Debug.WriteLine($"Failed to resolve or parse role claim in WhoAmI: {ex}");
                 roleId = 0;
             }
 

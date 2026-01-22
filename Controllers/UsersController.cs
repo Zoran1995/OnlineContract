@@ -304,7 +304,7 @@ namespace OnlineContract.Controllers
 
                 if (!u.IsGroup && dto.Password != null)
                 {
-                    var pwd = dto.Password;
+                    var pwd = dto.Password ?? "";
                     var isMaskedPassword = pwd == "••••••••" || pwd == "********";
                     if (!isMaskedPassword)
                     {
