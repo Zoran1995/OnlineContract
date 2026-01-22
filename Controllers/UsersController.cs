@@ -251,9 +251,9 @@ namespace OnlineContract.Controllers
                     IsGroup = dto.IsGroup,
                     IsTempPassword = dto.IsTempPassword,
                     OwnerId = dto.OwnerId,
-                    City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City?.Trim(),
-                    StreetAddress = string.IsNullOrWhiteSpace(dto.StreetAddress) ? null : dto.StreetAddress?.Trim(),
-                    PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode?.Trim(),
+                    City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City.Trim(),
+                    StreetAddress = string.IsNullOrWhiteSpace(dto.StreetAddress) ? null : dto.StreetAddress.Trim(),
+                    PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode.Trim(),
                     IsActive = true,
                     IsDeleted = false,
                     CreatedDt = DateTime.Now,
@@ -304,12 +304,9 @@ namespace OnlineContract.Controllers
 
                 if (!u.IsGroup && dto.Password != null)
                 {
-                    var pwd = dto.Password ?? "";
-                    if (pwd == "••••••••" || pwd == "********")
-                    {
-                        // Masked password received from UI; treat this as "no change" and leave existing password unchanged.
-                    }
-                    else
+                    var pwd = dto.Password;
+                    var isMaskedPassword = pwd == "••••••••" || pwd == "********";
+                    if (!isMaskedPassword)
                     {
                         if (string.IsNullOrWhiteSpace(pwd))
                             return JsonResultHelper.StableJson(_env, new { success = false, message = "Password is required when updating a user. Please provide a password." });

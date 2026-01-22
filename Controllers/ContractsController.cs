@@ -475,8 +475,8 @@ namespace OnlineContract.Controllers
 
                 string currentName = contract.ContractState.ToString();
                 string nextName = nextStateId.ToString();
-                try { currentName = await LookupHelper.GetLookupValueAsync(_db, (int)contract.ContractState); } catch { }
-                try { nextName = await LookupHelper.GetLookupValueAsync(_db, nextStateId); } catch { }
+                try { currentName = await LookupHelper.GetLookupValueAsync(_db, (int)contract.ContractState); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Failed to resolve current state lookup: {ex}"); }
+                try { nextName = await LookupHelper.GetLookupValueAsync(_db, nextStateId); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Failed to resolve next state lookup: {ex}"); }
 
                 await using var tx = await _db.Database.BeginTransactionAsync();
                 bool wroteOffImmediately = true;
