@@ -307,6 +307,7 @@ namespace OnlineContract.Controllers
                     var pwd = dto.Password ?? "";
                     if (pwd == "••••••••" || pwd == "********")
                     {
+                        // Masked password received from UI; treat this as "no change" and leave existing password unchanged.
                     }
                     else
                     {
