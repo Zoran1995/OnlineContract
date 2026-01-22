@@ -251,9 +251,9 @@ namespace OnlineContract.Controllers
                     IsGroup = dto.IsGroup,
                     IsTempPassword = dto.IsTempPassword,
                     OwnerId = dto.OwnerId,
-                    City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City?.Trim(),
-                    StreetAddress = string.IsNullOrWhiteSpace(dto.StreetAddress) ? null : dto.StreetAddress?.Trim(),
-                    PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode?.Trim(),
+                    City = string.IsNullOrWhiteSpace(dto.City) ? null : dto.City.Trim(),
+                    StreetAddress = string.IsNullOrWhiteSpace(dto.StreetAddress) ? null : dto.StreetAddress.Trim(),
+                    PostalCode = string.IsNullOrWhiteSpace(dto.PostalCode) ? null : dto.PostalCode.Trim(),
                     IsActive = true,
                     IsDeleted = false,
                     CreatedDt = DateTime.Now,
@@ -341,12 +341,12 @@ namespace OnlineContract.Controllers
                     u.LastName = dto.LastName.Trim();
                     changed = true;
                 }
-                if (dto.Email != null)
+                if (!string.IsNullOrWhiteSpace(dto.Email))
                 {
                     u.Email = dto.Email.Trim();
                     changed = true;
                 }
-                if (dto.Phone != null)
+                if (!string.IsNullOrWhiteSpace(dto.Phone))
                 {
                     var (okUpdPhone, normalizedUpdPhone, updErr) = OnlineContract.Helpers.PhoneHelper.NormalizeSerbianPhone(dto.Phone);
                     if (!okUpdPhone) return JsonResultHelper.StableJson(_env, new { success = false, message = updErr });
@@ -393,9 +393,9 @@ namespace OnlineContract.Controllers
                     }
                 }
 
-                if (!u.IsGroup && dto.Password != null)
+                if (!u.IsGroup && !string.IsNullOrWhiteSpace(dto.Password))
                 {
-                    var pwd = dto.Password ?? "";
+                    var pwd = dto.Password;
                     if (!(pwd == "••••••••" || pwd == "********"))
                     {
                         changed = true;

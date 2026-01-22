@@ -220,7 +220,7 @@ namespace OnlineContract.Controllers
             if (row == null)
                 return JsonResultHelper.StableJson(_env, new { message = "Contract not found. The contract may have been removed." }, StatusCodes.Status404NotFound);
 
-            string contractStateText = row.ContractState.ToString();
+            string contractStateText;
             try
             {
                 contractStateText = await LookupHelper.GetLookupValueAsync(_db, (int)row.ContractState);
@@ -302,7 +302,15 @@ namespace OnlineContract.Controllers
                 foreach (var r in rows)
                 {
                     string stateText = r.ItemStateId.ToString();
-                    try { stateText = await LookupHelper.GetLookupValueAsync(_db, (int)r.ItemStateId); } catch { }
+                    try 
+                    { 
+                        stateText = await LookupHelper.GetLookupValueAsync(_db, (int)r.ItemStateId); 
+                    } 
+                    catch (Exception ex) 
+                    { 
+                        // Fallback to numeric value if lookup fails
+                        System.Diagnostics.Debug.WriteLine($"Failed to get lookup value for ItemStateId {r.ItemStateId}: {ex}");
+                    }
                     string? photoFileName = null;
                     try
                     {
@@ -311,7 +319,11 @@ namespace OnlineContract.Controllers
                             .Select(v => v.PhotoFileName)
                             .FirstOrDefaultAsync();
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        // Photo lookup is non-critical; log and continue
+                        System.Diagnostics.Debug.WriteLine($"Failed to get photo for variant {r.ProductVariantId}: {ex}");
+                    }
                     items.Add(new
                     {
                         id = r.Id,
@@ -356,7 +368,15 @@ namespace OnlineContract.Controllers
             if (isCustomer && (c.InputUserId ?? 0) != currentUserId) return StatusCode(StatusCodes.Status403Forbidden);
 
             string currentName = c.ContractState.ToString();
-            try { currentName = await LookupHelper.GetLookupValueAsync(_db, (int)c.ContractState); } catch { }
+            try 
+            { 
+                currentName = await LookupHelper.GetLookupValueAsync(_db, (int)c.ContractState); 
+            } 
+            catch (Exception ex) 
+            { 
+                // Fallback to enum value if lookup fails
+                System.Diagnostics.Debug.WriteLine($"Failed to get lookup value for ContractState {c.ContractState}: {ex}");
+            }
 
             var list = new List<object>();
             var provider = _db.Database.ProviderName ?? string.Empty;
@@ -366,7 +386,15 @@ namespace OnlineContract.Controllers
                 {
                     if (val == c.ContractState) continue;
                     string name = val.ToString();
-                    try { name = await LookupHelper.GetLookupValueAsync(_db, (int)val); } catch { }
+                    try 
+                    { 
+                        name = await LookupHelper.GetLookupValueAsync(_db, (int)val); 
+                    } 
+                    catch (Exception ex) 
+                    { 
+                        // Fallback to enum name if lookup fails
+                        System.Diagnostics.Debug.WriteLine($"Failed to get lookup value for ContractState {val}: {ex}");
+                    }
                     list.Add(new { id = (int)val, name });
                 }
             }
@@ -424,9 +452,15 @@ namespace OnlineContract.Controllers
                     }
                     if (body.TryGetValue("comment", out var rawComment))
                     {
-                        if (rawComment is System.Text.Json.JsonElement jec) comment = jec.ValueKind == System.Text.Json.JsonValueKind.String ? (jec.GetString() ?? string.Empty) : jec.ToString();
-                        else comment = rawComment?.ToString() ?? string.Empty;
-                        comment = comment.Trim();
+                    if (rawComment is System.Text.Json.JsonElement jec)
+                    {
+                        comment = jec.ValueKind == System.Text.Json.JsonValueKind.String ? (jec.GetString() ?? string.Empty) : jec.ToString();
+                    }
+                    else
+                    {
+                        comment = rawComment?.ToString() ?? string.Empty;
+                    }
+                    comment = comment.Trim();
                     }
                 }
                 catch (System.Exception ex)
@@ -522,7 +556,15 @@ namespace OnlineContract.Controllers
                             case ContractState.Rejected: contract.RejectedDt = now; break;
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        await LoggerHelper.LogEventAsync(
+                            _db,
+                            EventType.Error,
+                            "Contract state date update failed",
+                            ex.ToString(),
+                            Infrastructure.UserContextHelper.GetCurrentUserId(HttpContext));
+                    }
                     contract.Stamp = contract.Stamp + 1;
                     await _db.SaveChangesAsync();
                 }
@@ -871,8 +913,10 @@ namespace OnlineContract.Controllers
                         return JsonResultHelper.StableJson(_env, new { success = false, message = "Online payments are temporarily unavailable. Please choose Cash on Delivery." });
                     }
 
-                    var userFullName = ($"{(user?.FirstName ?? string.Empty)} {(user?.LastName ?? string.Empty)}").Trim();
-                    var customerEmail = user!.Email ?? string.Empty;
+                    var firstName = user?.FirstName ?? string.Empty;
+                    var lastName = user?.LastName ?? string.Empty;
+                    var userFullName = ($"{firstName} {lastName}").Trim();
+                    var customerEmail = user?.Email ?? string.Empty;
                     var customerInfo = new CustomerInfo(customerEmail, userFullName);
                     var (ok, redirectUrl, externalOrderId, error) = await paymentSvc.CreatePaymentIntentAsync(id, amount, customerInfo);
                     if (!ok || string.IsNullOrWhiteSpace(redirectUrl))

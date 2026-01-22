@@ -535,33 +535,12 @@
                   opt.textContent = String(ns.name || '');
                   nextSel.appendChild(opt);
                 });
-              await loadNotes();
-              // Refresh modal data and clear comment
-              try {
-                const res2 = await fetch(`/api/contracts/${encodeURIComponent(state.id)}/state/modal-data`, { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' } });
-                if (res2.ok) {
-                  const data2 = await res2.json();
-                  if (cur) cur.value = String(data2.currentStateName || '');
-                  if (nextSel) {
-                    nextSel.innerHTML = '';
-                    (data2.nextStates || []).forEach(ns => {
-                      const opt = document.createElement('option');
-                      opt.value = String(ns.id);
-                      opt.textContent = String(ns.name || '');
-                      nextSel.appendChild(opt);
-                    });
-                    const disabled2 = (!data2.nextStates || data2.nextStates.length === 0);
-                    nextSel.disabled = disabled2;
-                    if (!disabled2 && nextSel.options.length > 0) { nextSel.selectedIndex = 0; if (btnSet) btnSet.disabled = false; }
-                    else { if (btnSet) btnSet.disabled = true; }
-                  }
-                }
-              } catch {}
-              if (commentEl) commentEl.value = '';
+                const disabled2 = (!data2.nextStates || data2.nextStates.length === 0);
                 nextSel.disabled = disabled2;
                 if (!disabled2 && nextSel.options.length > 0) { nextSel.selectedIndex = 0; if (btnSet) btnSet.disabled = false; }
                 else { if (btnSet) btnSet.disabled = true; }
               }
+              if (commentEl) commentEl.value = '';
             }
           } catch {}
           // Enable OK
