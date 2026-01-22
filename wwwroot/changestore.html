@@ -7,6 +7,7 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
   <link rel="icon" href="/resources/icons/store.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/css/home.css" />
+  <link rel="stylesheet" href="/css/app-modern.css" />
   <link href="/dist/output.css" rel="stylesheet">
 </head>
 <body class="bg-base-200 text-base-content">
@@ -54,8 +55,8 @@
           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="table table-zebra w-full">
+        <div class="mod-card mod-card-compact table-scroll">
+          <table class="table-modern table table-zebra w-full">
             <thead>
               <tr>
                 <th>ID</th>
@@ -72,21 +73,23 @@
           </table>
         </div>
 
-        <div class="flex items-center gap-3 mt-4 grid-pagination">
-          <label class="text-sm">Rows per page:</label>
-          <select id="pageSize" class="select select-bordered w-20 select-sm">
-            <option value="5">5</option>
-            <option value="10" selected>10</option>
-            <option value="25">25</option>
-          </select>
+        <div class="mod-pagination">
+          <div class="flex items-center gap-2">
+            <label class="mod-text-sm">Rows per page:</label>
+            <select id="pageSize" class="select select-bordered w-20 select-sm">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+            </select>
+          </div>
 
-          <button id="pgPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
+          <div class="flex items-center gap-2">
+            <button id="pgPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
+            <span id="pgInfo" class="mod-pagination-info"></span>
+            <button id="pgNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
+          </div>
 
-          <div id="pgInfo" class="font-semibold">0–0 of 0 · pages 1</div>
-
-          <button id="pgNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
-
-          <div style="margin-left:auto" id="pageCountInfo" class="text-sm text-gray-600">Total records: 0</div>
+          <span id="pageCountInfo" class="mod-pagination-count"></span>
         </div>
       </div>
     </section>

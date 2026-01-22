@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="pastel">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KidzStyle · Approval Rules</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link rel="icon" href="/resources/icons/clipboard-list.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/login.css" />
+  <link rel="stylesheet" href="/css/contracts.css" />
+  <link rel="stylesheet" href="/css/app-modern.css" />
+  <link href="/dist/output.css" rel="stylesheet">
+</head>
+<body class="bg-base-200 text-base-content">
+  <!-- Navbar (consistent with other pages) -->
+  <div class="navbar bg-base-100 shadow sticky top-0 z-50">
+    <div class="flex-1">
+      <a href="/home" class="btn btn-ghost normal-case text-xl">
+        <span class="material-icons mr-2">home</span> Home
+      </a>
+      <a href="/about" class="btn btn-ghost">
+        <span class="material-icons mr-2">info</span> About
+      </a>
+      <a href="/address" class="btn btn-ghost">
+        <span class="material-icons mr-2">location_on</span> Address
+      </a>
+      <a href="/eventlog" class="btn btn-ghost">
+        <span class="material-icons mr-2">bug_report</span> EventLog
+      </a>
+    </div>
+    <div class="flex-none items-center gap-3">
+      <a id="navSignIn" href="/login" class="btn btn-outline">
+        <span class="material-icons mr-2">person_add</span> Sign In
+      </a>
+      <a id="navLogIn" href="/login" class="btn btn-primary">
+        <span class="material-icons mr-2">login</span> Log In
+      </a>
+    </div>
+  </div>
+
+  <main class="container mx-auto p-4">
+    <div class="flex items-center justify-between gap-3 mb-3">
+      <h1 class="text-2xl font-bold">Approval Rules</h1>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="flex items-center gap-2 mb-3 justify-end">
+      <button id="btnOpen" class="btn btn-sm" disabled>
+        <span class="material-icons">open_in_new</span>
+        <span>Open</span>
+      </button>
+      <div id="toolbarMenu" class="dropdown dropdown-end" tabindex="0">
+        <button id="btnToolbarMenu" class="btn btn-sm btn-ghost" tabindex="0" aria-haspopup="menu" aria-expanded="false">
+          <span class="material-icons align-middle" aria-hidden="true">more_vert</span>
+        </button>
+        <ul id="toolbarMenuContent" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-44 hidden" role="menu" aria-label="Row actions">
+          <li><a id="btnToggleActive" role="menuitem" class="disabled"><span class="material-icons mr-2" id="toggleIcon">check_circle</span><span id="toggleText">Activate</span></a></li>
+          <li><a id="btnDelete" role="menuitem" class="disabled"><span class="material-icons mr-2">delete</span>Delete</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="mod-card mod-card-compact table-scroll">
+      <table id="grid" class="table-modern table table-zebra w-full" aria-label="Approval Rules">
+        <thead>
+          <tr>
+            <th style="width:80px">ID</th>
+            <th style="width:220px">Name</th>
+            <th>Description</th>
+            <th style="width:120px">Status</th>
+            <th style="width:180px">Context</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="mod-pagination">
+      <div class="flex items-center gap-2">
+        <label class="mod-text-sm">Rows per page:</label>
+        <select id="pageSize" class="select select-bordered w-20 select-sm">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="prevPage" class="btn btn-outline btn-sm">
+          <span class="material-icons mr-2">chevron_left</span>
+          Previous
+        </button>
+        <span id="pageInfo" class="mod-pagination-info"></span>
+        <button id="nextPage" class="btn btn-outline btn-sm">
+          Next <span class="material-icons ml-2">chevron_right</span>
+        </button>
+      </div>
+
+      <span id="pageCountInfo" class="mod-pagination-count"></span>
+    </div>
+  </main>
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loading-box">Loading...</div>
+  </div>
+
+  <!-- Modal -->
+  <dialog id="approvalRuleModal" class="modal">
+    <form method="dialog" class="modal-box w-96">
+      <h3 id="approvalRuleModalTitle" class="font-bold text-lg mb-4">Approval Rule</h3>
+      <div class="form-control mb-3">
+        <label class="label"><span class="label-text">Name</span></label>
+        <input id="arName" type="text" class="input input-bordered" />
+      </div>
+      <div class="form-control mb-3">
+        <label class="label"><span class="label-text">Description</span></label>
+        <textarea id="arDescription" class="textarea textarea-bordered" rows="3"></textarea>
+      </div>
+      <div class="form-control mb-3">
+        <label class="label"><span class="label-text">Assigned To</span></label>
+        <select id="arAssignedTo" class="select select-bordered"></select>
+      </div>
+      <div class="form-control mb-3">
+        <label class="label"><span class="label-text">Context</span></label>
+        <select id="arContext" class="select select-bordered" disabled></select>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div class="form-control">
+          <label class="label"><span class="label-text">Amount Threshold</span></label>
+          <input id="arAmount" type="number" step="0.01" min="0" class="input input-bordered" />
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Amount Percentage</span></label>
+          <input id="arPercent" type="number" step="0.01" min="0" max="100" class="input input-bordered" />
+        </div>
+      </div>
+      <div class="modal-action">
+        <button id="arCancel" type="button" class="btn btn-outline">Cancel</button>
+        <button id="arSave" type="button" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/js/shared.js"></script>
+  <script src="/js/approvalrules.js"></script>
+  <script>
+    // Client-side gate: show Access Denied for non-admin/manager users
+    document.addEventListener('DOMContentLoaded', () => {
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+      const roleId = parseInt(localStorage.getItem('roleId') || '0', 10);
+      const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
+      if (!isPrivileged) {
+        const main = document.querySelector('main');
+        if (main) main.innerHTML = `
+          <div class="access-denied-container">
+            <div class="access-denied">
+              <h2><span class="material-icons">block</span> Access Denied</h2>
+              <p>You are not allowed to see this page.</p>
+            </div>
+          </div>`;
+      }
+    });
+  </script>
+</body>
+</html>

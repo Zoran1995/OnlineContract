@@ -8,6 +8,7 @@
   <link rel="icon" href="/resources/icons/tshirt.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/css/home.css" />
   <link href="/dist/output.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme-pastel.css" />
 </head>
 <body class="bg-base-200 text-base-content">
 
@@ -36,13 +37,13 @@
 
   <main class="container mx-auto p-6">
     <!-- Filters Panel moved from Home -->
-    <section class="bg-base-100 rounded-xl shadow p-6 mb-8">
-      <h1 class="text-3xl font-extrabold mb-2">Collections</h1>
+    <section class="pastel-card spacing-relaxed mb-8 fade-up">
+      <h1 class="text-3xl font-extrabold mb-2 pastel-heading">Collections</h1>
       <p class="text-gray-700 mb-4">Browse all our collections and refine your search with filters.</p>
       <div class="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div>
           <label class="label"><span class="label-text">Category</span></label>
-          <select class="select select-bordered w-full">
+          <select class="select select-bordered w-full pastel-select">
             <option>Baby &amp; Toddler</option>
             <option>Kids</option>
             <option>Teens</option>
@@ -51,7 +52,7 @@
         </div>
         <div>
           <label class="label"><span class="label-text">Size</span></label>
-          <select class="select select-bordered w-full">
+          <select class="select select-bordered w-full pastel-select">
             <option>0–24M</option>
             <option>2T–4T</option>
             <option>5–8</option>
@@ -61,7 +62,7 @@
         </div>
         <div>
           <label class="label"><span class="label-text">Fabric</span></label>
-          <select class="select select-bordered w-full">
+          <select class="select select-bordered w-full pastel-select">
             <option>Cotton</option>
             <option>Organic Cotton</option>
             <option>Poly-Cotton</option>
@@ -70,7 +71,7 @@
         </div>
         <div>
           <label class="label"><span class="label-text">Color</span></label>
-          <select class="select select-bordered w-full">
+          <select class="select select-bordered w-full pastel-select">
             <option>Neutrals</option>
             <option>Pastels</option>
             <option>Brights</option>
@@ -84,7 +85,7 @@
         </div>
         <div>
           <label class="label"><span class="label-text">Sort</span></label>
-          <select class="select select-bordered w-full">
+          <select class="select select-bordered w-full pastel-select">
             <option>Amount (Low → High)</option>
             <option>Popularity</option>
             <option>Newest</option>
@@ -95,54 +96,54 @@
 
     <!-- Product Grid placeholder (can be wired later) -->
     <section class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div class="bg-base-100 rounded-xl shadow overflow-hidden">
-        <img src="/resources/photos/HomePage.jpg" alt="Kids Clothing — New Arrivals" class="w-full aspect-video object-cover" loading="lazy" />
+      <div class="pastel-card card-hover fade-up fade-up-delay-1">
+        <div class="img-zoom"><img src="/resources/photos/HomePage.jpg" alt="Kids Clothing — New Arrivals" class="w-full aspect-video object-cover" loading="lazy" /></div>
         <div class="p-5">
           <div class="flex items-center gap-2 mb-2">
             <h3 class="text-xl font-bold">New Arrivals</h3>
-            <span class="badge badge-info">Kids</span>
-            <span class="badge badge-success">New</span>
+            <span class="badge badge-pastel-sky">Kids</span>
+            <span class="badge badge-pastel-mint">New</span>
           </div>
           <div class="text-sm text-gray-700 mb-2">Sizes: 2T–14 · Fabrics: Cotton, Organic</div>
           <div class="flex items-center justify-between mb-3">
             <span class="text-lg font-semibold">From $9.99</span>
             <div class="flex gap-2">
-              <button type="button" class="btn btn-primary btn-sm btn-add-to-cart" aria-disabled="true">Add to Cart</button>
+              <button type="button" class="btn btn-primary btn-sm btn-add-to-cart btn-sheen" aria-disabled="true">Add to Cart</button>
               
             </div>
           </div>
         </div>
       </div>
-      <div class="bg-base-100 rounded-xl shadow overflow-hidden">
-        <img src="/resources/photos/Item1.jpg" alt="Baby & Toddler" class="w-full aspect-video object-cover" loading="lazy" />
+      <div class="pastel-card card-hover fade-up fade-up-delay-2">
+        <div class="img-zoom"><img src="/resources/photos/Item1.jpg" alt="Baby & Toddler" class="w-full aspect-video object-cover" loading="lazy" /></div>
         <div class="p-5">
           <div class="flex items-center gap-2 mb-2">
             <h3 class="text-xl font-bold">Baby & Toddler</h3>
-            <span class="badge badge-warning">Soft</span>
-            <span class="badge badge-secondary">Essential</span>
+            <span class="badge badge-pastel-peach">Soft</span>
+            <span class="badge badge-pastel-lilac">Essential</span>
           </div>
           <div class="text-sm text-gray-700 mb-2">Sizes: 0–24M · Gentle on skin</div>
           <div class="flex items-center justify-between mb-3">
             <span class="text-lg font-semibold">From $6.99</span>
             <div class="flex gap-2">
-              <button type="button" class="btn btn-primary btn-sm btn-add-to-cart" aria-disabled="true">Add to Cart</button>
+              <button type="button" class="btn btn-primary btn-sm btn-add-to-cart btn-sheen" aria-disabled="true">Add to Cart</button>
               
             </div>
           </div>
         </div>
       </div>
-      <div class="bg-base-100 rounded-xl shadow overflow-hidden">
-        <img src="/resources/photos/Item2.jpg" alt="Kids & Teens" class="w-full aspect-video object-cover" loading="lazy" />
+      <div class="pastel-card card-hover fade-up fade-up-delay-3">
+        <div class="img-zoom"><img src="/resources/photos/Item2.jpg" alt="Kids & Teens" class="w-full aspect-video object-cover" loading="lazy" /></div>
         <div class="p-5">
           <div class="flex items-center gap-2 mb-2">
             <h3 class="text-xl font-bold">Kids & Teens</h3>
-            <span class="badge badge-ghost">Trendy</span>
+            <span class="badge badge-pastel-pink">Trendy</span>
           </div>
           <div class="text-sm text-gray-700 mb-2">Sizes: 4–16 · Durable fabrics</div>
           <div class="flex items-center justify-between mb-3">
             <span class="text-lg font-semibold">From $12.99</span>
             <div class="flex gap-2">
-              <button type="button" class="btn btn-primary btn-sm btn-add-to-cart" aria-disabled="true">Add to Cart</button>
+              <button type="button" class="btn btn-primary btn-sm btn-add-to-cart btn-sheen" aria-disabled="true">Add to Cart</button>
               
             </div>
           </div>

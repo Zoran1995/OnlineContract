@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mock Payment</title>
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body class="min-h-screen flex items-center justify-center bg-gray-50">
+  <div class="bg-white rounded shadow p-6 w-full max-w-md">
+    <h1 class="text-xl font-semibold mb-4">Simulate Payment Result</h1>
+    <p class="mb-4">Reference: <span id="ref"></span></p>
+    <div class="flex gap-2">
+      <button id="btnSuccess" class="btn btn-primary">Simulate Success</button>
+      <button id="btnFailure" class="btn btn-error">Simulate Failure</button>
+      <button id="btnCancel" class="btn">Simulate Cancel</button>
+    </div>
+    <p id="statusText" class="mt-4 text-sm"></p>
+  </div>
+  <script>
+    (function(){
+      const qs = new URLSearchParams(location.search);
+      const reference = qs.get('reference') || '';
+      const contractId = qs.get('contractId') || '';
+      document.getElementById('ref').textContent = reference;
+      async function send(status){
+        try{
+          const res = await fetch('/api/payments/wspay/mock-callback', {
+            method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
+            body: JSON.stringify({ reference, status, contractId })
+          });
+          const j = await res.json().catch(()=>({}));
+          if (res.ok && j && j.success){
+            document.getElementById('statusText').textContent = 'Callback processed.';
+            // Redirect to return success page to trigger polling and UI flow
+            location.href = '/payments/wspay/return/success?ref=' + encodeURIComponent(reference);
+          } else {
+            document.getElementById('statusText').textContent = (j && j.message) ? j.message : 'Callback failed.';
+          }
+        }catch{ document.getElementById('statusText').textContent = 'Network error.'; }
+      }
+      document.getElementById('btnSuccess').addEventListener('click', ()=> send('Succeeded'));
+      document.getElementById('btnFailure').addEventListener('click', ()=> send('Failed'));
+      document.getElementById('btnCancel').addEventListener('click', ()=> send('Canceled'));
+    })();
+  </script>
+</body>
+</html>

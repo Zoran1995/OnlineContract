@@ -267,7 +267,10 @@
       uTeamCode.parentElement.appendChild(selectedGroupIdEl);
     }
 
-    if (title) title.textContent = user ? 'Edit User' : 'New User';
+    if (title) {
+      if (user && (user.id != null)) title.textContent = `Edit User ${user.id}`;
+      else title.textContent = 'New User';
+    }
     const isManager = parseInt(localStorage.getItem('roleId') ?? '0', 10) === 7;
 
     // Populate Team dropdown with groups
@@ -553,8 +556,8 @@
     const start = count === 0 ? 0 : (page - 1) * size + 1;
     const end = count === 0 ? 0 : Math.min(page * size, count);
 
-    if (info) info.textContent = `${start}–${end} of ${count} · pages ${pages}`;
-    if (pageInfoEl) pageInfoEl.textContent = `Page ${page} of ${pages}`;
+    if (info) info.innerHTML = `<b>${start}</b>–<b>${end}</b> of <b>${count}</b> · pages <b>${pages}</b>`;
+    if (pageInfoEl) pageInfoEl.innerHTML = `Page <b>${page}</b> of <b>${pages}</b>`;
     if (pageCountInfoEl) pageCountInfoEl.textContent = `Total records: ${count}`;
 
     const disable = (btn, v) => { if (btn) btn.disabled = !!v; };

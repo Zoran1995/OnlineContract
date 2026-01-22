@@ -171,7 +171,7 @@
     const page = Math.min(Math.max(1, state.variantsPage), pages);
     state.variantsPage = page;
     const el = document.getElementById('variantsPage'); if (el) el.textContent = String(page);
-    const pageInfo = document.getElementById('variantsPageInfo'); if (pageInfo) pageInfo.textContent = `Page ${page} of ${pages}`;
+    const pageInfo = document.getElementById('variantsPageInfo'); if (pageInfo) pageInfo.innerHTML = `Page <b>${page}</b> of <b>${pages}</b>`;
     const pageCount = document.getElementById('variantsPageCountInfo'); if (pageCount) pageCount.textContent = `Total records: ${total}`;
     const prev = document.getElementById('variantsPrev');
     const next = document.getElementById('variantsNext');
@@ -193,7 +193,7 @@
     const page = Math.min(Math.max(1, state.notesPage), pages);
     state.notesPage = page;
     const el = document.getElementById('notesPage'); if (el) el.textContent = String(page);
-    const pageInfo = document.getElementById('notesPageInfo'); if (pageInfo) pageInfo.textContent = `Page ${page} of ${pages}`;
+    const pageInfo = document.getElementById('notesPageInfo'); if (pageInfo) pageInfo.innerHTML = `Page <b>${page}</b> of <b>${pages}</b>`;
     const pageCount = document.getElementById('notesPageCountInfo'); if (pageCount) pageCount.textContent = `Total records: ${total}`;
     const prev = document.getElementById('notesPrev');
     const next = document.getElementById('notesNext');
@@ -614,7 +614,10 @@
   function openNoteModal(edit = false) {
     if (!noteModal) return;
     modalEditingNoteId = null;
-    if (noteModalTitle) noteModalTitle.textContent = edit ? 'Edit Note' : 'Add Note';
+    if (noteModalTitle) {
+      if (edit && selectedNoteId != null) noteModalTitle.textContent = `Edit Note ${selectedNoteId}`;
+      else noteModalTitle.textContent = 'Add Note';
+    }
     if (noteSubject) noteSubject.value = '';
     if (noteComment) noteComment.value = '';
     if (noteProductId) noteProductId.value = state.id ? String(state.id) : '';

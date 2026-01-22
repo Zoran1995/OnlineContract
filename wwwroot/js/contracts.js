@@ -16,6 +16,7 @@
   const dtTo = document.getElementById("dtTo");
 
   const btnOpen = document.getElementById("btnOpen");
+  const btnRefund = document.getElementById("btnRefund");
   const btnSearch = document.getElementById("btnSearch");
   const btnClear = document.getElementById("btnClear");
   const exportBtn = document.getElementById("exportBtn");
@@ -56,6 +57,19 @@
   }
   function updateOpenState() {
     if (btnOpen) btnOpen.disabled = !selectedId;
+  }
+  function updateRefundState() {
+    if (!btnRefund) return;
+    if (!selectedId) { btnRefund.disabled = true; return; }
+    const row = (items || []).find(x => x.id === selectedId);
+    if (!row) { btnRefund.disabled = true; return; }
+    const amt = Number(row.amount || 0);
+    const matched = Number(row.amtMatched || 0);
+    const amountsMatch = Math.abs(amt - matched) < 0.000001;
+    const stateText = String(row.contractStateText || row.contractState || '').trim().toLowerCase();
+    const allowedStates = new Set(['cancelled','returned','rejected','written off']);
+    const isAllowedState = allowedStates.has(stateText);
+    btnRefund.disabled = !(amountsMatch && isAllowedState);
   }
   function updateExportState() {
     // Keep the navbar export button always enabled; show a warning on click when grid is empty
@@ -134,6 +148,7 @@
       renderPager();
       setEmptyState(items.length === 0);
       updateExportState();
+      updateRefundState();
     } catch (err) {
       try { showToast('error', 'Failed to load contracts'); } catch {}
       setEmptyState(true);
@@ -164,13 +179,24 @@
         tr.classList.add("active");
         selectedId = it.id;
         updateOpenState();
+        updateRefundState();
       });
 
       if (selectedId && it.id === selectedId) tr.classList.add('active');
 
       function fmt2(n){ const v = Number(n); return Number.isFinite(v) ? v.toFixed(2) : (String(n||'')); }
+      const isFullyMatched = Number(it.amtMatched ?? 0) === Number(it.amount ?? 0);
+      const bracketGlyph = isFullyMatched ? '[ ]' : '[ ';
       const cells = [
         String(it.id),
+        // Allocation Status cell: styled bracket glyph
+        (() => {
+          const span = document.createElement('span');
+          span.className = 'alloc-bracket text-xl font-bold leading-none inline-flex items-center justify-center';
+          span.textContent = bracketGlyph;
+          span.setAttribute('aria-label', isFullyMatched ? 'Fully matched allocation' : 'Cash on delivery or partial allocation');
+          return span;
+        })(),
         String(it.customerFullName ?? ''),
         fmt2(it.amount),
         String(it.contractStateText || it.contractState || ''),
@@ -180,15 +206,22 @@
         String(it.rejectedDate ?? ''),
         String(it.cancelledDate ?? '')
       ];
-      cells.forEach(html => {
+      cells.forEach((html, idx) => {
         const td = document.createElement("td");
-        td.textContent = html;
+        if (idx === 1 && html instanceof HTMLElement) {
+          td.appendChild(html);
+        } else {
+          td.textContent = html;
+        }
+        if (idx === 1) { // Allocation Status accessibility label
+          td.classList.add('text-center');
+        }
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
     });
     try {
-      const keys = ['id','customerFullName','amount','contractState','entryDate','','','',''];
+      const keys = ['id','', 'customerFullName','amount','contractState','entryDate','','','',''];
       document.querySelectorAll('#grid thead th').forEach((th, idx) => {
         th.style.cursor = 'pointer';
         const ex = th.querySelector('.sort-indicator'); if (ex) ex.remove();
@@ -209,7 +242,7 @@
     const start = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
     const end = totalCount === 0 ? 0 : Math.min(page * pageSize, totalCount);
 
-    if (pageInfo) pageInfo.textContent = `Page ${page} of ${pages}`;
+    if (pageInfo) pageInfo.innerHTML = `Page <b>${page}</b> of <b>${pages}</b>`;
     if (pageCountInfo) pageCountInfo.textContent = `Total records: ${totalCount}`;
 
     if (prevPage) prevPage.disabled = (page <= 1 || totalCount === 0);
@@ -276,6 +309,115 @@
       if (!selectedId) { try { showToast('warning', 'Select a contract first'); } catch {} return; }
       window.open(`/contracts/${selectedId}`, '_blank');
     });
+    btnRefund?.addEventListener("click", () => {
+      if (!selectedId) { try { showToast('warning', 'Select a contract first'); } catch {} return; }
+      onRefund();
+    });
+
+    // Refund modal logic
+    function ensureRefundModal() {
+      let dlg = document.getElementById('refundModal');
+      if (dlg) return dlg;
+      dlg = document.createElement('dialog');
+      dlg.id = 'refundModal';
+      dlg.className = 'modal';
+      dlg.innerHTML = `
+        <form method="dialog" class="modal-box w-96">
+          <h3 class="font-bold text-lg mb-4">Refund Payment</h3>
+          <div class="form-control mb-3">
+            <label class="label"><span class="label-text">Amount</span></label>
+            <input id="refundAmount" type="number" step="0.01" min="0" class="input input-bordered" placeholder="e.g. 100.00" />
+          </div>
+          <div class="form-control mb-3">
+            <label class="label"><span class="label-text">Percentage</span></label>
+            <input id="refundPercent" type="number" step="0.01" min="0" max="100" class="input input-bordered" placeholder="e.g. 25.00" />
+          </div>
+          <div id="refundTotal" class="mb-4 text-sm">Total for refund: 0.00</div>
+          <div class="modal-action">
+            <button type="button" id="refundCancel" class="btn btn-outline">Cancel</button>
+            <button type="button" id="refundOk" class="btn">OK</button>
+          </div>
+        </form>`;
+      document.body.appendChild(dlg);
+
+      dlg.querySelector('#refundCancel')?.addEventListener('click', () => { try { dlg.close(); } catch {} });
+      dlg.addEventListener('cancel', () => { try { dlg.close(); } catch {} });
+
+      const amtEl = dlg.querySelector('#refundAmount');
+      const pctEl = dlg.querySelector('#refundPercent');
+      const totalEl = dlg.querySelector('#refundTotal');
+
+      function format2(n) { const v = Number(n || 0); return Number.isFinite(v) ? v.toFixed(2) : '0.00'; }
+      function clampAmount(val, max) {
+        let v = Number(val || 0);
+        if (v < 0) v = 0;
+        if (v > max) v = max;
+        return v;
+      }
+      function clampPercent(val) {
+        let v = Number(val || 0);
+        if (v < 0) v = 0;
+        if (v > 100) v = 100;
+        return v;
+      }
+      function updateTotal(amount) { if (totalEl) totalEl.textContent = `Total for refund: ${format2(amount)}`; }
+
+      amtEl?.addEventListener('blur', () => {
+        const row = (items || []).find(x => x.id === selectedId);
+        const max = Number(row?.amtMatched || 0);
+        let amount = clampAmount(amtEl.value, max);
+        amtEl.value = format2(amount);
+        const pct = max > 0 ? (amount / max) * 100 : 0;
+        pctEl.value = format2(clampPercent(pct));
+        const errors = validateRefund();
+        if (!errors.length) updateTotal(amount); else updateTotal(Number(amtEl.value || 0));
+      });
+
+      pctEl?.addEventListener('blur', () => {
+        const row = (items || []).find(x => x.id === selectedId);
+        const max = Number(row?.amtMatched || 0);
+        let pct = clampPercent(pctEl.value);
+        pctEl.value = format2(pct);
+        const amount = max * (pct / 100);
+        amtEl.value = format2(clampAmount(amount, max));
+        const errors = validateRefund();
+        updateTotal(Number(amtEl.value || 0));
+      });
+
+      dlg.querySelector('#refundOk')?.addEventListener('click', () => {
+        const errors = validateRefund();
+        if (errors.length) { try { showToast('error', errors.join('\n')); } catch {} return; }
+        try { showToast('info', 'Refund submission is not implemented yet.'); } catch {}
+      });
+
+      return dlg;
+    }
+
+    function validateRefund() {
+      const dlg = document.getElementById('refundModal');
+      const amtEl = dlg?.querySelector('#refundAmount');
+      const pctEl = dlg?.querySelector('#refundPercent');
+      const row = (items || []).find(x => x.id === selectedId);
+      const max = Number(row?.amtMatched || 0);
+      const amount = Number(amtEl?.value || 0);
+      const pct = Number(pctEl?.value || 0);
+      const errs = [];
+      if (!(amount > 0)) errs.push('Amount must be greater than 0.');
+      if (amount > max) errs.push('Amount cannot exceed matched amount.');
+      if (pct < 0 || pct > 100) errs.push('Percentage must be between 0 and 100.');
+      if ((amtEl?.value === '' || amtEl?.value == null) && (pctEl?.value === '' || pctEl?.value == null)) {
+        errs.push('Enter amount or percentage.');
+      }
+      return errs;
+    }
+
+    function onRefund() {
+      const dlg = ensureRefundModal();
+      dlg.querySelector('#refundAmount').value = '';
+      dlg.querySelector('#refundPercent').value = '';
+      dlg.querySelector('#refundTotal').textContent = 'Total for refund: 0.00';
+      try { dlg.showModal(); } catch {}
+    }
 
     exportBtn?.addEventListener("click", async () => {
       try {

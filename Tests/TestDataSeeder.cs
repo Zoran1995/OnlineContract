@@ -14,7 +14,7 @@ public static class TestDataSeeder
         db.Stores.Add(new Store { StoreId = 1, Name = "Store 1", CreatedDt = DateTime.Now, UpdatedDt = DateTime.Now, LastModifiedUserId = 2 });
         db.Stores.Add(new Store { StoreId = 2, Name = "Store 2", CreatedDt = DateTime.Now, UpdatedDt = DateTime.Now, LastModifiedUserId = 2 });
 
-        // One active user for auth
+        // Users for auth
         db.AxUsers.Add(new AxUser
         {
             Id = 123,
@@ -30,6 +30,28 @@ public static class TestDataSeeder
             Password = OnlineContract.Helpers.PasswordHelper.HashPassword("Password1"),
             FirstName = "Test",
             LastName = "User",
+            OwnerId = 124,
+            CreatedDt = DateTime.Now,
+            PasswordDt = DateTime.Now,
+            Stamp = 0
+        });
+
+        db.AxUsers.Add(new AxUser
+        {
+            Id = 124,
+            Code = "admin",
+            Email = "admin@example.com",
+            Phone = "0600000000",
+            City = "Belgrade",
+            StreetAddress = "Knez 2",
+            PostalCode = "11000",
+            RoleId = 8, // Administrator
+            IsActive = true,
+            IsDeleted = false,
+            Password = OnlineContract.Helpers.PasswordHelper.HashPassword("Password1"),
+            FirstName = "Admin",
+            LastName = "User",
+            OwnerId = 124,
             CreatedDt = DateTime.Now,
             PasswordDt = DateTime.Now,
             Stamp = 0
@@ -110,6 +132,33 @@ public static class TestDataSeeder
         // Update contract amount to include items
         contract.Amount = det1.Quantity * det1.Amount + det2.Quantity * det2.Amount;
 
+        db.SaveChanges();
+
+        // Seed Approval Rules for tests
+        db.ApprovalRules.Add(new ApprovalRule
+        {
+            Name = "Refund Payment",
+            Description = "Refund payments over threshold",
+            IsActive = true,
+            IsDeleted = false,
+            TaskAssignedToId = 124, // assign to admin
+            AmtThreshold = 1000m,
+            PctThreshold = 0m,
+            ApprovalRuleContextId = 41,
+            Stamp = 0
+        });
+        db.ApprovalRules.Add(new ApprovalRule
+        {
+            Name = "Contract Write-Off",
+            Description = "Write-off when percentage exceeds threshold",
+            IsActive = false,
+            IsDeleted = false,
+            TaskAssignedToId = 124, // assign to admin
+            AmtThreshold = 0m,
+            PctThreshold = 50m,
+            ApprovalRuleContextId = 42,
+            Stamp = 0
+        });
         db.SaveChanges();
     }
 }

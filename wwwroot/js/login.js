@@ -10,6 +10,19 @@ document.getElementById('navSignIn')?.addEventListener('click', (e) => {
   document.getElementById('loginFormContainer')?.classList.add('hidden');
 });
 
+// Switch buttons within forms
+document.getElementById('switchToSignIn')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('registerFormContainer')?.classList.remove('hidden');
+  document.getElementById('loginFormContainer')?.classList.add('hidden');
+});
+
+document.getElementById('switchToLogIn')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('loginFormContainer')?.classList.remove('hidden');
+  document.getElementById('registerFormContainer')?.classList.add('hidden');
+});
+
 // On load, show the requested form based on URL query (?mode=login|signin)
 (() => {
   try {

@@ -8,6 +8,7 @@
   <link rel="icon" href="/resources/icons/badge-heart.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/css/home.css" />
   <link href="/dist/output.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme-pastel.css" />
 </head>
 <body class="bg-base-200 text-base-content">
 
@@ -36,27 +37,33 @@
   <!-- Content -->
   <main class="container mx-auto p-6">
     <!-- Hero Section -->
-    <section class="hero bg-gradient-to-r from-pink-200 via-fuchsia-200 to-violet-200 rounded-xl shadow p-10 mb-4 text-center">
-      <h1 class="text-5xl font-extrabold tracking-tight text-violet-900 mb-6">Style & Comfort for Little Ones</h1>
+    <section class="pastel-hero home-hero mb-4 fade-up">
+      <h1 class="text-5xl font-extrabold tracking-tight text-violet-900 mb-6 pastel-heading">Style & Comfort for Little Ones</h1>
       <p class="text-lg md:text-xl text-violet-800 max-w-3xl mx-auto mb-0">
         Welcome to <span class="font-semibold">KidzStyle</span> — adorable, comfy clothing for babies, kids, and teens.
         From everyday essentials to trendy outfits, discover soft fabrics, vibrant colors, and durable designs.
       </p>
+      <!-- Feature chips -->
+      <div class="feature-chips">
+        <span class="feature-chip"><span class="material-icons">local_shipping</span>Free Shipping 40€+</span>
+        <span class="feature-chip"><span class="material-icons">verified</span>Quality Guaranteed</span>
+        <span class="feature-chip"><span class="material-icons">child_care</span>Safe Materials</span>
+      </div>
     </section>
 
     <!-- Call-to-actions separated from hero copy to avoid overlap -->
-    <section class="text-center mb-8">
+    <section class="text-center mb-8 fade-up">
       <div class="flex flex-wrap justify-center gap-6">
-  <a href="/collections" class="btn btn-primary text-lg px-6 py-2">Browse Collections</a>
-        <a href="#contact" class="btn btn-outline text-lg px-6 py-2">Contact & Stores</a>
+  <a href="/collections" class="btn btn-pastel-primary btn-sheen text-lg px-6 py-2">Browse Collections</a>
+        <a href="#contact" class="btn btn-pastel-outline text-lg px-6 py-2">Contact & Stores</a>
       </div>
     </section>
 
     <!-- Highlights -->
     <section class="grid md:grid-cols-2 gap-6 mb-10">
-      <div class="bg-base-100 rounded-xl shadow p-6">
-        <div class="flex items-center mb-3">
-          <span class="material-icons text-violet-600 mr-2">favorite</span>
+      <div class="pastel-card card-hover spacing-relaxed fade-up fade-up-delay-1">
+        <div class="pastel-card-header mb-3">
+          <span class="material-icons icon-brand">favorite</span>
           <h2 class="text-2xl font-bold">Cute Styles, Comfy Fabrics</h2>
         </div>
         <p class="text-base text-gray-700 mb-3">Soft cotton blends and organic options that feel great and last long.</p>
@@ -66,9 +73,9 @@
           <li>Teens Trendy Fits</li>
         </ul>
       </div>
-      <div class="bg-base-100 rounded-xl shadow p-6">
-        <div class="flex items-center mb-3">
-          <span class="material-icons text-amber-600 mr-2">payments</span>
+      <div class="pastel-card card-hover spacing-relaxed fade-up fade-up-delay-2">
+        <div class="pastel-card-header mb-3">
+          <span class="material-icons icon-brand">payments</span>
           <h2 class="text-2xl font-bold">Fair Prices & Clear Policies</h2>
         </div>
         <p class="text-base text-gray-700 mb-3">Straightforward pricing, seasonal deals, and easy returns.</p>
@@ -78,9 +85,9 @@
           <li>30-day returns</li>
         </ul>
       </div>
-      <div class="bg-base-100 rounded-xl shadow p-6">
-        <div class="flex items-center mb-3">
-          <span class="material-icons text-sky-600 mr-2">shopping_cart</span>
+      <div class="pastel-card card-hover spacing-relaxed fade-up fade-up-delay-1">
+        <div class="pastel-card-header mb-3">
+          <span class="material-icons icon-brand">shopping_cart</span>
           <h2 class="text-2xl font-bold">Easy Online Shopping</h2>
         </div>
         <p class="text-base text-gray-700 mb-3">Browse, add to cart, and checkout quickly with secure payments.</p>
@@ -91,9 +98,9 @@
         </ul>
       </div>
       <!-- Removed 24/7 support; replaced with product care -->
-      <div class="bg-base-100 rounded-xl shadow p-6">
-        <div class="flex items-center mb-3">
-          <span class="material-icons text-rose-600 mr-2">dry_cleaning</span>
+      <div class="pastel-card card-hover spacing-relaxed fade-up fade-up-delay-2">
+        <div class="pastel-card-header mb-3">
+          <span class="material-icons icon-brand">dry_cleaning</span>
           <h2 class="text-2xl font-bold">Care & Quality</h2>
         </div>
         <p class="text-base text-gray-700 mb-3">Machine-washable designs and sturdy stitching built for play.</p>
@@ -106,26 +113,26 @@
     </section>
 
     <!-- Fleet teaser -->
-    <section id="catalog" class="bg-base-100 rounded-xl shadow p-6">
-      <h2 class="text-3xl font-extrabold mb-4">Popular Picks</h2>
+    <section id="catalog" class="pastel-card spacing-relaxed fade-up">
+      <h2 class="text-3xl font-extrabold mb-4 pastel-heading">Popular Picks</h2>
       <div class="grid md:grid-cols-3 gap-6">
-        <div class="rounded-lg overflow-hidden shadow">
-            <img src="/resources/photos/HomePage.jpg" alt="Design & Quality" class="w-full aspect-video object-cover" loading="lazy" />
-          <div class="p-4">
+        <div class="collection-tile card-hover">
+            <div class="tile-image img-zoom"><img src="/resources/photos/HomePage.jpg" alt="Design & Quality" class="w-full aspect-video object-cover" loading="lazy" /></div>
+          <div class="tile-body">
             <h3 class="font-bold">Design &amp; Quality</h3>
             <p class="text-sm text-gray-600">Soft fabrics, vibrant colors, and comfy fits.</p>
           </div>
         </div>
-        <div class="rounded-lg overflow-hidden shadow">
-            <img src="/resources/photos/Item1.jpg" alt="Baby & Toddler" class="w-full aspect-video object-cover" loading="lazy" />
-          <div class="p-4">
+        <div class="collection-tile card-hover">
+            <div class="tile-image img-zoom"><img src="/resources/photos/Item1.jpg" alt="Baby & Toddler" class="w-full aspect-video object-cover" loading="lazy" /></div>
+          <div class="tile-body">
             <h3 class="font-bold">Baby &amp; Toddler</h3>
             <p class="text-sm text-gray-600">Gentle on skin; easy to wear, easy to care.</p>
           </div>
         </div>
-        <div class="rounded-lg overflow-hidden shadow">
-            <img src="/resources/photos/Item2.jpg" alt="Kids & Teens" class="w-full aspect-video object-cover" loading="lazy" />
-          <div class="p-4">
+        <div class="collection-tile card-hover">
+            <div class="tile-image img-zoom"><img src="/resources/photos/Item2.jpg" alt="Kids & Teens" class="w-full aspect-video object-cover" loading="lazy" /></div>
+          <div class="tile-body">
             <h3 class="font-bold">Kids &amp; Teens</h3>
             <p class="text-sm text-gray-600">Durable styles for school, sports, and weekends.</p>
           </div>
@@ -133,15 +140,15 @@
       </div>
       <div class="mt-6 text-center">
         <div class="inline-flex items-center gap-2 text-sm text-gray-700">
-          <span class="material-icons text-rose-600">local_offer</span>
+          <span class="material-icons icon-brand">local_offer</span>
           <span class="font-semibold">Visit Our Stores or Contact Us</span>
         </div>
       </div>
     </section>
 
     <!-- Stores (dynamic) -->
-    <section id="contact" class="bg-base-100 rounded-xl shadow p-6 mt-8">
-      <h2 class="text-3xl font-extrabold mb-4">Our Stores</h2>
+    <section id="contact" class="pastel-card spacing-relaxed mt-8 fade-up">
+      <h2 class="text-3xl font-extrabold mb-4 pastel-heading">Our Stores</h2>
   <div id="storesList" class="grid md:grid-cols-2 gap-6 items-stretch"></div>
     </section>
   </main>

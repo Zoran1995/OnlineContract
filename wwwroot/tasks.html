@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="pastel">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KidzStyle · Tasks</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link rel="icon" href="/resources/icons/clipboard-list.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/login.css" />
+  <link rel="stylesheet" href="/css/app-modern.css" />
+  <link href="/dist/output.css" rel="stylesheet">
+  <style>
+    /* Compact filters + buttons (match Notes/Contracts/Users) */
+    #tasksFilters .select.select-sm,
+    #tasksFilters .input.input-sm {
+      height: 32px;
+      padding: 4px 10px;
+      font-size: 14px;
+      line-height: 1.2;
+    }
+    #tasksFilters select {
+      -webkit-appearance: none;
+      appearance: none;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    #tasksFilters .btn.btn-sm {
+      height: 32px;
+      min-height: 32px;
+      line-height: 1.2;
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+  </style>
+</head>
+<body class="bg-base-200 text-base-content">
+  <div class="navbar bg-base-100 shadow sticky top-0 z-50">
+    <div class="flex-1">
+      <a href="/home" class="btn btn-ghost normal-case text-xl"><span class="material-icons mr-2">home</span> Home</a>
+      <a href="/about" class="btn btn-ghost"><span class="material-icons mr-2">info</span> About</a>
+      <a href="/address" class="btn btn-ghost"><span class="material-icons mr-2">location_on</span> Address</a>
+      <a href="/eventlog" class="btn btn-ghost"><span class="material-icons mr-2">bug_report</span> EventLog</a>
+    </div>
+    <div class="flex-none items-center gap-3">
+      <a id="navSignIn" href="/login" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</a>
+      <a id="navLogIn" href="/login" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</a>
+    </div>
+  </div>
+
+  <main class="container mx-auto p-4">
+    <div class="mod-toolbar">
+      <h1 class="mod-toolbar-title">Tasks</h1>
+      <div class="mod-toolbar-actions">
+        <button id="btnOpen" class="btn btn-sm" disabled>
+          <span class="material-icons">open_in_new</span>
+          <span>Open</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div id="tasksFilters" class="mod-filters">
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div>
+          <label class="label"><span class="label-text">Task ID</span></label>
+          <input id="filterTaskId" type="number" class="input input-sm input-bordered w-full" placeholder="e.g., 123" />
+        </div>
+        <div>
+          <label class="label"><span class="label-text">Priority</span></label>
+          <select id="filterPriority" class="select select-sm select-bordered w-full"></select>
+        </div>
+        <div>
+          <label class="label"><span class="label-text">Status</span></label>
+          <select id="filterStatus" class="select select-sm select-bordered w-full"></select>
+        </div>
+        <div class="w-full flex items-end gap-2 justify-end md:col-start-5">
+          <button id="btnSearch" class="btn btn-sm btn-primary">
+            <span class="material-icons mr-2">search</span>
+            <span>Search</span>
+          </button>
+          <button id="btnClean" class="btn btn-sm btn-outline">
+            <span class="material-icons mr-2">clear_all</span>
+            <span>Clean</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="mod-card mod-card-compact table-scroll">
+      <table id="grid" class="table-modern" aria-label="Tasks">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Subject</th>
+            <th>Comment</th>
+            <th>Entry Date</th>
+            <th>Initiated By</th>
+            <th>Contract ID</th>
+            <th>Priority</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="mod-pagination">
+      <div class="flex items-center gap-2">
+        <label class="mod-text-sm">Rows per page:</label>
+        <select id="pageSize" class="select select-bordered w-20 select-sm">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="prevPage" class="btn btn-outline btn-sm" disabled>
+          <span class="material-icons mr-2">chevron_left</span>
+          Previous
+        </button>
+        <span id="pageInfo" class="mod-pagination-info"></span>
+        <button id="nextPage" class="btn btn-outline btn-sm" disabled>
+          Next <span class="material-icons ml-2">chevron_right</span>
+        </button>
+      </div>
+
+      <span id="pageCountInfo" class="mod-pagination-count"></span>
+    </div>
+  </main>
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="loading-overlay hidden"><div class="loading-box">Loading...</div></div>
+
+  <!-- Modal -->
+  <dialog id="taskModal" class="modal">
+    <form method="dialog" class="modal-box w-96">
+      <h3 id="taskModalTitle" class="font-bold text-lg mb-4">Task</h3>
+      <div class="form-control mb-3"><label class="label"><span class="label-text">Subject</span></label><input id="tSubject" type="text" class="input input-bordered" disabled /></div>
+      <div class="form-control mb-3"><label class="label"><span class="label-text">Comments</span></label><textarea id="tComments" class="textarea textarea-bordered" rows="3"></textarea></div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div class="form-control"><label class="label"><span class="label-text">Priority</span></label><select id="tPrioritySel" class="select select-bordered"></select></div>
+        <div class="form-control"><label class="label"><span class="label-text">Status</span></label><button id="tStatusBtn" class="btn btn-outline w-full"><span class="material-icons mr-2">swap_horiz</span><span id="tStatusLbl">—</span></button></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div class="form-control"><label class="label"><span class="label-text">Entry Date</span></label><input id="tEntryDate" type="text" class="input input-bordered" disabled /></div>
+        <div class="form-control"><label class="label"><span class="label-text">Contract ID</span></label><input id="tContractId" type="text" class="input input-bordered" disabled /></div>
+      </div>
+      <div class="grid grid-cols-1 gap-3 mb-3">
+        <div class="form-control"><label class="label"><span class="label-text">Initiated By (User Code)</span></label><input id="tInitiatedBy" type="text" class="input input-bordered" disabled /></div>
+      </div>
+      <div class="modal-action">
+        <button id="tSave" type="button" class="btn btn-primary">Save</button>
+        <button id="tClose" type="button" class="btn btn-outline">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Task Status Modal -->
+  <dialog id="taskStatusModal" class="modal">
+    <form method="dialog" class="modal-box w-96">
+      <h3 class="font-bold text-lg mb-4">Change Status</h3>
+      <div class="form-control mb-2"><label class="label"><span class="label-text">Current Status</span></label><input id="tsCurrent" type="text" class="input input-bordered" disabled /></div>
+      <div class="form-control mb-2"><label class="label"><span class="label-text">Next Status</span></label><select id="tsNext" class="select select-bordered"></select></div>
+      <div class="form-control mb-2"><label class="label"><span class="label-text">Comment</span></label><textarea id="tsComment" class="textarea textarea-bordered" rows="3" placeholder="Optional comment..."></textarea></div>
+      <div class="modal-action">
+        <button id="tsCancel" type="button" class="btn">Cancel</button>
+        <button id="tsOk" type="button" class="btn btn-primary">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/js/shared.js"></script>
+  <script src="/js/tasks.js"></script>
+  <script>
+    // Client-side gate: show Access Denied for non-admin/manager users
+    document.addEventListener('DOMContentLoaded', () => {
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+      const roleId = parseInt(localStorage.getItem('roleId') || '0', 10);
+      const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
+      if (!isPrivileged) {
+        const main = document.querySelector('main');
+        if (main) main.innerHTML = `
+          <div class="access-denied-container">
+            <div class="access-denied">
+              <h2><span class="material-icons">block</span> Access Denied</h2>
+              <p>You are not allowed to see this page.</p>
+            </div>
+          </div>`;
+      }
+    });
+  </script>
+</body>
+</html>

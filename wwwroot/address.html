@@ -8,6 +8,8 @@
   <link rel="icon" href="/resources/icons/map-store.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/css/home.css" />
   <link href="/dist/output.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme-pastel.css" />
+  <link rel="stylesheet" href="/css/address-modern.css" />
 </head>
 <body class="bg-base-200 text-base-content">
 
@@ -28,56 +30,75 @@
       </a>
     </div>
     <div class="flex-none items-center gap-3">
-  <a id="navSignIn" href="/login" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</a>
-  <a id="navLogIn" href="/login" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</a>
+      <a id="navSignIn" href="/login?mode=signin" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</a>
+      <a id="navLogIn" href="/login" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</a>
     </div>
   </div>
 
   <!-- Content -->
-  <main class="container mx-auto p-6">
-    <section class="bg-base-100 rounded-xl shadow p-8">
-      <div class="flex items-center justify-center gap-3 mb-4">
-        <span class="material-icons text-violet-600">location_on</span>
-        <h1 class="text-4xl font-extrabold tracking-tight">Stores & Contact</h1>
-      </div>
-
-      <p class="text-base leading-relaxed text-gray-700 mb-8 text-center max-w-3xl mx-auto">
-        Visit our Serbian stores for in‑person shopping or pickup. We carry adorable and comfy clothing for babies, kids,
-        and teens. Friendly staff, clear policies, and convenient working hours.
-      </p>
-
-      <!-- Contact info cards (dynamic: first two stores) -->
-      <div class="grid md:grid-cols-2 gap-6 mb-8 justify-items-center">
-        <div class="p-4 rounded-lg bg-base-200 w-full max-w-md text-center">
-          <div class="flex items-center justify-center mb-2">
-            <span class="material-icons text-sky-600 mr-2">call</span>
-            <h3 class="text-xl font-bold">Phone</h3>
-          </div>
-          <ul id="topPhones" class="text-sm text-gray-700 space-y-1">
-            <li><a id="topPhone1" href="#" class="link"></a></li>
-            <li><a id="topPhone2" href="#" class="link"></a></li>
-          </ul>
+  <div class="addr-wrap">
+    <!-- Hero Section -->
+    <header class="addr-header">
+      <section class="pastel-hero home-hero fade-up text-center py-8">
+        <div class="flex justify-center mb-4">
+          <span class="material-icons text-6xl text-violet-600">store</span>
         </div>
-        <div class="p-4 rounded-lg bg-base-200 w-full max-w-md text-center">
-          <div class="flex items-center justify-center mb-2">
-            <span class="material-icons text-emerald-600 mr-2">mail</span>
-            <h3 class="text-xl font-bold">Email</h3>
+        <h1 class="text-4xl font-extrabold tracking-tight text-violet-900 mb-3 pastel-heading">Our Stores</h1>
+        <p class="text-lg text-violet-800 mb-4">Visit us in person for the best kids clothing experience</p>
+        <div class="feature-chips">
+          <span class="feature-chip"><span class="material-icons">child_care</span>Kids Fashion</span>
+          <span class="feature-chip"><span class="material-icons">local_shipping</span>In-Store Pickup</span>
+          <span class="feature-chip"><span class="material-icons">support_agent</span>Friendly Staff</span>
+        </div>
+      </section>
+    </header>
+
+    <!-- Quick Contact Cards -->
+    <section class="contact-cards-grid">
+      <div class="contact-card contact-card-phone">
+        <div class="contact-icon-box bg-sky-100">
+          <span class="material-icons text-sky-600 text-2xl">call</span>
+        </div>
+        <div>
+          <h3 class="font-bold text-gray-800 mb-1">Call Us</h3>
+          <div id="topPhones" class="space-y-1 text-sm">
+            <a id="topPhone1" href="#" class="link link-primary block"></a>
+            <a id="topPhone2" href="#" class="link link-primary block"></a>
           </div>
-          <ul id="topEmails" class="text-sm text-gray-700 space-y-1">
-            <li><a id="topEmail1" href="#" class="link"></a></li>
-            <li><a id="topEmail2" href="#" class="link"></a></li>
-          </ul>
         </div>
       </div>
-
-  <!-- Stores list rendered from API -->
-  <div id="storesGrid" class="grid md:grid-cols-2 gap-8 justify-items-center items-start"></div>
-
-      <div class="mt-10 flex justify-center">
-        <a href="/about" class="btn btn-primary btn-lg btn-wide">Back to About</a>
+      <div class="contact-card contact-card-email">
+        <div class="contact-icon-box bg-emerald-100">
+          <span class="material-icons text-emerald-600 text-2xl">mail</span>
+        </div>
+        <div>
+          <h3 class="font-bold text-gray-800 mb-1">Email Us</h3>
+          <div id="topEmails" class="space-y-1 text-sm">
+            <a id="topEmail1" href="#" class="link link-primary block"></a>
+            <a id="topEmail2" href="#" class="link link-primary block"></a>
+          </div>
+        </div>
       </div>
     </section>
-  </main>
+
+    <!-- Stores Grid -->
+    <section id="storesGrid" class="addr-grid"></section>
+
+    <!-- Back Button -->
+    <div class="addr-back">
+      <a href="/about" class="btn btn-pastel-primary btn-sheen">
+        <span class="material-icons mr-2">arrow_back</span>
+        Back to About
+      </a>
+    </div>
+
+    <!-- Trust Bar -->
+    <section class="addr-trust-bar">
+      <div class="addr-trust-item"><span class="material-icons icon-verified">verified</span><span>Trusted Stores</span></div>
+      <div class="addr-trust-item"><span class="material-icons icon-store">storefront</span><span>In-Person Shopping</span></div>
+      <div class="addr-trust-item"><span class="material-icons icon-clock">schedule</span><span>Convenient Hours</span></div>
+    </section>
+  </div>
 
   <!-- Notification UI injected by /js/shared.js -->
 
@@ -150,40 +171,58 @@
   if (te2 && email2) { te2.textContent = email2; te2.href = `mailto:${email2}`; } else if (te2) { te2.textContent = '—'; te2.removeAttribute('href'); }
         grid.innerHTML = '';
         items.forEach((s, idx) => {
-          const wrapper = document.createElement('div');
-          wrapper.className = 'grid md:grid-cols-2 gap-6 w-full max-w-3xl';
-          const left = document.createElement('div');
+          const wrapper = document.createElement('article');
+          wrapper.className = 'store-card-modern';
           const hours = (s.hours || '')
             .split(';')
             .map(h => h.trim())
             .filter(h => h.length > 0);
-          left.innerHTML = `
-            <div class=\"card bg-base-200 shadow-sm h-96 flex flex-col justify-center items-center text-center\">
-              <div class=\"card-body w-full\">
-                <h2 class=\"card-title justify-center text-2xl mb-2\">${s.name}</h2>
-                <div class=\"bg-violet-50 border border-violet-200 rounded-lg p-4\">
-                  <p class=\"text-base font-medium flex items-center gap-2\"><span class='material-icons text-rose-600'>location_on</span><span>${s.address}</span></p>
-                </div>
-                <div class=\"mt-4 text-sm text-gray-700 flex items-center justify-center gap-2\"><span class='material-icons text-sky-600'>call</span><span>${s.phone}</span></div>
+          const ep = extraPhotos[idx % extraPhotos.length];
+          wrapper.innerHTML = `
+            <div class="store-grid">
+              <!-- Store Info (Left Column) -->
+              <div class="store-info">
+                <h3 class="store-name">
+                  <span class="store-name-icon"><span class="material-icons">storefront</span></span>
+                  ${s.name}
+                </h3>
+                <p class="store-addr">
+                  <span class="material-icons">location_on</span>
+                  <span>${s.address}</span>
+                </p>
+                <ul class="store-meta">
+                  <li class="meta-row meta-phone">
+                    <span class="material-icons">call</span>
+                    <span>${s.phone}</span>
+                  </li>
+                  ${s.email ? `<li class="meta-row meta-email">
+                    <span class="material-icons">mail</span>
+                    <span>${s.email}</span>
+                  </li>` : ''}
+                </ul>
                 ${hours.length ? `
-                  <div class=\"working-hours w-full h-40 text-center flex flex-col items-center justify-center mt-2\">
-                    ${hours.map(h => `<span class=\"wh-line\">${h}</span>`).join('')}
+                  <div class="store-hours">
+                    <div class="store-hours-title">
+                      <span class="material-icons">schedule</span>
+                      Working Hours
+                    </div>
+                    <div class="store-hours-list">
+                      ${hours.map(h => `<div class="store-hours-item"><span class="material-icons">chevron_right</span>${h}</div>`).join('')}
+                    </div>
                   </div>
                 ` : ''}
-                <div class=\"mt-4 flex flex-wrap gap-2 justify-center\">
-                  <a href=\"https://maps.google.com/?q=${encodeURIComponent(s.address)}\" target=\"_blank\" rel=\"noopener\" class=\"btn btn-primary btn-sm\">Open in Google Maps</a>
-                </div>
+                <a href="https://maps.google.com/?q=${encodeURIComponent(s.address)}" target="_blank" rel="noopener" class="btn-map">
+                  <span class="material-icons">map</span>
+                  View on Map
+                </a>
+              </div>
+              
+              <!-- Store Photos (Right Column) -->
+              <div class="store-photos">
+                ${ep?.[0] ? `<div class="photo-thumb-wrap"><img src="${ep[0]}" alt="${s.name} store photo 1" class="photo-thumb" loading="lazy" /></div>` : ''}
+                ${ep?.[1] ? `<div class="photo-thumb-wrap"><img src="${ep[1]}" alt="${s.name} store photo 2" class="photo-thumb" loading="lazy" /></div>` : ''}
               </div>
             </div>`;
-          const right = document.createElement('div');
-          const ep = extraPhotos[idx % extraPhotos.length];
-          right.innerHTML = `
-            <div class=\"grid grid-cols-1 gap-4 w-full h-96 place-content-center\">
-              ${ep?.[0] ? `<div class=\"rounded-xl overflow-hidden shadow\"><img src=\"${ep[0]}\" alt=\"Store item 1\" class=\"w-full aspect-video object-cover\" loading=\"lazy\" /></div>` : ''}
-              ${ep?.[1] ? `<div class=\"rounded-xl overflow-hidden shadow\"><img src=\"${ep[1]}\" alt=\"Store item 2\" class=\"w-full aspect-video object-cover\" loading=\"lazy\" /></div>` : ''}
-            </div>`;
-          wrapper.appendChild(left);
-          wrapper.appendChild(right);
           grid.appendChild(wrapper);
         });
       } catch (err) {

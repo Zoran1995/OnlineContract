@@ -9,6 +9,7 @@
   <link rel="icon" href="/favicons/key-shield.svg" type="image/svg+xml" />
   <link href="/css/login.css" rel="stylesheet" />
   <link href="/dist/output.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme-pastel.css" />
 </head>
 <body class="bg-base-200 text-base-content">
   <div class="navbar bg-base-100 shadow sticky top-0 z-50">
@@ -33,73 +34,87 @@
   </div>
 
   <main class="container mx-auto p-4">
-    <div class="flex items-center justify-between gap-3 mb-3">
-      <h1 class="text-2xl font-bold">My Profile</h1>
-        <button id="btnSave" class="btn btn-sm btn-primary">
-          <span class="material-icons mr-2">save</span> Save
-        </button>
-    </div>
+    <div class="pastel-card spacing-relaxed mb-4 fade-up">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <h1 class="text-2xl font-bold pastel-heading">My Profile</h1>
+          <button id="btnSave" class="btn btn-sm btn-primary btn-save-pill btn-sheen">
+            <span class="material-icons mr-2">save</span> Save
+          </button>
+      </div>
 
-    <div role="tablist" class="tabs tabs-lifted">
-      <input type="radio" name="profile_tabs" role="tab" class="tab" aria-label="Basic Details" checked />
-      <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-none p-4">
+    <div role="tablist" class="tabs tabs-lifted profile-tabs">
+      <input type="radio" name="profile_tabs" role="tab" class="tab tab-slide" aria-label="Basic Details" checked />
+      <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-pastel-md p-4">
+        <div class="pastel-panel-header mb-4">
+          <span class="material-icons">person</span>
+          <h3>Basic Information</h3>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="form-control">
             <label class="label"><span class="label-text">Username</span></label>
-            <input id="pCode" class="input input-bordered rounded-none" type="text" required />
+            <input id="pCode" class="input input-bordered pastel-input" type="text" required />
           </div>
           <div class="form-control">
             <label class="label"><span class="label-text">Email</span></label>
-            <input id="pEmail" class="input input-bordered rounded-none" type="email" required />
+            <input id="pEmail" class="input input-bordered pastel-input" type="email" required />
           </div>
           <div class="form-control">
             <label class="label"><span class="label-text">First Name</span></label>
-            <input id="pFirstName" class="input input-bordered rounded-none" type="text" required />
+            <input id="pFirstName" class="input input-bordered pastel-input" type="text" required />
           </div>
           <div class="form-control">
             <label class="label"><span class="label-text">Last Name</span></label>
-            <input id="pLastName" class="input input-bordered rounded-none" type="text" required />
+            <input id="pLastName" class="input input-bordered pastel-input" type="text" required />
           </div>
           <div class="form-control">
             <label class="label"><span class="label-text">Phone Number</span></label>
-            <input id="pPhone" class="input input-bordered rounded-none" type="tel" required />
+            <input id="pPhone" class="input input-bordered pastel-input" type="tel" required />
           </div>
         </div>
         <div class="divider">Password Change</div>
+        <div class="pastel-info-note mb-4">
+          <span class="material-icons">info</span>
+          <span>Leave password fields empty to keep your current password.</span>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div class="form-control">
             <label class="label"><span class="label-text">Current Password</span></label>
-            <input id="pCur" class="input input-bordered" type="password" />
+            <input id="pCur" class="input input-bordered pastel-input" type="password" />
           </div>
           <div class="form-control">
             <label class="label"><span class="label-text">New Password</span></label>
-            <input id="pNew" class="input input-bordered" type="password" />
+            <input id="pNew" class="input input-bordered pastel-input" type="password" />
           </div>
           <div class="form-control">
             <label class="label"><span class="label-text">Confirm New Password</span></label>
-            <input id="pNew2" class="input input-bordered" type="password" />
+            <input id="pNew2" class="input input-bordered pastel-input" type="password" />
           </div>
         </div>
       </div>
 
-      <input type="radio" name="profile_tabs" role="tab" class="tab" aria-label="Address" />
-      <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-none p-4">
+      <input type="radio" name="profile_tabs" role="tab" class="tab tab-slide" aria-label="Address" />
+      <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-pastel-md p-4">
+        <div class="pastel-panel-header mb-4">
+          <span class="material-icons">location_on</span>
+          <h3>Delivery Address</h3>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="form-control">
             <label class="label"><span class="label-text">City</span></label>
-            <input id="pCity" class="input input-bordered rounded-none w-full" type="text" required />
+            <input id="pCity" class="input input-bordered pastel-input w-full" type="text" required />
           </div>
           <div class="form-control">
             <label class="label"><span class="label-text">Postal Code</span></label>
-            <input id="pPostal" class="input input-bordered rounded-none" type="text" required />
+            <input id="pPostal" class="input input-bordered pastel-input" type="text" required />
           </div>
           <div class="form-control md:col-span-2">
             <label class="label"><span class="label-text">Street Address</span></label>
-            <input id="pStreet" class="input input-bordered rounded-none" type="text" required />
+            <input id="pStreet" class="input input-bordered pastel-input" type="text" required />
           </div>
         </div>
       </div>
     </div>
+    </div> <!-- close pastel-card -->
   </main>
 
   <script src="/js/shared.js"></script>

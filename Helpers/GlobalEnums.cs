@@ -28,14 +28,48 @@ namespace OnlineContract.Helpers
         Delivered = 17,
         Returned = 18,
         Cancelled = 19,
-        WrittenOff = 20
+        WrittenOff = 20,
+        Refunded = 21
     }
 
     public enum ProductStateInOrder
     {
-        Draft = 21,
-        Submitted = 22,
-        Accepted = 23,       
-        Rejected = 24,
+        Draft = 22,
+        Submitted = 23,
+        Accepted = 24,       
+        Rejected = 25
+    }
+
+    public enum TaskPriority
+    {
+        Urgent = 26,
+        High = 27,
+        Normal = 28,
+        Low = 29
+    }
+
+    public enum TaskStatus
+    {
+        NotStarted = 30,
+        Started= 31,
+        Approved = 32,
+        Rejected = 33,
+        Cancelled = 34,
+        Completed = 35,
+        Failed = 36
+    }
+
+    public enum ProcessResult
+    {
+        Successful = 37,
+        Warning = 38,
+        Failed = 39,
+        SuccessfulNothingProcessed = 40
+    }
+
+    public enum ApprovalRuleContext
+    {
+        RefundPayment = 41,
+        ContractWriteOff = 42
     }
 }

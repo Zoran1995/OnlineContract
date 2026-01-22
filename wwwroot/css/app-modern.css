@@ -1,0 +1,671 @@
+/**
+ * app-modern.css
+ * Shared modern design system for grid/list pages
+ * Non-destructive, append-only styles; import after existing CSS
+ */
+
+/* ============================================
+   1. Design Tokens (CSS Custom Properties)
+   ============================================ */
+:root {
+  /* Brand colors */
+  --brand-500: #7a62ff;
+  --brand-600: #6a54f2;
+  --brand-100: #f5f3ff;
+
+  /* Ink/text colors */
+  --ink-900: #2a2a2a;
+  --ink-700: #424242;
+  --ink-500: #6f6f6f;
+  --ink-300: #9ca3af;
+
+  /* Background */
+  --paper: #fff;
+  --bg-soft: #f6f4ff;
+  --bg-muted: #f9fafb;
+
+  /* Focus ring */
+  --ring: 0 0 0 3px rgba(122, 98, 255, 0.22);
+  --ring-error: 0 0 0 3px rgba(239, 68, 68, 0.22);
+
+  /* Border radius */
+  --radius-xl: 18px;
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --radius-sm: 6px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 10px rgba(20, 20, 43, 0.06);
+  --shadow-md: 0 8px 24px rgba(20, 20, 43, 0.08);
+  --shadow-lg: 0 12px 40px rgba(20, 20, 43, 0.12);
+
+  /* Spacing scale */
+  --s1: 8px;
+  --s2: 12px;
+  --s3: 16px;
+  --s4: 24px;
+  --s5: 32px;
+  --s6: 48px;
+}
+
+/* ============================================
+   2. Card Component
+   ============================================ */
+.mod-card {
+  background: var(--paper);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  padding: var(--s4);
+}
+
+.mod-card-compact {
+  padding: var(--s3);
+}
+
+.mod-card-flush {
+  padding: 0;
+}
+
+/* ============================================
+   3. Grid Toolbar
+   ============================================ */
+.mod-toolbar {
+  display: flex;
+  gap: var(--s2);
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: var(--s3);
+}
+
+.mod-toolbar-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+.mod-toolbar-actions {
+  display: flex;
+  gap: var(--s2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ============================================
+   4. Button Styles
+   ============================================ */
+.mod-btn {
+  border: 0;
+  border-radius: var(--radius-full);
+  padding: 10px 18px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.mod-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mod-btn-primary {
+  background: var(--brand-500);
+  color: #fff;
+}
+
+.mod-btn-primary:hover:not(:disabled) {
+  background: var(--brand-600);
+}
+
+.mod-btn-outline {
+  background: transparent;
+  border: 2px solid var(--brand-500);
+  color: var(--brand-500);
+}
+
+.mod-btn-outline:hover:not(:disabled) {
+  background: var(--brand-100);
+}
+
+.mod-btn-ghost {
+  background: transparent;
+  color: var(--ink-700);
+}
+
+.mod-btn-ghost:hover:not(:disabled) {
+  background: var(--bg-soft);
+}
+
+.mod-btn-error {
+  background: #ef4444;
+  color: #fff;
+}
+
+.mod-btn-error:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.mod-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.mod-btn-error:focus-visible {
+  box-shadow: var(--ring-error);
+}
+
+/* Small button variant */
+.mod-btn-sm {
+  padding: 6px 14px;
+  font-size: 0.8125rem;
+}
+
+/* ============================================
+   5. Modern Table
+   ============================================ */
+.table-scroll {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-modern {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+}
+
+.table-modern thead th {
+  text-align: left;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  color: var(--ink-700);
+  padding: 10px 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 2px solid var(--bg-soft);
+  background: transparent;
+}
+
+.table-modern tbody tr {
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-md);
+}
+
+.table-modern tbody tr > td:first-child {
+  border-top-left-radius: var(--radius-md);
+  border-bottom-left-radius: var(--radius-md);
+}
+
+.table-modern tbody tr > td:last-child {
+  border-top-right-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+}
+
+.table-modern tbody td {
+  padding: 14px 12px;
+  color: var(--ink-900);
+  vertical-align: middle;
+}
+
+.table-modern tbody tr.active {
+  background: var(--brand-100);
+  box-shadow: var(--shadow-md), inset 0 0 0 2px var(--brand-500);
+}
+
+/* Right-aligned columns */
+.table-modern .text-right,
+.table-modern td[data-align="right"] {
+  text-align: right;
+}
+
+.table-modern .text-center,
+.table-modern td[data-align="center"] {
+  text-align: center;
+}
+
+/* ============================================
+   6. Stat Cards
+   ============================================ */
+.mod-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+
+.mod-stat-card {
+  background: linear-gradient(135deg, var(--brand-100) 0%, #fce7f3 100%);
+  border-radius: var(--radius-lg);
+  padding: var(--s3);
+  text-align: center;
+}
+
+.mod-stat-icon {
+  font-size: 2rem;
+  margin-bottom: var(--s1);
+}
+
+.mod-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #7c3aed;
+  line-height: 1.2;
+}
+
+.mod-stat-label {
+  font-size: 0.75rem;
+  color: var(--ink-500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+}
+
+/* ============================================
+   7. Filter Section
+   ============================================ */
+.mod-filters {
+  background: var(--paper);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  padding: var(--s4);
+  margin-bottom: var(--s3);
+}
+
+.mod-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--s3);
+  align-items: end;
+}
+
+.mod-filters-actions {
+  display: flex;
+  gap: var(--s2);
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+
+/* ============================================
+   8. Pagination
+   ============================================ */
+.mod-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  justify-content: space-between;
+  padding: var(--s3);
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  margin-top: var(--s3);
+}
+
+.mod-pagination-info {
+  font-weight: 600;
+  color: var(--brand-500);
+}
+
+.mod-pagination-count {
+  font-size: 0.875rem;
+  color: var(--ink-500);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ============================================
+   9. Badge/Status Pills
+   ============================================ */
+.mod-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.mod-badge-pending {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.mod-badge-success {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.mod-badge-processing {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.mod-badge-error {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.mod-badge-neutral {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+/* ============================================
+   10. Hero Section (for details pages)
+   ============================================ */
+.mod-hero {
+  background: linear-gradient(135deg, var(--brand-100) 0%, #fce7f3 50%, #fef3c7 100%);
+  border-radius: var(--radius-xl);
+  padding: var(--s5);
+  text-align: center;
+  margin-bottom: var(--s4);
+}
+
+.mod-hero-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #5b21b6;
+  margin: 0 0 var(--s1);
+}
+
+.mod-hero-subtitle {
+  font-size: 1rem;
+  color: #6d28d9;
+  margin: 0;
+}
+
+/* ============================================
+   11. Grid Layout Utilities
+   ============================================ */
+.mod-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s3);
+}
+
+.mod-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s3);
+}
+
+.mod-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s3);
+}
+
+@media (max-width: 768px) {
+  .mod-grid-2,
+  .mod-grid-3,
+  .mod-grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  .mod-stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ============================================
+   12. Spacing Utilities
+   ============================================ */
+.mod-mt-1 { margin-top: var(--s1); }
+.mod-mt-2 { margin-top: var(--s2); }
+.mod-mt-3 { margin-top: var(--s3); }
+.mod-mt-4 { margin-top: var(--s4); }
+.mod-mb-1 { margin-bottom: var(--s1); }
+.mod-mb-2 { margin-bottom: var(--s2); }
+.mod-mb-3 { margin-bottom: var(--s3); }
+.mod-mb-4 { margin-bottom: var(--s4); }
+.mod-gap-1 { gap: var(--s1); }
+.mod-gap-2 { gap: var(--s2); }
+.mod-gap-3 { gap: var(--s3); }
+
+/* ============================================
+   13. Text Utilities
+   ============================================ */
+.mod-text-muted { color: var(--ink-500); }
+.mod-text-brand { color: var(--brand-500); }
+.mod-text-sm { font-size: 0.875rem; }
+.mod-text-xs { font-size: 0.75rem; }
+.mod-font-bold { font-weight: 700; }
+
+/* ============================================
+   14. Focus & Accessibility
+   ============================================ */
+.mod-focus:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* Keyboard focus on rows */
+.table-modern tbody tr:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* ============================================
+   15. Animations (respect reduced motion)
+   ============================================ */
+@media (prefers-reduced-motion: no-preference) {
+  .mod-card,
+  .mod-btn,
+  .mod-stat-card {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .table-modern tbody tr {
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  }
+
+  .table-modern tbody tr:hover:not(.active) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+
+  .mod-card:hover,
+  .mod-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Slide-in animation for rows */
+  @keyframes modSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .mod-animate-row {
+    animation: modSlideIn 0.3s ease forwards;
+  }
+}
+
+/* ============================================
+   16. Responsive Adjustments
+   ============================================ */
+@media (max-width: 640px) {
+  .mod-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--s2);
+  }
+
+  .mod-toolbar-actions {
+    justify-content: flex-start;
+  }
+
+  .mod-pagination {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .mod-hero {
+    padding: var(--s4);
+  }
+
+  .mod-hero-title {
+    font-size: 1.5rem;
+  }
+}
+
+/* ============================================
+   17. Empty State
+   ============================================ */
+.mod-empty {
+  text-align: center;
+  padding: var(--s6);
+}
+
+.mod-empty-icon {
+  font-size: 4rem;
+  color: var(--ink-300);
+  margin-bottom: var(--s3);
+}
+
+.mod-empty-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink-700);
+  margin: 0 0 var(--s1);
+}
+
+.mod-empty-text {
+  color: var(--ink-500);
+  margin: 0 0 var(--s3);
+}
+/* ============================================
+   13. Unified Grid Footer
+   ============================================ */
+.grid-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  margin-top: var(--s3);
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--s3);
+}
+
+.grid-footer .rows-per-page {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.grid-footer .pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.grid-footer .page-indicator {
+  font-weight: 600;
+  color: var(--brand-500);
+}
+
+.grid-footer .page-indicator b {
+  font-weight: 700;
+}
+
+.grid-footer .total-records {
+  font-size: 0.875rem;
+  color: var(--ink-500);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.grid-footer .btn {
+  border-radius: 999px;
+  padding: 8px 14px;
+}
+
+.grid-footer .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   14. Uppercase Column Headers (CSS-only)
+   ============================================ */
+/* Apply uppercase to ALL table headers without changing DOM text */
+.table-modern thead th,
+table thead th,
+.table thead th,
+.table-zebra thead th {
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Ensure mod-pagination matches grid-footer styling */
+.mod-pagination .mod-pagination-info {
+  font-weight: 600;
+  color: var(--brand-500);
+}
+
+.mod-pagination .mod-pagination-info b {
+  font-weight: 700;
+}
+
+/* ============================================
+   15. Access Denied Component
+   ============================================ */
+.access-denied-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 80px);
+  padding: var(--s4);
+}
+
+.access-denied {
+  background: var(--paper);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  padding: var(--s5) var(--s6);
+  text-align: center;
+  max-width: 480px;
+}
+
+.access-denied h2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s2);
+  font-weight: 700;
+  font-size: 1.5rem;
+  color: var(--ink-800);
+}
+
+.access-denied h2 .material-icons {
+  color: #e11d48;
+  font-size: 1.75rem;
+}
+
+.access-denied p {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 1rem;
+}

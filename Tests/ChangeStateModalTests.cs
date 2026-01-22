@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using OnlineContract.Helpers;
 using Xunit;
 
 namespace OnlineContract.Tests;
@@ -18,7 +19,7 @@ public class ChangeStateModalTests : IClassFixture<WebAppFactory>
         resp.EnsureSuccessStatusCode();
         var dto = await resp.Content.ReadFromJsonAsync<ModalDto>();
         Assert.NotNull(dto);
-        Assert.Equal(21, dto!.CurrentStateId); // ProductStateInOrder.Draft
+        Assert.Equal((int)ProductStateInOrder.Draft, dto!.CurrentStateId);
         Assert.Equal("Draft", dto.CurrentStateName);
         Assert.False(dto.IsEndState);
         Assert.Empty(dto.NextStates);
@@ -33,7 +34,7 @@ public class ChangeStateModalTests : IClassFixture<WebAppFactory>
         resp.EnsureSuccessStatusCode();
         var dto = await resp.Content.ReadFromJsonAsync<ModalDto>();
         Assert.NotNull(dto);
-        Assert.Equal(24, dto!.CurrentStateId); // ProductStateInOrder.Rejected
+        Assert.Equal((int)ProductStateInOrder.Rejected, dto!.CurrentStateId);
         Assert.Equal("Rejected", dto.CurrentStateName);
         Assert.True(dto.IsEndState);
         Assert.Empty(dto.NextStates);
@@ -44,7 +45,7 @@ public class ChangeStateModalTests : IClassFixture<WebAppFactory>
     {
         var (client, authCookie) = await _factory.CreateAuthenticatedClientAsync("testuser", "Password1");
         if (!string.IsNullOrEmpty(authCookie)) client.DefaultRequestHeaders.Add("Cookie", ExtractCookie(authCookie!, ".OnlineContract.Auth"));
-        var resp = await client.PostAsJsonAsync("/api/contracts/items/501/state/set", new { nextStateId = 24 });
+        var resp = await client.PostAsJsonAsync("/api/contracts/items/501/state/set", new { nextStateId = (int)ProductStateInOrder.Rejected });
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
     }
 
