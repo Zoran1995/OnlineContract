@@ -9,6 +9,7 @@
   <link rel="icon" href="/resources/icons/clipboard-list.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/css/eventlog.css" />
   <link rel="stylesheet" href="/css/login.css" />
+  <link rel="stylesheet" href="/css/app-modern.css" />
   <link href="/dist/output.css" rel="stylesheet">
 </head>
 <body class="bg-base-200 text-base-content">
@@ -38,7 +39,10 @@
 
   <!-- Filters -->
   <section id="eventlogContent" class="container mx-auto p-4">
-    <div class="bg-base-100 rounded-xl shadow p-4">
+    <div class="mod-toolbar mod-mb-3">
+      <h1 class="mod-toolbar-title">Event Logs</h1>
+    </div>
+    <div class="mod-filters">
       <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
         <div>
           <label class="label"><span class="label-text">Type</span></label>
@@ -70,8 +74,8 @@
 
   <!-- Grid -->
   <section id="eventlogGrid" class="container mx-auto p-4">
-    <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
-      <table id="logTable" class="table table-zebra w-full">
+    <div class="mod-card mod-card-compact table-scroll">
+      <table id="logTable" class="table-modern">
         <thead>
           <tr>
             <th>ID</th>
@@ -87,20 +91,24 @@
     </div>
 
     <!-- Pagination -->
-    <div class="flex items-center gap-3 mt-3 grid-pagination">
-      <label class="text-sm">Rows per page:</label>
-      <select id="pageSize" class="select select-bordered w-20 select-sm">
-        <option value="10" selected>10</option>
-        <option value="20">20</option>
-        <option value="50">50</option>
-        <option value="100">100</option>
-      </select>
+    <div class="mod-pagination">
+      <div class="flex items-center gap-2">
+        <label class="mod-text-sm">Rows per page:</label>
+        <select id="pageSize" class="select select-bordered w-20 select-sm">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </div>
 
-      <button id="prevPage" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
-      <span id="pageInfo" class="font-semibold"></span>
-      <button id="nextPage" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
+      <div class="flex items-center gap-2">
+        <button id="prevPage" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
+        <span id="pageInfo" class="mod-pagination-info"></span>
+        <button id="nextPage" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
+      </div>
 
-      <span id="pageCountInfo" class="page-count-info"></span>
+      <span id="pageCountInfo" class="mod-pagination-count"></span>
     </div>
   </section>
 

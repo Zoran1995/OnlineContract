@@ -3,6 +3,8 @@
   const loadingOverlay = document.getElementById('loadingOverlay');
   const detailsEmpty = document.getElementById('detailsEmpty');
   const pageTitle = document.getElementById('pageTitle');
+  const pendingBanner = document.getElementById('pendingTasksBanner');
+  const pendingBannerText = document.getElementById('pendingTasksText');
 
   // Basic details elements
   const contractIdEl = document.getElementById('contractId');
@@ -11,6 +13,7 @@
   const contractStateEl = document.getElementById('contractState');
   const inputUserCodeEl = document.getElementById('inputUserCode');
   const lastModifiedByCodeEl = document.getElementById('lastModifiedByCode');
+  const btnContractState = document.getElementById('btnContractState');
 
   // Items UI
   const itemsTableBody = document.querySelector('#itemsTable tbody');
@@ -38,6 +41,8 @@
 
   const state = {
     id: 0,
+    contractStateName: '',
+    hasPendingTasks: false,
     items: [],
     itemsPage: 1,
     itemsPageSize: 10,
@@ -125,13 +130,53 @@
       setText(contractIdEl, data.id ?? id);
       setText(entryDateEl, data.entryDate ?? '');
       setText(customerFullNameEl, data.customerFullName ?? '');
-      setText(contractStateEl, data.contractStateText || data.contractState || '');
+      const stName = (data.contractStateText || data.contractState || '').toString();
+      state.contractStateName = stName;
+      if (btnContractState) {
+        btnContractState.innerHTML = `<span class="material-icons" aria-hidden="true">swap_horiz</span><span>${stName || '—'}</span>`;
+        btnContractState.setAttribute('aria-label', `Contract state: ${stName || '—'}`);
+        // Defer disable logic to after checkPendingTasks runs
+        updateContractStateButton();
+      }
       setText(inputUserCodeEl, data.inputUserCode || '');
       setText(lastModifiedByCodeEl, data.lastModifiedByCode || '');
     } catch {
       detailsEmpty?.classList.remove('hidden');
       try { showToast('error', 'Failed to load contract details.'); } catch {}
     } finally { setLoading(false); }
+  }
+
+  async function checkPendingTasks() {
+    const id = state.id;
+    try {
+      const res = await fetch(`/api/tasks/contract-pending?contractId=${encodeURIComponent(id)}`, { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' } });
+      if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+      if (!res.ok) return;
+      const data = await res.json();
+      const show = !!(data && data.hasPending);
+      state.hasPendingTasks = show;
+      pendingBanner?.classList.toggle('hidden', !show);
+      if (show && pendingBannerText) {
+        const count = Number(data.count || 0);
+        pendingBannerText.textContent = count > 1 ? 'This contract has tasks in pending state.' : 'This contract has a task in pending state.';
+      }
+      // Update button states based on pending tasks
+      updateContractStateButton();
+    } catch {}
+  }
+
+  function updateContractStateButton() {
+    if (!btnContractState) return;
+    const isDraft = (state.contractStateName || '').toLowerCase() === 'draft';
+    const hasPending = state.hasPendingTasks;
+    btnContractState.disabled = isDraft || hasPending;
+    if (hasPending && !isDraft) {
+      btnContractState.title = 'State changes are disabled while pending tasks exist';
+    } else if (isDraft) {
+      btnContractState.title = 'State change is not allowed for Draft contracts';
+    } else {
+      btnContractState.title = 'Open Contracts State Workflow';
+    }
   }
 
   async function loadItems() {
@@ -146,6 +191,7 @@
       const apiPages = Number(data.totalPages);
       state.itemsTotalPages = (Number.isFinite(apiPages) && apiPages > 0) ? apiPages : Math.max(1, Math.ceil(state.itemsTotalCount / state.itemsPageSize));
       renderItems();
+      updateItemsToolbar();
     } catch { try { showToast('error', 'Failed to load items'); } catch {} }
   }
 
@@ -186,7 +232,7 @@
     // pager
     const pages = Math.max(1, Number(state.itemsTotalPages || 1));
     const page = Math.min(Math.max(1, state.itemsPage), pages);
-    if (itemsPageInfo) itemsPageInfo.textContent = `Page ${page} of ${pages}`;
+    if (itemsPageInfo) itemsPageInfo.innerHTML = `Page <b>${page}</b> of <b>${pages}</b>`;
     if (itemsPageCountInfo) itemsPageCountInfo.textContent = `Total records: ${state.itemsTotalCount}`;
     if (itemsPrev) itemsPrev.disabled = (page <= 1 || state.itemsTotalCount === 0);
     if (itemsNext) itemsNext.disabled = (page >= pages || state.itemsTotalCount === 0);
@@ -207,7 +253,15 @@
         const item = (state.items || []).find(x => x.id === state.selectedItemId);
         if (item && item.isActive === false) disable = true;
       }
+      // Disable item state changes when contract is in Draft or has pending tasks
+      if ((state.contractStateName || '').toLowerCase() === 'draft') disable = true;
+      if (state.hasPendingTasks) disable = true;
       btnChangeState.disabled = disable;
+      if (state.hasPendingTasks) {
+        btnChangeState.title = 'State changes are disabled while pending tasks exist';
+      } else {
+        btnChangeState.title = '';
+      }
     }
   }
 
@@ -242,6 +296,7 @@
       const apiPages = Number(data.totalPages);
       state.notesTotalPages = (Number.isFinite(apiPages) && apiPages > 0) ? apiPages : Math.max(1, Math.ceil(state.notesTotalCount / state.notesPageSize));
       renderNotes();
+      updateNotesToolbar();
     } catch { try { showToast('error', 'Failed to load notes'); } catch {} }
   }
 
@@ -264,7 +319,7 @@
         });
         if (state.selectedNoteId && n.id === state.selectedNoteId) tr.classList.add('active');
         const cells = [
-          String(n.comment || n.text || ''),
+          String(n.subject || ''),
           String(n.inputDt || ''),
           String(n.inputUserCode || '—'),
           (n.isActive ? 'Active' : 'Inactive')
@@ -275,7 +330,7 @@
     }
     const pages = Math.max(1, Number(state.notesTotalPages || 1));
     const page = Math.min(Math.max(1, state.notesPage), pages);
-    if (notesPageInfo) notesPageInfo.textContent = `Page ${page} of ${pages}`;
+    if (notesPageInfo) notesPageInfo.innerHTML = `Page <b>${page}</b> of <b>${pages}</b>`;
     if (notesPageCountInfo) notesPageCountInfo.textContent = `Total records: ${state.notesTotalCount}`;
     if (notesPrev) notesPrev.disabled = (page <= 1 || state.notesTotalCount === 0);
     if (notesNext) notesNext.disabled = (page >= pages || state.notesTotalCount === 0);
@@ -284,10 +339,39 @@
   function updateNotesToolbar() {
     const hasSel = !!state.selectedNoteId;
     if (btnOpenNote) btnOpenNote.disabled = !hasSel;
-    if (btnDeleteNote) btnDeleteNote.disabled = !hasSel;
+    if (btnDeleteNote) {
+      let disable = !hasSel;
+      if (hasSel) {
+        const row = (state.notes || []).find(x => x.id === state.selectedNoteId);
+        if (row && (String(row.inputUserCode || '').toLowerCase() === 'system')) disable = true;
+      }
+      // Disable delete when pending tasks
+      if (state.hasPendingTasks) disable = true;
+      btnDeleteNote.disabled = disable;
+      if (state.hasPendingTasks) {
+        btnDeleteNote.title = 'Note changes are disabled while pending tasks exist';
+      } else {
+        btnDeleteNote.title = '';
+      }
+    }
+    // Also handle Add Note button
+    if (btnAddNote) {
+      const isDraft = (state.contractStateName || '').toLowerCase() === 'draft';
+      btnAddNote.disabled = state.hasPendingTasks || isDraft;
+      if (state.hasPendingTasks) {
+        btnAddNote.title = 'Note changes are disabled while pending tasks exist';
+      } else if (isDraft) {
+        btnAddNote.title = 'Note changes are disabled for Draft contracts';
+      } else {
+        btnAddNote.title = '';
+      }
+    }
   }
 
   function onAddNote() {
+    const isDraft = (state.contractStateName || '').toLowerCase() === 'draft';
+    if (isDraft) { try { showToast('warning','Note changes are disabled for Draft contracts.'); } catch {} return; }
+    if (state.hasPendingTasks) { try { showToast('warning','Note changes are disabled while pending tasks exist.'); } catch {} return; }
     ensureNoteModal();
     if (noteModalTitle) noteModalTitle.textContent = 'Add Note';
     if (noteSubject) noteSubject.value = '';
@@ -295,31 +379,53 @@
     if (noteProductId) noteProductId.value = '';
     if (noteContractId) noteContractId.value = String(state.id || '');
     if (noteActive) noteActive.checked = true;
+    if (noteModal) { noteModal.dataset.mode = 'add'; noteModal.dataset.editId = ''; noteModal.dataset.editStamp = ''; }
+    if (noteSubject) noteSubject.disabled = false;
+    if (noteComment) noteComment.disabled = false;
+    if (noteActive) noteActive.disabled = false;
+    if (noteSave) { noteSave.disabled = false; noteSave.classList.remove('hidden'); }
     try { noteModal.showModal(); } catch {}
   }
 
   async function onSaveNote(e) {
     e.preventDefault();
+    if (state.hasPendingTasks) { try { showToast('warning','Note changes are disabled while pending tasks exist.'); } catch {} return; }
     const id = state.id;
-    const payload = {
-      add: [ { comment: (noteComment?.value || '').trim(), subject: (noteSubject?.value || '').trim(), isActive: !!(noteActive?.checked) } ],
-      update: [],
-      delete: [],
-      setMainId: null,
-      setMainStamp: null
-    };
+    const mode = noteModal?.dataset?.mode || 'add';
     try {
-      if (!payload.add[0].comment) { try { showToast('warning','Comment is required'); } catch {} return; }
-      const res = await fetch(`/api/contracts/${encodeURIComponent(id)}/notes`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload) });
-      if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      try { showToast('info', 'Note has been successfully added.'); } catch {}
+      const subj = (noteSubject?.value || '').trim();
+      const comm = (noteComment?.value || '').trim();
+      const isActive = !!(noteActive?.checked);
+      if (!comm) { try { showToast('warning','Comment is required'); } catch {} return; }
+      let res;
+      if (mode === 'edit') {
+        const editId = Number(noteModal?.dataset?.editId || '0');
+        if (!editId || Number.isNaN(editId)) { try { showToast('error','Invalid note selected.'); } catch {} return; }
+        const body = { Subject: subj, Comment: comm, ContractId: id, ProductId: null, IsActive: isActive };
+        res = await fetch(`/api/notes/${encodeURIComponent(editId)}`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) });
+        if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        try { showToast('info', 'Note has been successfully updated.'); } catch {}
+      } else {
+        const payload = {
+          add: [ { comment: comm, subject: subj, isActive } ],
+          update: [],
+          delete: [],
+          setMainId: null,
+          setMainStamp: null
+        };
+        res = await fetch(`/api/contracts/${encodeURIComponent(id)}/notes`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        try { showToast('info', 'Note has been successfully added.'); } catch {}
+      }
       try { noteModal.close(); } catch {}
       state.notesPage = 1; await loadNotes();
     } catch { try { showToast('error', 'Failed to save note.'); } catch {} }
   }
 
   async function onDeleteNote() {
+    if (state.hasPendingTasks) { try { showToast('warning','Note changes are disabled while pending tasks exist.'); } catch {} return; }
     const id = state.selectedNoteId;
     if (!id) return;
     const row = (state.notes || []).find(x => x.id === id);
@@ -335,14 +441,135 @@
     } catch { try { showToast('error', 'Failed to delete note.'); } catch {} }
   }
 
+
   document.addEventListener('DOMContentLoaded', async () => {
     state.id = getContractIdFromPath();
     if (!state.id) { detailsEmpty?.classList.remove('hidden'); return; }
     await loadDetails();
+    await checkPendingTasks();
     await loadItems();
     await loadNotes();
 
     btnOpenItem?.addEventListener('click', (e) => { e.preventDefault(); openItemReadOnly(); });
+
+    // Contract State Workflow (header button)
+    btnContractState?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (state.hasPendingTasks) { try { showToast('warning','State changes are disabled while pending tasks exist.'); } catch {} return; }
+      if ((state.contractStateName || '').toLowerCase() === 'draft') { try { showToast('warning','State change is not allowed for Draft contracts.'); } catch {} return; }
+      const dlg = document.getElementById('contractStateModal');
+      const cur = document.getElementById('ctwCurrentState');
+      const nextSel = document.getElementById('ctwNextState');
+      const commentEl = document.getElementById('ctwComment');
+      const btnOk = document.getElementById('ctwOk');
+      const btnCancel = document.getElementById('ctwCancel');
+      const btnSet = document.getElementById('ctwSetState');
+
+      // Load modal data (current + next states)
+      try {
+        const res = await fetch(`/api/contracts/${encodeURIComponent(state.id)}/state/modal-data`, { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' } });
+        if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (cur) cur.value = String(data.currentStateName || '');
+        if (nextSel) {
+          nextSel.innerHTML = '';
+          (data.nextStates || []).forEach(ns => {
+            const opt = document.createElement('option');
+            opt.value = String(ns.id);
+            opt.textContent = String(ns.name || '');
+            nextSel.appendChild(opt);
+          });
+          const disabled = (!data.nextStates || data.nextStates.length === 0);
+          nextSel.disabled = disabled;
+          // Preselect first available next state and enable Set if exists
+          if (!disabled && nextSel.options.length > 0) {
+            nextSel.selectedIndex = 0;
+            if (btnSet) btnSet.disabled = false;
+          } else {
+            if (btnSet) btnSet.disabled = true;
+          }
+          nextSel.addEventListener('change', () => {
+            const val = nextSel.value;
+            if (btnSet) btnSet.disabled = !val;
+          });
+        }
+        if (btnOk) btnOk.disabled = true;
+        if (commentEl) commentEl.value = '';
+      } catch { try { showToast('error','Failed to load workflow'); } catch {} return; }
+
+      try { dlg.showModal(); } catch {}
+      btnCancel?.addEventListener('click', (ev) => { ev.preventDefault(); try { dlg.close(); } catch {} });
+      btnOk?.addEventListener('click', (ev) => { ev.preventDefault(); try { dlg.close(); } catch {} });
+      dlg?.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { try { dlg.close(); } catch {} } });
+
+      btnSet?.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        try {
+          const val = nextSel?.value ? parseInt(nextSel.value,10) : NaN;
+          if (!val || Number.isNaN(val)) { try { showToast('warning','Next state is required.'); } catch {} return; }
+          if ((state.contractStateName || '').toLowerCase() === 'draft') { try { showToast('warning','State change is not allowed for Draft contracts.'); } catch {} return; }
+          const payload = { nextStateId: val, comment: (commentEl?.value || '').trim() };
+          const res = await fetch(`/api/contracts/${encodeURIComponent(state.id)}/state`, {
+            method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload)
+          });
+          if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+          if (res.status === 400) { const j = await res.json(); try { showToast('error', j.message || 'Selected next state is not allowed.'); } catch {} return; }
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const j = await res.json();
+          // Update state button, reload notes
+          state.contractStateName = String(j.newStateName || state.contractStateName || '');
+          if (btnContractState) btnContractState.innerHTML = `<span class="material-icons" aria-hidden="true">swap_horiz</span><span>${state.contractStateName || '—'}</span>`;
+          await loadNotes();
+          // Refresh modal data to reflect new current/next states
+          try {
+            const res2 = await fetch(`/api/contracts/${encodeURIComponent(state.id)}/state/modal-data`, { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' } });
+            if (res2.ok) {
+              const data2 = await res2.json();
+              if (cur) cur.value = String(data2.currentStateName || '');
+              if (nextSel) {
+                nextSel.innerHTML = '';
+                (data2.nextStates || []).forEach(ns => {
+                  const opt = document.createElement('option');
+                  opt.value = String(ns.id);
+                  opt.textContent = String(ns.name || '');
+                  nextSel.appendChild(opt);
+                });
+              await loadNotes();
+              // Refresh modal data and clear comment
+              try {
+                const res2 = await fetch(`/api/contracts/${encodeURIComponent(state.id)}/state/modal-data`, { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' } });
+                if (res2.ok) {
+                  const data2 = await res2.json();
+                  if (cur) cur.value = String(data2.currentStateName || '');
+                  if (nextSel) {
+                    nextSel.innerHTML = '';
+                    (data2.nextStates || []).forEach(ns => {
+                      const opt = document.createElement('option');
+                      opt.value = String(ns.id);
+                      opt.textContent = String(ns.name || '');
+                      nextSel.appendChild(opt);
+                    });
+                    const disabled2 = (!data2.nextStates || data2.nextStates.length === 0);
+                    nextSel.disabled = disabled2;
+                    if (!disabled2 && nextSel.options.length > 0) { nextSel.selectedIndex = 0; if (btnSet) btnSet.disabled = false; }
+                    else { if (btnSet) btnSet.disabled = true; }
+                  }
+                }
+              } catch {}
+              if (commentEl) commentEl.value = '';
+                nextSel.disabled = disabled2;
+                if (!disabled2 && nextSel.options.length > 0) { nextSel.selectedIndex = 0; if (btnSet) btnSet.disabled = false; }
+                else { if (btnSet) btnSet.disabled = true; }
+              }
+            }
+          } catch {}
+          // Enable OK
+          if (btnOk) btnOk.disabled = false;
+          try { showToast('info','Contract state has been successfully updated.'); } catch {}
+        } catch { try { showToast('error','Failed to set state'); } catch {} }
+      });
+    });
     btnChangeState?.addEventListener('click', async (e) => {
       e.preventDefault();
       const item = (state.items || []).find(x => x.id === state.selectedItemId);
@@ -415,7 +642,29 @@
 
     btnAddNote?.addEventListener('click', (e) => { e.preventDefault(); onAddNote(); });
     btnDeleteNote?.addEventListener('click', (e) => { e.preventDefault(); onDeleteNote(); });
-    btnOpenNote?.addEventListener('click', (e) => { e.preventDefault(); /* simple open: no separate modal, use toast */ try { showToast('info','Select note to view in table.'); } catch {} });
+    btnOpenNote?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (!state.selectedNoteId) { try { showToast('warning','Select a note first.'); } catch {} return; }
+      try {
+        const res = await fetch(`/api/notes/${encodeURIComponent(state.selectedNoteId)}`, { method: 'GET', credentials: 'include', headers: { 'Accept': 'application/json' } });
+        if (!res.ok) { try { showToast('error','Failed to load note.'); } catch {} return; }
+        const data = await res.json();
+        ensureNoteModal();
+        const isSystem = Number(data.inputUserId) === 2 || String(data.inputUserCode || '').toLowerCase() === 'system';
+        if (noteSubject) { noteSubject.value = String(data.subject || ''); noteSubject.disabled = isSystem ? true : false; }
+        if (noteComment) { noteComment.value = String(data.comment || ''); noteComment.disabled = isSystem ? true : false; }
+        if (noteProductId) { noteProductId.value = ''; noteProductId.disabled = true; }
+        if (noteContractId) { noteContractId.value = String(state.id || ''); noteContractId.disabled = true; }
+        if (noteActive) { noteActive.checked = !!data.isActive; noteActive.disabled = isSystem ? true : false; }
+        if (noteModalTitle) noteModalTitle.textContent = (isSystem ? 'View Note' : 'Edit Note') + (data?.id ? `${data.id}` : '');
+        if (noteModal) { noteModal.dataset.mode = isSystem ? 'view' : 'edit'; noteModal.dataset.editId = String(data.id || ''); noteModal.dataset.editStamp = String(data.stamp || ''); }
+        if (noteSave) {
+          if (isSystem) { noteSave.disabled = true; noteSave.classList.add('hidden'); }
+          else { noteSave.disabled = false; noteSave.classList.remove('hidden'); }
+        }
+        try { noteModal.showModal(); } catch {}
+      } catch { try { showToast('error','Failed to load note.'); } catch {} }
+    });
     notesPrev?.addEventListener('click', () => { if (state.notesPage > 1) { state.notesPage--; loadNotes(); } });
     notesNext?.addEventListener('click', () => { const p = Math.max(1, Number(state.notesTotalPages||1)); if (state.notesPage < p) { state.notesPage++; loadNotes(); } });
     notesPageSizeSel?.addEventListener('change', (e) => { state.notesPageSize = parseInt(e.target.value, 10) || 10; state.notesPage = 1; loadNotes(); });

@@ -17,8 +17,8 @@ public class ContractsHistoryGridTests : IClassFixture<WebAppFactory>
         Assert.True(resp.IsSuccessStatusCode);
         var html = await resp.Content.ReadAsStringAsync();
         Assert.Contains("<table id=\"grid\"", html);
-        Assert.Contains("class=\"table table-zebra w-full\"", html);
-        Assert.Contains("grid-pagination", html);
+        Assert.Contains("class=\"table-modern", html);
+        Assert.Contains("mod-pagination", html);
         Assert.Contains("id=\"prevPage\"", html);
         Assert.Contains("id=\"nextPage\"", html);
         Assert.Contains("id=\"pageSize\"", html);

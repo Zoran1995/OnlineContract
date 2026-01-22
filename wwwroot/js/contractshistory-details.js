@@ -13,6 +13,11 @@
   const btnSave = document.getElementById('btnSave');
   const submitCOD = document.getElementById('submitCOD');
   const submitOnline = document.getElementById('submitOnline');
+  const statItemsEl = document.getElementById('statItems');
+  const statTotalEl = document.getElementById('statTotal');
+  const statDateEl = document.getElementById('statDate');
+  let submitDebounceUntil = 0;
+  let redirectOverlayEl = null;
 
   let contractId = 0;
   let selectedId = null;
@@ -49,10 +54,52 @@
   function renderPager(){
     const pages = Math.max(1, Number(totalPages || 1));
     if (page > pages) page = pages;
-    if (pageInfo) pageInfo.textContent = `Page ${page} of ${pages}`;
+    if (pageInfo) pageInfo.innerHTML = `Page <b>${page}</b> of <b>${pages}</b>`;
     if (pageCountInfo) pageCountInfo.textContent = `Total records: ${totalCount}`;
     if (prevPage) prevPage.disabled = (page <= 1 || totalCount === 0);
     if (nextPage) nextPage.disabled = (page >= pages || totalCount === 0);
+  }
+
+  function updateStatTiles() {
+    // Items count: use totalCount from API (all items, not just current page)
+    if (statItemsEl) {
+      statItemsEl.textContent = String(totalCount || 0);
+    }
+
+    // Total: sum of qty × price for all items on current page
+    // Note: For accurate total across all pages, we'd need API support.
+    // Here we compute from visible rows.
+    let total = 0;
+    for (const row of items) {
+      const qty = Number(row.quantity || 0);
+      const price = Number(row.amount || 0);
+      total += qty * price;
+    }
+    if (statTotalEl) {
+      statTotalEl.textContent = `RSD ${Math.round(total).toLocaleString('sr-RS')}`;
+    }
+  }
+
+  function updateOrderDate(inputDt) {
+    if (!statDateEl) return;
+    if (!inputDt) {
+      statDateEl.textContent = '—';
+      return;
+    }
+    try {
+      const dt = new Date(inputDt);
+      if (isNaN(dt.getTime())) {
+        statDateEl.textContent = '—';
+        return;
+      }
+      // Format as YYYY-MM-DD for clean display
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, '0');
+      const d = String(dt.getDate()).padStart(2, '0');
+      statDateEl.textContent = `${y}-${m}-${d}`;
+    } catch {
+      statDateEl.textContent = '—';
+    }
   }
 
   async function loadHeader(){
@@ -64,6 +111,8 @@
     contractState = String(j.contractState || j.contract_state || 'Draft');
     headerStamp = Number(j.stamp || j.Stamp || 0) || 0;
     document.getElementById('title').textContent = `Contract ${j.id} · ${contractState}`;
+    // Update Order Date tile with input_dt (date only)
+    updateOrderDate(j.inputDt || j.input_dt || j.entryDate || null);
     // Apply correct disabled/enabled state immediately after header loads
     try { updateButtons(); } catch {}
     return true;
@@ -80,12 +129,13 @@
     totalPages = Number(data.totalPages || Math.ceil(totalCount / pageSize) || 1);
     renderRows();
     renderPager();
+    updateStatTiles();
   }
 
   function renderRows(){
     tbody.innerHTML = '';
     if (items.length === 0){
-      const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 8; td.textContent = 'No results.'; tr.appendChild(td); tbody.appendChild(tr); return;
+      const tr = document.createElement('tr'); tr.classList.add('empty'); const td = document.createElement('td'); td.colSpan = 8; td.textContent = 'No results.'; tr.appendChild(td); tbody.appendChild(tr); return;
     }
     items.forEach(r => {
       const tr = document.createElement('tr');
@@ -94,16 +144,16 @@
       const total = Number(r.amtGross || 0);
       const qty = Number(r.quantity || 0);
       const cells = [
-        r.productName || '',
-        r.size || '',
-        r.color || '',
-        String(qty),
-        amount.toFixed(2),
-        total.toFixed(2),
-        r.itemStateText || String(r.itemStateId || ''),
-        r.inputDt || ''
+        { val: r.productName || '', attr: null },
+        { val: r.size || '', attr: null },
+        { val: r.color || '', attr: null },
+        { val: String(qty), attr: 'qty' },
+        { val: amount.toFixed(2), attr: 'price' },
+        { val: total.toFixed(2), attr: null },
+        { val: r.itemStateText || String(r.itemStateId || ''), attr: null },
+        { val: r.inputDt || '', attr: null }
       ];
-      for (const c of cells){ const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); }
+      for (const c of cells){ const td = document.createElement('td'); td.textContent = c.val; if (c.attr) td.setAttribute('data-col', c.attr); tr.appendChild(td); }
       tbody.appendChild(tr);
     });
   }
@@ -122,6 +172,24 @@
     showLoading();
     const ok = await loadHeader();
     if (ok) { itemsWrap.classList.remove('hidden'); await loadItems(); try { updateButtons(); } catch {} }
+    // If there was a recent payment attempt, check status and show failure toast if needed
+    try {
+      const lastRef = localStorage.getItem('lastPaymentReference') || '';
+      const lastCid = parseInt(localStorage.getItem('lastContractId')||'0',10) || 0;
+      if (lastRef && lastCid === contractId) {
+        const res = await fetch(`/api/payments/status?reference=${encodeURIComponent(lastRef)}`, { credentials: 'include' });
+        const js = await res.json().catch(()=>({}));
+        if (js && js.status === 'Failed') {
+          try { showToast('error', 'Payment failed. Please try again.'); } catch {}
+          // Offer Try again button next to Submit
+          ensureTryAgainButton();
+        }
+        if (js && (js.status === 'Succeeded' || js.status === 'Failed')) {
+          localStorage.removeItem('lastPaymentReference');
+          localStorage.removeItem('lastContractId');
+        }
+      }
+    } catch{}
     hideLoading();
   }
 
@@ -193,15 +261,140 @@
   submitOnline?.addEventListener('click', async () => { await submit('online'); });
   async function submit(method){
     if (contractState !== 'Draft') return;
+    const now = Date.now();
+    if (method === 'online' && now < submitDebounceUntil) return;
     try{
       const res = await fetch(`/api/contracts/${contractId}/submit?method=${encodeURIComponent(method)}`, { method:'POST', credentials:'include', headers:{'Accept':'application/json'} });
       const j = await res.json().catch(()=>({}));
-      if (res.ok){ try { showToast('info', j.message || 'Your order has been submitted successfully. We’ll contact you shortly.'); } catch {} await loadHeader(); await loadItems(); }
+      if (res.ok){
+        if (method === 'online' && j && j.redirectUrl){
+          // Guard multiple submits
+          submitDebounceUntil = Date.now() + 5000;
+          // Disable submit button and mark as in-progress
+          if (submitOnline) {
+            try { submitOnline.disabled = true; } catch{}
+            try { submitOnline.classList.add('btn-disabled'); } catch{}
+            try { submitOnline.setAttribute('aria-disabled','true'); } catch{}
+          }
+          // In non-production stub flow, open simulation modal instead of navigating
+          const urlStr = String(j.redirectUrl || '');
+          const isMock = urlStr.startsWith('/payments/wspay/mock');
+          if (isMock) {
+            openSimulatePaymentModal(String(j.reference || ''));
+          } else {
+            // Show overlay and navigate in real flow
+            showRedirectOverlay(urlStr);
+          }
+          // Persist reference for return pages and status polling
+          try {
+            if (j.reference) localStorage.setItem('lastPaymentReference', String(j.reference));
+            localStorage.setItem('lastContractId', String(contractId));
+          } catch{}
+          return;
+        }
+        // For online method without redirectUrl, treat as error
+        if (method === 'online') {
+          try { showToast('error', j.message || 'Payment initialization failed. Please try again.'); } catch {}
+        } else {
+          try { showToast('info', j.message || 'Your order has been submitted successfully. We’ll contact you shortly.'); } catch {}
+        }
+        await loadHeader(); await loadItems();
+      }
       else {
         const msg = j.message || 'Submit failed';
         const isProfileIncomplete = msg === 'Please review your profile details and try again.';
         try { showToast(isProfileIncomplete ? 'warning' : 'error', msg); } catch {}
       }
+    } catch{}
+  }
+
+  function openSimulatePaymentModal(reference){
+    try{
+      const dlg = document.getElementById('simulatePaymentModal');
+      const refEl = document.getElementById('simulateRef');
+      const btnOk = document.getElementById('btnSimPaySuccess');
+      const btnFail = document.getElementById('btnSimPayFailure');
+      const btnCancel = document.getElementById('btnSimPayCancel');
+      if (!dlg || !dlg.showModal || !btnOk || !btnFail || !btnCancel) return;
+      if (refEl) refEl.textContent = reference || '';
+      const onSuccess = async (e) => {
+        e.preventDefault();
+        try{
+          const r = await fetch('/api/payments/wspay/mock-callback', { method:'POST', headers:{'Accept':'application/json','Content-Type':'application/json'}, body: JSON.stringify({ reference, status: 'Succeeded', contractId }) });
+          const js = await r.json().catch(()=>({}));
+          if (r.ok && js && js.success){
+            try { dlg.close(); } catch {}
+            // Refresh header and items to show Submitted state
+            await loadHeader(); await loadItems(); updateButtons();
+          } else {
+            try { showToast('error', (js && js.message) || 'Payment failed. Please try again.'); } catch {}
+            ensureTryAgainButton();
+          }
+        }catch{}
+      };
+      const onFailure = async (e) => {
+        e.preventDefault();
+        try{
+          const r = await fetch('/api/payments/wspay/mock-callback', { method:'POST', headers:{'Accept':'application/json','Content-Type':'application/json'}, body: JSON.stringify({ reference, status: 'Failed', contractId }) });
+          const js = await r.json().catch(()=>({}));
+          try { showToast('error', (js && js.message) || 'Payment failed. Please try again.'); } catch {}
+          ensureTryAgainButton();
+          try { dlg.close(); } catch {}
+        }catch{}
+      };
+      const onCancel = (e) => {
+        e.preventDefault();
+        try { dlg.close(); } catch {}
+        try { window.location.href = '/payments/wspay/return/cancel'; } catch {}
+      };
+      btnOk.addEventListener('click', onSuccess, { once: true });
+      btnFail.addEventListener('click', onFailure, { once: true });
+      btnCancel.addEventListener('click', onCancel, { once: true });
+      try { dlg.showModal(); } catch{}
+    }catch{}
+  }
+
+  function showRedirectOverlay(redirectUrl){
+    try {
+      if (!redirectOverlayEl) {
+        redirectOverlayEl = document.createElement('div');
+        redirectOverlayEl.id = 'redirectOverlay';
+        redirectOverlayEl.className = 'fixed inset-0 bg-black/30 flex items-center justify-center z-50';
+        redirectOverlayEl.setAttribute('role','status');
+        redirectOverlayEl.setAttribute('aria-live','polite');
+        redirectOverlayEl.setAttribute('aria-busy','true');
+        const inner = document.createElement('div');
+        inner.className = 'bg-white rounded shadow p-6 max-w-md w-full text-center';
+        inner.innerHTML = `
+          <div class="flex items-center justify-center mb-4">
+            <span class="loading loading-spinner loading-md" aria-hidden="true"></span>
+          </div>
+          <div class="font-medium mb-2">Redirecting to secure payment…</div>
+          <a id="redirectFallbackLink" class="link" href="#" rel="nofollow">If you are not redirected automatically, click here.</a>
+        `;
+        redirectOverlayEl.appendChild(inner);
+        document.body.appendChild(redirectOverlayEl);
+      }
+      const link = document.getElementById('redirectFallbackLink');
+      if (link) { try { link.href = redirectUrl; } catch{} }
+      // Move focus to overlay
+      try { redirectOverlayEl.tabIndex = -1; redirectOverlayEl.focus(); } catch{}
+      // Navigate in same tab
+      try { window.location.href = redirectUrl; } catch{}
+    } catch{}
+  }
+
+  function ensureTryAgainButton(){
+    try {
+      if (!submitOnline) return;
+      const existing = document.getElementById('tryAgainBtn');
+      if (existing) return;
+      const btn = document.createElement('button');
+      btn.id = 'tryAgainBtn';
+      btn.className = 'btn btn-secondary ml-2';
+      btn.textContent = 'Try again';
+      btn.addEventListener('click', async () => { await submit('online'); });
+      submitOnline.parentElement?.appendChild(btn);
     } catch{}
   }
 

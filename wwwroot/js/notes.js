@@ -112,11 +112,13 @@
       else { el.classList.add('opacity-50'); el.classList.add('pointer-events-none'); el.setAttribute('aria-disabled','true'); }
     };
     // Delete enabled only when a row is selected
-    setItemState(mDelete, hasSelection);
+    let isSystem = false;
+    try { isSystem = (String(selectedRow?.inputUserCode || '').toLowerCase() === 'system') || (Number(selectedRow?.inputUserId) === 2); } catch {}
+    setItemState(mDelete, hasSelection && !isSystem);
     // Set Main only for product-linked AND active notes when a row is selected
-    setItemState(mSetMain, hasSelection && selectedRow && Number(selectedRow.productId) > 0 && (selectedRow.isActive === undefined || selectedRow.isActive === null ? true : !!selectedRow.isActive));
+    setItemState(mSetMain, hasSelection && !isSystem && selectedRow && Number(selectedRow.productId) > 0 && (selectedRow.isActive === undefined || selectedRow.isActive === null ? true : !!selectedRow.isActive));
     // Deactivate/Activate enabled only when a row is selected
-    setItemState(mDeactivate, hasSelection);
+    setItemState(mDeactivate, hasSelection && !isSystem);
     // Update Deactivate/Activate icon + label
     if (mDeactivate) {
       const active = selectedRow?.isActive;
@@ -144,7 +146,7 @@
     const pages = Math.max(1, Number(totalPages) || Math.ceil(total / pageSize));
     const start = total === 0 ? 0 : ((page - 1) * pageSize) + 1;
     const end = total === 0 ? 0 : Math.min(page * pageSize, total);
-    if (pgInfo) pgInfo.textContent = `${start}–${end} of ${total} · pages ${pages}`;
+    if (pgInfo) pgInfo.innerHTML = `Page <b>${page}</b> of <b>${pages}</b>`;
     if (pageCountInfo) pageCountInfo.textContent = `Total records: ${total}`;
     if (pgPrev) pgPrev.disabled = page<=1;
     if (pgNext) pgNext.disabled = page>=pages;
@@ -187,12 +189,12 @@
         const lastModByEl = document.getElementById('noteLastModifiedBy');
 
         if (editIdEl) editIdEl.value = String(data.id ?? '');
-        if (subjEl) subjEl.value = data.subject ?? '';
-        if (commEl) commEl.value = data.comment ?? '';
+        if (subjEl) { subjEl.value = data.subject ?? ''; }
+        if (commEl) { commEl.value = data.comment ?? ''; }
         // contract/product should not be editable when opening existing note
         if (cEl) { cEl.value = data.contractId ?? ''; cEl.disabled = true; }
         if (pEl) { pEl.value = data.productId ?? ''; pEl.disabled = true; }
-        if (titleEl) titleEl.textContent = 'Edit Note';
+        if (titleEl) titleEl.textContent = `Edit Note ${data.id ?? ''}`;
 
         // metadata fields (best-effort)
         if (inputDtEl) inputDtEl.value = data.inputDt ?? '';
@@ -203,6 +205,15 @@
         // Active/Main are managed via the actions menu; modal does not expose controls.
 
         const dlg = document.getElementById('addNoteModal');
+        // System notes are read-only in modal
+        const isSystemNote = (Number(data.inputUserId) === 2) || (String(data.inputUserCode || '').toLowerCase() === 'system');
+        if (isSystemNote) {
+          try { subjEl && (subjEl.disabled = true); commEl && (commEl.disabled = true); } catch {}
+          const saveBtn = document.getElementById('addNoteSave'); if (saveBtn) { saveBtn.setAttribute('disabled','true'); saveBtn.classList.add('opacity-50','pointer-events-none'); }
+        } else {
+          try { subjEl && (subjEl.disabled = false); commEl && (commEl.disabled = false); } catch {}
+          const saveBtn = document.getElementById('addNoteSave'); if (saveBtn) { saveBtn.removeAttribute('disabled'); saveBtn.classList.remove('opacity-50','pointer-events-none'); }
+        }
         try{ dlg.showModal(); } catch { if (dlg) dlg.classList.remove('hidden'); }
       } catch (e) { try { showToast('error','Failed to load note.'); } catch {} }
     });

@@ -7,6 +7,8 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <UserSecretsId>44a8d77e-0f4f-4e49-8f4f-6b95a4083a5b</UserSecretsId>
+    <!-- Avoid building apphost .exe to prevent MSB3026 copy warnings when process is running -->
+    <UseAppHost>false</UseAppHost>
   </PropertyGroup>
 
   <ItemGroup>

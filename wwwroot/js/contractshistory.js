@@ -138,7 +138,7 @@
     if (page > pages) page = pages;
     const start = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
     const end = totalCount === 0 ? 0 : Math.min(page * pageSize, totalCount);
-    if (pageInfo) pageInfo.textContent = `Page ${page} of ${pages}`;
+    if (pageInfo) pageInfo.innerHTML = `Page <b>${page}</b> of <b>${pages}</b>`;
     if (pageCountInfo) pageCountInfo.textContent = `Total records: ${totalCount}`;
     if (prevPage) prevPage.disabled = (page <= 1 || totalCount === 0);
     if (nextPage) nextPage.disabled = (page >= pages || totalCount === 0);

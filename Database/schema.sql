@@ -639,11 +639,263 @@ BEGIN
         [expires_dt] [datetime2](7) NOT NULL,
         [is_used] [bit] NOT NULL,
         [used_dt] [datetime2](7) NULL,
-        CONSTRAINT [PK_password_reset_token] PRIMARY KEY CLUSTERED ([id] ASC)
+        CONSTRAINT [PK_password_reset_token] PRIMARY KEY CLUSTERED ([password_reset_token_id] ASC)
             WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
                   ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
             ON [PRIMARY]
     ) ON [PRIMARY];
+END
+GO
+
+/* 2.14 payment */
+IF OBJECT_ID(N'dbo.payment', N'U') IS NULL
+BEGIN
+    SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
+    CREATE TABLE [dbo].[payment](
+        [payment_id]         [int] IDENTITY(1,1) NOT NULL,
+        [contract_id]        [int] NOT NULL,
+        [provider]           [nvarchar](50) NOT NULL,
+        [external_order_id]  [nvarchar](100) NOT NULL,
+        [amt_gross]          [decimal](18, 2) NOT NULL,
+        [currency]           [nvarchar](10) NOT NULL,
+        [status]             [nvarchar](20) NOT NULL,
+        [created_dt]         [datetime2](0) NOT NULL,
+        [updated_dt]         [datetime2](0) NULL,
+        [stamp]              [int] NOT NULL,
+        [transaction_id]     [nvarchar](100) NULL,
+        [last_callback_dt]   [datetime2](0) NULL,
+        [last_callback_status] [nvarchar](50) NULL,
+        CONSTRAINT [PK_payment] PRIMARY KEY CLUSTERED ([payment_id] ASC)
+            WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
+                  ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
+            ON [PRIMARY],
+        CONSTRAINT [UQ_payment_external_order_id] UNIQUE NONCLUSTERED ([external_order_id] ASC)
+            WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
+                  ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
+            ON [PRIMARY]
+    ) ON [PRIMARY];
+
+    ALTER TABLE [dbo].[payment] ADD  CONSTRAINT [DF_payment_created_dt]
+        DEFAULT (dbo.GetLocalTime()) FOR [created_dt];
+    ALTER TABLE [dbo].[payment] ADD  CONSTRAINT [DF_payment_stamp]
+        DEFAULT ((0)) FOR [stamp];
+
+    ALTER TABLE [dbo].[payment]  WITH CHECK ADD  CONSTRAINT [FK_payment_contract]
+        FOREIGN KEY([contract_id]) REFERENCES [dbo].[contract] ([contract_id]);
+    ALTER TABLE [dbo].[payment] CHECK CONSTRAINT [FK_payment_contract];
+
+    ALTER TABLE [dbo].[payment]  WITH CHECK ADD  CONSTRAINT [CK_payment_amount_nonneg]
+        CHECK ([amt_gross] >= 0);
+    ALTER TABLE [dbo].[payment] CHECK CONSTRAINT [CK_payment_amount_nonneg];
+
+        CREATE INDEX [IX_payment_contract]
+            ON [dbo].[payment] ([contract_id])
+            INCLUDE ([status], [amt_gross], [currency]);
+END
+GO
+
+/* 2.15 approval_rule */
+IF OBJECT_ID(N'dbo.approval_rule', N'U') IS NULL
+BEGIN
+    SET ANSI_NULLS ON;
+    SET QUOTED_IDENTIFIER ON;
+
+    CREATE TABLE [dbo].[approval_rule](
+        [approval_rule_id]   [int] IDENTITY(1,1) NOT NULL,
+        [name]               [nvarchar](200)     NOT NULL,
+        [description]        [nvarchar](500)     NULL,
+        [is_active]          [bit]               NOT NULL,
+        [is_deleted]         [bit]               NOT NULL,
+        [task_assigned_to_id][int]               NOT NULL,
+        [amt_threshold]      [decimal](18,2)     NOT NULL,
+        [pct_threshold]      [decimal](18,2)     NOT NULL,
+        [approval_rule_context_id] [int]         NOT NULL,
+        [stamp]              [int]               NOT NULL,
+        CONSTRAINT [PK_approval_rule] PRIMARY KEY CLUSTERED ([approval_rule_id] ASC)
+            WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
+                  ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
+            ON [PRIMARY]
+    ) ON [PRIMARY];
+
+    ALTER TABLE [dbo].[approval_rule] ADD CONSTRAINT [DF_approval_rule_is_active]   DEFAULT ((1)) FOR [is_active];
+    ALTER TABLE [dbo].[approval_rule] ADD CONSTRAINT [DF_approval_rule_is_deleted]  DEFAULT ((0)) FOR [is_deleted];
+    ALTER TABLE [dbo].[approval_rule] ADD CONSTRAINT [DF_approval_rule_amt_threshold] DEFAULT ((0)) FOR [amt_threshold];
+    ALTER TABLE [dbo].[approval_rule] ADD CONSTRAINT [DF_approval_rule_pct_threshold] DEFAULT ((0)) FOR [pct_threshold];
+    ALTER TABLE [dbo].[approval_rule] ADD CONSTRAINT [DF_approval_rule_stamp]       DEFAULT ((0)) FOR [stamp];
+
+    ALTER TABLE [dbo].[approval_rule]  WITH CHECK ADD  CONSTRAINT [FK_approval_rule_assigned]
+        FOREIGN KEY([task_assigned_to_id]) REFERENCES [dbo].[ax_user] ([ax_user_id]);
+    ALTER TABLE [dbo].[approval_rule] CHECK CONSTRAINT [FK_approval_rule_assigned];
+
+    ALTER TABLE [dbo].[approval_rule]  WITH CHECK ADD  CONSTRAINT [FK_approval_rule_context]
+        FOREIGN KEY([approval_rule_context_id]) REFERENCES [dbo].[lookup_set] ([lookup_set_id]);
+    ALTER TABLE [dbo].[approval_rule] CHECK CONSTRAINT [FK_approval_rule_context];
+
+    ALTER TABLE [dbo].[approval_rule]  WITH CHECK ADD  CONSTRAINT [CK_approval_rule_active_deleted_exclusive]
+        CHECK (NOT ([is_active] = 1 AND [is_deleted] = 1));
+    ALTER TABLE [dbo].[approval_rule] CHECK CONSTRAINT [CK_approval_rule_active_deleted_exclusive];
+
+    ALTER TABLE [dbo].[approval_rule]  WITH CHECK ADD  CONSTRAINT [CK_approval_rule_amt_nonneg]
+        CHECK ([amt_threshold] >= 0);
+    ALTER TABLE [dbo].[approval_rule] CHECK CONSTRAINT [CK_approval_rule_amt_nonneg];
+
+    ALTER TABLE [dbo].[approval_rule]  WITH CHECK ADD  CONSTRAINT [CK_approval_rule_pct_range]
+        CHECK ([pct_threshold] >= 0 AND [pct_threshold] <= 100);
+    ALTER TABLE [dbo].[approval_rule] CHECK CONSTRAINT [CK_approval_rule_pct_range];
+
+    ALTER TABLE [dbo].[approval_rule]  WITH CHECK ADD  CONSTRAINT [CK_approval_rule_context_only]
+        CHECK ([approval_rule_context_id] IN (41, 42));
+    ALTER TABLE [dbo].[approval_rule] CHECK CONSTRAINT [CK_approval_rule_context_only];
+
+    ALTER TABLE [dbo].[approval_rule]  WITH CHECK ADD  CONSTRAINT [CK_approval_rule_stamp_nonneg]
+        CHECK ([stamp] >= 0);
+    ALTER TABLE [dbo].[approval_rule] CHECK CONSTRAINT [CK_approval_rule_stamp_nonneg];
+
+    CREATE INDEX [IX_approval_rule_assigned]
+      ON [dbo].[approval_rule] ([task_assigned_to_id])
+      INCLUDE ([amt_threshold], [pct_threshold], [is_active], [is_deleted]);
+END
+GO
+
+/* 2.16 task */
+IF OBJECT_ID(N'dbo.task', N'U') IS NULL
+BEGIN
+    SET ANSI_NULLS ON;
+    SET QUOTED_IDENTIFIER ON;
+
+    CREATE TABLE [dbo].[task]
+    (
+        [task_id]               [int] IDENTITY(1,1) NOT NULL,
+        [subject]               [nvarchar](255)     NOT NULL,
+        [comments]              [nvarchar](max)     NOT NULL,
+        [input_dt]              datetime2           NOT NULL,
+        [assigned_to_user_id]   [int]               NOT NULL,
+        [initiated_by_user_id]  [int]               NOT NULL,
+        [priority]              [int]               NOT NULL,
+        [status]                [int]               NOT NULL,
+        [reminder_dt]           datetime2           NULL,
+        [contract_id]           [int]               NULL,
+        [completed_dt]          [datetime2](0)      NULL,
+        [stamp]                 [int]               NOT NULL,
+        CONSTRAINT [PK_task] PRIMARY KEY CLUSTERED ([task_id] ASC)
+            WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
+                  ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
+            ON [PRIMARY]
+    ) ON [PRIMARY];
+
+    ALTER TABLE [dbo].[task] ADD CONSTRAINT [DF_task_comments]   DEFAULT (N'') FOR [comments];
+    ALTER TABLE [dbo].[task] ADD CONSTRAINT [DF_task_input_dt]   DEFAULT (dbo.GetLocalTime()) FOR [input_dt];
+    ALTER TABLE [dbo].[task] ADD CONSTRAINT [DF_task_stamp]      DEFAULT ((0)) FOR [stamp];
+
+    ALTER TABLE [dbo].[task]  WITH CHECK ADD  CONSTRAINT [FK_task_assigned_to_user]
+        FOREIGN KEY([assigned_to_user_id]) REFERENCES [dbo].[ax_user] ([ax_user_id]);
+    ALTER TABLE [dbo].[task] CHECK CONSTRAINT [FK_task_assigned_to_user];
+
+    ALTER TABLE [dbo].[task]  WITH CHECK ADD  CONSTRAINT [FK_task_initiated_by_user]
+        FOREIGN KEY([initiated_by_user_id]) REFERENCES [dbo].[ax_user] ([ax_user_id]);
+    ALTER TABLE [dbo].[task] CHECK CONSTRAINT [FK_task_initiated_by_user];
+
+    ALTER TABLE [dbo].[task]  WITH CHECK ADD  CONSTRAINT [FK_task_priority_lookup_set]
+        FOREIGN KEY([priority]) REFERENCES [dbo].[lookup_set] ([lookup_set_id]);
+    ALTER TABLE [dbo].[task] CHECK CONSTRAINT [FK_task_priority_lookup_set];
+
+    ALTER TABLE [dbo].[task]  WITH CHECK ADD  CONSTRAINT [CK_task_priority_set]
+        CHECK ([priority] IN (26, 27, 28, 29));
+    ALTER TABLE [dbo].[task] CHECK CONSTRAINT [CK_task_priority_set];
+
+    ALTER TABLE [dbo].[task]  WITH CHECK ADD  CONSTRAINT [FK_task_status_lookup_set]
+        FOREIGN KEY([status]) REFERENCES [dbo].[lookup_set] ([lookup_set_id]);
+    ALTER TABLE [dbo].[task] CHECK CONSTRAINT [FK_task_status_lookup_set];
+
+    ALTER TABLE [dbo].[task]  WITH CHECK ADD  CONSTRAINT [CK_task_status_set]
+        CHECK ([status] IN (30, 31, 32, 33, 34, 35, 36));
+    ALTER TABLE [dbo].[task] CHECK CONSTRAINT [CK_task_status_set];
+
+    ALTER TABLE [dbo].[task]  WITH CHECK ADD  CONSTRAINT [FK_task_contract]
+        FOREIGN KEY([contract_id]) REFERENCES [dbo].[contract] ([contract_id]);
+    ALTER TABLE [dbo].[task] CHECK CONSTRAINT [FK_task_contract];
+
+    ALTER TABLE [dbo].[task]  WITH CHECK ADD  CONSTRAINT [CK_task_stamp_nonneg]
+        CHECK ([stamp] >= 0);
+    ALTER TABLE [dbo].[task] CHECK CONSTRAINT [CK_task_stamp_nonneg];
+
+    CREATE INDEX [IX_task_assigned_to]
+      ON [dbo].[task] ([assigned_to_user_id])
+      INCLUDE ([status], [priority], [reminder_dt], [contract_id], [completed_dt]);
+
+    CREATE INDEX [IX_task_initiated_by]
+      ON [dbo].[task] ([initiated_by_user_id])
+      INCLUDE ([status], [priority], [input_dt]);
+
+    CREATE INDEX [IX_task_status]
+      ON [dbo].[task] ([status])
+      INCLUDE ([priority], [assigned_to_user_id], [initiated_by_user_id], [contract_id], [completed_dt]);
+
+    CREATE INDEX [IX_task_priority]
+      ON [dbo].[task] ([priority])
+      INCLUDE ([status], [assigned_to_user_id], [initiated_by_user_id], [contract_id]);
+
+    CREATE INDEX [IX_task_contract]
+      ON [dbo].[task] ([contract_id])
+      INCLUDE ([assigned_to_user_id], [status], [priority], [completed_dt]);
+END
+GO
+
+/* 2.17 scheduler_process */
+IF OBJECT_ID(N'dbo.scheduler_process', N'U') IS NULL
+BEGIN
+    SET ANSI_NULLS ON;
+    SET QUOTED_IDENTIFIER ON;
+
+    CREATE TABLE [dbo].[scheduler_process] (
+        [scheduler_process_id]  int               NOT NULL,
+        [name]                 nvarchar           NOT NULL,
+        [description]          nvarchar           NULL,
+        [last_end_dt]          datetime2          NULL,
+        [last_start_dt]        datetime2          NULL,
+        [next_run_dt]          datetime2          NULL,
+        [duration]             [int]              NULL,
+        [status]               [int]              NOT NULL,
+        [is_active]            [bit]              NOT NULL,
+        [is_deleted]           [bit]              NOT NULL,
+        [stamp]                [int]              NOT NULL,
+        CONSTRAINT [PK_scheduler_process] PRIMARY KEY CLUSTERED ([scheduler_process_id] ASC)
+            WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
+                  ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
+            ON [PRIMARY]
+    ) ON [PRIMARY];
+
+    ALTER TABLE [dbo].[scheduler_process] ADD CONSTRAINT [DF_scheduler_process_is_active]  DEFAULT ((1)) FOR [is_active];
+    ALTER TABLE [dbo].[scheduler_process] ADD CONSTRAINT [DF_scheduler_process_is_deleted] DEFAULT ((0)) FOR [is_deleted];
+    ALTER TABLE [dbo].[scheduler_process] ADD CONSTRAINT [DF_scheduler_process_stamp]      DEFAULT ((0)) FOR [stamp];
+
+    ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [FK_scheduler_process_status]
+        FOREIGN KEY([status]) REFERENCES [dbo].[lookup_set] ([lookup_set_id]);
+    ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [FK_scheduler_process_status];
+
+    ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [CK_scheduler_process_status_set]
+        CHECK ([status] IN (37, 38, 39, 40));
+    ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [CK_scheduler_process_status_set];
+
+    ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [CK_scheduler_process_active_deleted_exclusive]
+        CHECK (NOT ([is_active] = 1 AND [is_deleted] = 1));
+    ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [CK_scheduler_process_active_deleted_exclusive];
+
+    ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [CK_scheduler_process_duration_nonneg]
+        CHECK ([duration] IS NULL OR [duration] >= 0);
+    ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [CK_scheduler_process_duration_nonneg];
+
+    ALTER TABLE [dbo].[scheduler_process]  WITH CHECK ADD  CONSTRAINT [CK_scheduler_process_stamp_nonneg]
+        CHECK ([stamp] >= 0);
+    ALTER TABLE [dbo].[scheduler_process] CHECK CONSTRAINT [CK_scheduler_process_stamp_nonneg];
+
+    CREATE INDEX [IX_scheduler_process_next_run]
+      ON [dbo].[scheduler_process] ([next_run_dt])
+      INCLUDE ([status], [is_active], [is_deleted]);
+
+    CREATE INDEX [IX_scheduler_process_status]
+      ON [dbo].[scheduler_process] ([status])
+      INCLUDE ([next_run_dt], [last_start_dt], [last_end_dt], [duration]);
 END
 GO
 

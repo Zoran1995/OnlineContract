@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/css/eventlog.css" />
   <link rel="stylesheet" href="/css/login.css" />
   <link rel="stylesheet" href="/css/products.css" />
+  <link rel="stylesheet" href="/css/app-modern.css" />
   <link href="/dist/output.css" rel="stylesheet">
   <style>
     .hidden { display: none !important; }
@@ -136,8 +137,8 @@
     <div id="emptyState" class="hidden">No data found for selected filters.</div>
 
     <!-- Grid -->
-    <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
-      <table id="grid" class="table table-zebra w-full" aria-label="Products">
+    <div class="mod-card mod-card-compact table-scroll">
+      <table id="grid" class="table-modern table table-zebra w-full" aria-label="Products">
         <thead>
           <tr>
             <th style="width:80px">ID</th>
@@ -153,25 +154,29 @@
     </div>
 
     <!-- Pagination -->
-    <div class="flex items-center gap-3 mt-3 grid-pagination">
-      <label class="text-sm">Rows per page:</label>
-      <select id="pageSize" class="select select-bordered w-20 select-sm">
-        <option value="10" selected>10</option>
-        <option value="20">20</option>
-        <option value="50">50</option>
-        <option value="100">100</option>
-      </select>
+    <div class="mod-pagination">
+      <div class="flex items-center gap-2">
+        <label class="mod-text-sm">Rows per page:</label>
+        <select id="pageSize" class="select select-bordered w-20 select-sm">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </div>
 
-      <button id="prevPage" class="btn btn-outline btn-sm">
-        <span class="material-icons mr-2">chevron_left</span>
-        Previous
-      </button>
-      <span id="pageInfo" class="font-semibold">Page 1 of 1</span>
-      <button id="nextPage" class="btn btn-outline btn-sm">
-        Next <span class="material-icons ml-2">chevron_right</span>
-      </button>
+      <div class="flex items-center gap-2">
+        <button id="prevPage" class="btn btn-outline btn-sm">
+          <span class="material-icons mr-2">chevron_left</span>
+          Previous
+        </button>
+        <span id="pageInfo" class="mod-pagination-info"></span>
+        <button id="nextPage" class="btn btn-outline btn-sm">
+          Next <span class="material-icons ml-2">chevron_right</span>
+        </button>
+      </div>
 
-      <span id="pageCountInfo" class="page-count-info ml-auto">Total records: 0</span>
+      <span id="pageCountInfo" class="mod-pagination-count"></span>
     </div>
   </main>
 

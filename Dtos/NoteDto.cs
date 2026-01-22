@@ -5,6 +5,7 @@ namespace OnlineContract.Dtos
     public class NoteDto
     {
         public int Id { get; set; }
+        public string? Subject { get; set; }
         public string? Comment { get; set; }
         public bool IsActive { get; set; }
         public string? Text { get => Comment; set => Comment = value; }

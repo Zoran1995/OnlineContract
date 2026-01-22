@@ -19,6 +19,11 @@ namespace OnlineContract.Data
         public DbSet<ContractDet> ContractDets { get; set; }
         public DbSet<OnlineContract.Models.ContractStateLookup> ContractStates { get; set; }
         public DbSet<OnlineContract.Models.PasswordResetToken> PasswordResetTokens { get; set; }
+        public DbSet<Payment> Payments { get; set; }
+        public DbSet<ApprovalRule> ApprovalRules { get; set; }
+        public DbSet<TaskItem> Tasks { get; set; }
+        public DbSet<SchedulerProcess> SchedulerProcesses { get; set; }
+        public DbSet<LookupSet> LookupSets { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -203,6 +208,91 @@ namespace OnlineContract.Data
                 entity.Property(e => e.ExpiryDt).HasColumnName("expiry_dt");
                 entity.Property(e => e.IsUsed).HasColumnName("is_used");
                 entity.Property(e => e.UsedDt).HasColumnName("used_dt");
+            });
+
+            // Payment entity mapping
+            modelBuilder.Entity<Payment>(entity =>
+            {
+                entity.ToTable("payment", "dbo");
+                entity.HasKey(e => e.PaymentId).HasName("PK_payment");
+                entity.Property(e => e.PaymentId).HasColumnName("payment_id");
+                entity.Property(e => e.ContractId).HasColumnName("contract_id");
+                entity.Property(e => e.Provider).HasColumnName("provider");
+                entity.Property(e => e.ExternalOrderId).HasColumnName("external_order_id");
+                entity.Property(e => e.AmountGross).HasColumnName("amt_gross").HasColumnType("decimal(18,2)");
+                entity.Property(e => e.Currency).HasColumnName("currency");
+                entity.Property(e => e.Status).HasColumnName("status");
+                entity.Property(e => e.CreatedDt).HasColumnName("created_dt");
+                entity.Property(e => e.UpdatedDt).HasColumnName("updated_dt");
+                entity.Property(e => e.Stamp).HasColumnName("stamp");
+                entity.Property(e => e.TransactionId).HasColumnName("transaction_id");
+                entity.Property(e => e.LastCallbackDt).HasColumnName("last_callback_dt");
+                entity.Property(e => e.LastCallbackStatus).HasColumnName("last_callback_status");
+                entity.HasIndex(e => e.ExternalOrderId).IsUnique();
+            });
+
+            // ApprovalRule mapping
+            modelBuilder.Entity<ApprovalRule>(entity =>
+            {
+                entity.ToTable("approval_rule", "dbo");
+                entity.HasKey(e => e.Id).HasName("PK_approval_rule");
+                entity.Property(e => e.Id).HasColumnName("approval_rule_id");
+                entity.Property(e => e.Name).HasColumnName("name");
+                entity.Property(e => e.Description).HasColumnName("description");
+                entity.Property(e => e.IsActive).HasColumnName("is_active");
+                entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
+                entity.Property(e => e.TaskAssignedToId).HasColumnName("task_assigned_to_id");
+                entity.Property(e => e.AmtThreshold).HasColumnName("amt_threshold").HasColumnType("decimal(18,2)");
+                entity.Property(e => e.PctThreshold).HasColumnName("pct_threshold").HasColumnType("decimal(18,2)");
+                entity.Property(e => e.ApprovalRuleContextId).HasColumnName("approval_rule_context_id");
+                entity.Property(e => e.Stamp).HasColumnName("stamp");
+            });
+
+            // TaskItem mapping
+            modelBuilder.Entity<TaskItem>(entity =>
+            {
+                entity.ToTable("task", "dbo");
+                entity.HasKey(e => e.Id).HasName("PK_task");
+                entity.Property(e => e.Id).HasColumnName("task_id");
+                entity.Property(e => e.Subject).HasColumnName("subject");
+                entity.Property(e => e.Comments).HasColumnName("comments");
+                entity.Property(e => e.InputDt).HasColumnName("input_dt");
+                entity.Property(e => e.AssignedToUserId).HasColumnName("assigned_to_user_id");
+                entity.Property(e => e.InitiatedByUserId).HasColumnName("initiated_by_user_id");
+                entity.Property(e => e.Priority).HasColumnName("priority");
+                entity.Property(e => e.Status).HasColumnName("status");
+                entity.Property(e => e.ReminderDt).HasColumnName("reminder_dt");
+                entity.Property(e => e.ContractId).HasColumnName("contract_id");
+                entity.Property(e => e.CompletedDt).HasColumnName("completed_dt");
+                entity.Property(e => e.Stamp).HasColumnName("stamp");
+            });
+
+            // SchedulerProcess mapping
+            modelBuilder.Entity<SchedulerProcess>(entity =>
+            {
+                entity.ToTable("scheduler_process", "dbo");
+                entity.HasKey(e => e.Id).HasName("PK_scheduler_process");
+                entity.Property(e => e.Id).HasColumnName("scheduler_process_id");
+                entity.Property(e => e.Name).HasColumnName("name");
+                entity.Property(e => e.Description).HasColumnName("description");
+                entity.Property(e => e.LastEndDt).HasColumnName("last_end_dt");
+                entity.Property(e => e.LastStartDt).HasColumnName("last_start_dt");
+                entity.Property(e => e.NextRunDt).HasColumnName("next_run_dt");
+                entity.Property(e => e.Duration).HasColumnName("duration");
+                entity.Property(e => e.Status).HasColumnName("status");
+                entity.Property(e => e.IsActive).HasColumnName("is_active");
+                entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
+                entity.Property(e => e.Stamp).HasColumnName("stamp");
+            });
+
+            // LookupSet mapping
+            modelBuilder.Entity<LookupSet>(entity =>
+            {
+                entity.ToTable("lookup_set", "dbo");
+                entity.HasKey(e => e.LookupSetId).HasName("PK_lookup_set");
+                entity.Property(e => e.LookupSetId).HasColumnName("lookup_set_id");
+                entity.Property(e => e.SetName).HasColumnName("set_name");
+                entity.Property(e => e.Value).HasColumnName("value");
             });
         }
     }

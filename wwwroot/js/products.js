@@ -229,7 +229,7 @@
     const pages = Math.max(1, Number(totalPages || 1));
     if (page > pages) page = pages;
 
-    if (pageInfo) pageInfo.textContent = `Page ${page} of ${pages}`;
+    if (pageInfo) pageInfo.innerHTML = `Page <b>${page}</b> of <b>${pages}</b>`;
     if (pageCountInfo) pageCountInfo.textContent = `Total records: ${totalCount}`;
 
     if (prevPage) prevPage.disabled = (page <= 1 || totalCount === 0);

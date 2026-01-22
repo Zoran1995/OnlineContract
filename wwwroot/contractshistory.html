@@ -3,16 +3,20 @@
 <html lang="en" data-theme="pastel">
 <head>
   <meta charset="utf-8" />
-  <title>KidzStyle · Contracts History</title>
+  <title>KidzStyle · My Orders</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
   <link rel="icon" href="/resources/icons/clipboard-list.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="/css/eventlog.css" />
-  <link rel="stylesheet" href="/css/login.css" />
+  <link rel="stylesheet" href="/css/home.css" />
+  <link rel="stylesheet" href="/css/theme-pastel.css" />
+  <link rel="stylesheet" href="/css/app-modern.css" />
   <link href="/dist/output.css" rel="stylesheet">
   <style>
     .hidden { display: none !important; }
+    .order-grid-card {
+      border-left: 4px solid var(--brand-500);
+    }
   </style>
 </head>
 <body class="bg-base-200 text-base-content">
@@ -39,35 +43,51 @@
     </div>
   </div>
 
-  <main class="container mx-auto p-4">
-    <div class="flex items-center justify-between gap-3 mb-3">
-      <h1 class="text-2xl font-bold">Contracts History</h1>
+  <main class="container mx-auto p-6">
+    <!-- Hero Header -->
+    <section class="pastel-hero home-hero mb-6 fade-up text-center py-8">
+      <div class="flex justify-center mb-4">
+        <span class="material-icons text-6xl text-violet-600">receipt_long</span>
+      </div>
+      <h1 class="text-4xl font-extrabold tracking-tight text-violet-900 mb-3 pastel-heading">My Orders</h1>
+      <p class="text-lg text-violet-800">Track your order history and view details</p>
+      <!-- Feature chips -->
+      <div class="feature-chips mt-4">
+        <span class="feature-chip"><span class="material-icons">history</span>Order History</span>
+        <span class="feature-chip"><span class="material-icons">track_changes</span>Track Status</span>
+        <span class="feature-chip"><span class="material-icons">receipt</span>View Details</span>
+      </div>
+    </section>
+
+    <!-- Toolbar -->
+    <div class="flex items-center gap-3 mb-4 justify-end fade-up">
+      <button id="btnOpen" class="btn btn-pastel-primary btn-sm" disabled>
+        <span class="material-icons mr-1">open_in_new</span>
+        <span>View Details</span>
+      </button>
+      <button id="btnDelete" class="btn btn-error btn-sm btn-outline" disabled>
+        <span class="material-icons mr-1">delete</span>
+        <span>Cancel Order</span>
+      </button>
     </div>
 
-    <!-- Toolbar (no filters) -->
-    <div class="flex items-center gap-2 mb-3 justify-end">
-      <button id="btnOpen" class="btn btn-sm" disabled>
-        <span class="material-icons">open_in_new</span>
-        <span>Open</span>
-      </button>
-      <button id="btnDelete" class="btn btn-sm" disabled>
-        <span class="material-icons">delete</span>
-        <span>Delete</span>
-      </button>
+    <div id="emptyState" class="hidden pastel-card text-center py-12 fade-up">
+      <span class="material-icons text-6xl text-gray-400 mb-4">shopping_bag</span>
+      <h3 class="text-xl font-bold text-gray-600 mb-2">No Orders Yet</h3>
+      <p class="text-gray-500 mb-4">Start shopping to see your orders here!</p>
+      <a href="/collections" class="btn btn-primary btn-sheen">Browse Collections</a>
     </div>
-
-    <div id="emptyState" class="hidden">No contracts found.</div>
 
     <!-- Grid -->
-    <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
-      <table id="grid" class="table table-zebra w-full" aria-label="Contracts History">
-        <thead>
+    <div class="pastel-card order-grid-card overflow-hidden fade-up table-scroll">
+      <table id="grid" class="table-modern table table-zebra w-full" aria-label="Contracts History">
+        <thead class="bg-gradient-to-r from-violet-100 to-pink-100">
           <tr>
-            <th style="width:80px">ID</th>
-            <th style="width:220px">Entry Date</th>
-            <th>Contract State</th>
-            <th style="width:220px">Delivered Date</th>
-            <th style="width:120px">Amount</th>
+            <th class="font-bold text-violet-900" style="width:80px">Order #</th>
+            <th class="font-bold text-violet-900" style="width:200px">Order Date</th>
+            <th class="font-bold text-violet-900">Status</th>
+            <th class="font-bold text-violet-900" style="width:200px">Delivered</th>
+            <th class="font-bold text-violet-900 text-right" style="width:120px">Total</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -75,43 +95,61 @@
     </div>
 
     <!-- Pagination -->
-    <div class="flex items-center gap-3 mt-3 grid-pagination">
-      <label class="text-sm">Rows per page:</label>
-      <select id="pageSize" class="select select-bordered w-20 select-sm">
-        <option value="10" selected>10</option>
-        <option value="20">20</option>
-        <option value="50">50</option>
-        <option value="100">100</option>
-      </select>
+    <div class="pastel-card mt-4 fade-up mod-pagination">
+      <div class="flex items-center gap-2">
+        <label class="mod-text-sm">Rows per page:</label>
+        <select id="pageSize" class="select select-bordered select-sm w-20 bg-white">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </div>
 
-      <button id="prevPage" class="btn btn-outline btn-sm">
-        <span class="material-icons mr-2">chevron_left</span>
-        Previous
-      </button>
-      <span id="pageInfo" class="font-semibold"></span>
-      <button id="nextPage" class="btn btn-outline btn-sm">
-        Next <span class="material-icons ml-2">chevron_right</span>
-      </button>
+      <div class="flex items-center gap-2">
+        <button id="prevPage" class="btn btn-pastel-outline btn-sm">
+          <span class="material-icons mr-2">chevron_left</span>
+          Previous
+        </button>
+        <span id="pageInfo" class="mod-pagination-info"></span>
+        <button id="nextPage" class="btn btn-pastel-outline btn-sm">
+          Next
+          <span class="material-icons ml-2">chevron_right</span>
+        </button>
+      </div>
 
-      <span id="pageCountInfo" class="page-count-info"></span>
+      <span id="pageCountInfo" class="mod-pagination-count"></span>
     </div>
+
+    <!-- Trust bar -->
+    <section class="trust-bar mt-8 fade-up">
+      <div class="trust-item"><span class="material-icons icon-success">verified</span> <span>Secure Orders</span></div>
+      <div class="trust-item"><span class="material-icons icon-success">local_shipping</span> <span>Fast Delivery</span></div>
+      <div class="trust-item"><span class="material-icons icon-success">support_agent</span> <span>Customer Support</span></div>
+    </section>
   </main>
 
   <!-- Confirm delete modal -->
   <dialog id="contractDeleteConfirm" class="modal">
-    <form method="dialog" class="modal-box">
-      <h3 class="font-bold text-lg mb-2">Delete Contract</h3>
-      <p class="mb-4">Are you sure you want to delete this contract? This action cannot be undone.</p>
+    <form method="dialog" class="modal-box pastel-card">
+      <h3 class="font-bold text-lg mb-2 flex items-center gap-2">
+        <span class="material-icons text-error">warning</span>
+        Cancel Order
+      </h3>
+      <p class="mb-4 text-gray-700">Are you sure you want to cancel this order? This action cannot be undone.</p>
       <div class="modal-action">
-        <button class="btn">Cancel</button>
-        <button id="contractConfirmOk" class="btn btn-error">OK</button>
+        <button class="btn btn-ghost">Keep Order</button>
+        <button id="contractConfirmOk" class="btn btn-error">Yes, Cancel It</button>
       </div>
     </form>
   </dialog>
 
   <!-- Loading overlay -->
   <div id="loadingOverlay" class="loading-overlay hidden">
-    <div class="loading-box">Loading...</div>
+    <div class="loading-box bg-white shadow-lg rounded-xl p-6 flex flex-col items-center gap-3">
+      <span class="loading loading-spinner loading-lg text-primary"></span>
+      <span class="text-gray-700">Loading your orders...</span>
+    </div>
   </div>
 
   <script src="/js/shared.js"></script>

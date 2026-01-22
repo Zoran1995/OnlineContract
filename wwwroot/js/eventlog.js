@@ -175,7 +175,7 @@ async function loadLogs() {
     renderLogs(data.items);
     totalPages = Math.max(1, Number(data.totalPages) || 1);
     if (currentPage > totalPages) currentPage = totalPages;
-    pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+    pageInfo.innerHTML = `Page <b>${currentPage}</b> of <b>${totalPages}</b>`;
     pageCountInfo.textContent = `Total records: ${data.totalCount}`;
 
     // Disable Prev/Next at edges (same UX as Users)

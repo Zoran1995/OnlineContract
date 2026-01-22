@@ -3,15 +3,30 @@
 <html lang="en" data-theme="pastel">
 <head>
   <meta charset="utf-8" />
-  <title>KidzStyle · Contract Items</title>
+  <title>KidzStyle · Order Details</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
   <link rel="icon" href="/resources/icons/clipboard-list.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="/css/eventlog.css" />
-  <link rel="stylesheet" href="/css/login.css" />
+  <link rel="stylesheet" href="/css/home.css" />
+  <link rel="stylesheet" href="/css/theme-pastel.css" />
+  <link rel="stylesheet" href="/css/app-modern.css" />
   <link href="/dist/output.css" rel="stylesheet">
-  <style>.hidden{display:none!important}</style>
+  <style>
+    .hidden{display:none!important}
+    .order-card { border-left: 4px solid var(--brand-500); }
+    .item-row { transition: all 0.2s ease; }
+    .item-row:hover { background: linear-gradient(90deg, rgba(139,92,246,0.05) 0%, rgba(236,72,153,0.05) 100%); }
+    .stat-card { background: linear-gradient(135deg, #f5f3ff 0%, #fce7f3 100%); border-radius: 16px; padding: 1rem; text-align: center; }
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: #7c3aed; }
+    .stat-label { font-size: 0.75rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+    .fun-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-pending { background: #fef3c7; color: #d97706; }
+    .badge-completed { background: #d1fae5; color: #059669; }
+    .badge-processing { background: #dbeafe; color: #2563eb; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-row { animation: slideIn 0.3s ease forwards; }
+  </style>
 </head>
 <body class="bg-base-200 text-base-content">
   <!-- Navbar (single, sticky) -->
@@ -33,108 +48,203 @@
     <div class="flex-none items-center gap-2 pr-3"></div>
   </div>
 
-  <main class="container mx-auto p-4">
-    <div class="flex items-center justify-between gap-3 mb-3">
-      <h1 id="title" class="text-2xl font-bold">Contract Items</h1>
-      <div class="flex items-center gap-2">
-        <button id="btnSave" class="btn btn-sm btn-outline">
-          <span class="material-icons mr-2">save</span>
-          <span>Save</span>
-        </button>
-        <div class="dropdown dropdown-end">
-          <label tabindex="0" class="btn btn-sm btn-primary">
-            <span class="material-icons mr-2">send</span>
-            <span>Submit</span>
-          </label>
-          <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
-            <li>
-              <a id="submitCOD" class="flex items-center gap-2">
-                <span class="material-icons mr-2">account_circle</span>
-                <span>Cash on Delivery</span>
-              </a>
-            </li>
-            <li>
-              <a id="submitOnline" class="flex items-center gap-2">
-                <span class="material-icons mr-2">credit_card</span>
-                <span>Online Payment</span>
-              </a>
-            </li>
-          </ul>
+  <main class="container mx-auto p-6">
+    <!-- Hero Header -->
+    <section class="pastel-hero home-hero mb-6 fade-up text-center py-8">
+      <div class="flex justify-center mb-4">
+        <span class="material-icons text-6xl text-violet-600">shopping_bag</span>
+      </div>
+      <h1 id="title" class="text-4xl font-extrabold tracking-tight text-violet-900 mb-3 pastel-heading">Order Details</h1>
+      <p class="text-lg text-violet-800">View and manage your order items</p>
+      <!-- Feature chips -->
+      <div class="feature-chips mt-4">
+        <span class="feature-chip"><span class="material-icons">inventory_2</span>Your Items</span>
+        <span class="feature-chip"><span class="material-icons">track_changes</span>Track Status</span>
+        <span class="feature-chip"><span class="material-icons">payments</span>Secure Payment</span>
+      </div>
+    </section>
+
+    <!-- Toolbar -->
+    <div class="pastel-card mb-4 fade-up">
+      <div class="p-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <a href="/contractshistory" class="btn btn-ghost btn-sm">
+            <span class="material-icons mr-1">arrow_back</span>
+            Back to Orders
+          </a>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnSave" class="btn btn-pastel-outline btn-sm">
+            <span class="material-icons mr-1">save</span>
+            Save
+          </button>
+          <div class="dropdown dropdown-end">
+            <label tabindex="0" class="btn btn-primary btn-sm btn-sheen">
+              <span class="material-icons mr-1">send</span>
+              Submit Order
+            </label>
+            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow-lg">
+              <li>
+                <a id="submitCOD" class="flex items-center gap-2">
+                  <span class="material-icons text-amber-600">account_balance_wallet</span>
+                  Cash on Delivery
+                </a>
+              </li>
+              <li>
+                <a id="submitOnline" class="flex items-center gap-2">
+                  <span class="material-icons text-emerald-600">credit_card</span>
+                  Online Payment
+                </a>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="flex items-center gap-2 mb-3 justify-end">
-      <button id="btnOpen" class="btn btn-sm" disabled>
-        <span class="material-icons">open_in_new</span>
-        <span>Open</span>
+    <!-- Item actions toolbar -->
+    <div class="flex items-center gap-3 mb-4 justify-end fade-up">
+      <button id="btnOpen" class="btn btn-pastel-primary btn-sm" disabled>
+        <span class="material-icons mr-1">open_in_new</span>
+        View Item
       </button>
-      <button id="btnDelete" class="btn btn-sm" disabled>
-        <span class="material-icons">delete</span>
-        <span>Delete</span>
+      <button id="btnDelete" class="btn btn-error btn-sm btn-outline" disabled>
+        <span class="material-icons mr-1">delete</span>
+        Remove
       </button>
     </div>
 
     <section id="accessDenied" class="hidden">
-      <div class="bg-base-100 rounded-xl shadow p-8 text-center">
-        <div class="flex items-center justify-center gap-2 mb-3">
-          <span class="material-icons text-rose-600">block</span>
-          <h2 class="text-2xl font-bold">Access Denied</h2>
-        </div>
-        <p class="text-gray-700">You are not allowed to see this page.</p>
+      <div class="pastel-card text-center py-12 fade-up">
+        <span class="material-icons text-6xl text-rose-400 mb-4">block</span>
+        <h2 class="text-2xl font-bold text-gray-700 mb-2">Access Denied</h2>
+        <p class="text-gray-500 mb-4">You are not allowed to see this page.</p>
+        <a href="/contractshistory" class="btn btn-primary btn-sheen">Back to Orders</a>
       </div>
     </section>
 
     <div id="itemsWrap" class="hidden">
-      <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
-        <table id="grid" class="table table-zebra w-full" aria-label="Contract items">
-          <thead>
+      <!-- Order Stats Cards (3 tiles: Items, Total, Order Date) -->
+      <div class="mod-stat-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="mod-stat-card">
+          <div class="mod-stat-icon text-violet-500"><span class="material-icons">shopping_cart</span></div>
+          <div id="statItems" class="mod-stat-value">—</div>
+          <div class="mod-stat-label">Items</div>
+        </div>
+        <div class="mod-stat-card">
+          <div class="mod-stat-icon text-pink-500"><span class="material-icons">payments</span></div>
+          <div id="statTotal" class="mod-stat-value">RSD 0</div>
+          <div class="mod-stat-label">Total</div>
+        </div>
+        <div class="mod-stat-card">
+          <div class="mod-stat-icon text-amber-500"><span class="material-icons">calendar_today</span></div>
+          <div id="statDate" class="mod-stat-value text-base">—</div>
+          <div class="mod-stat-label">Order Date</div>
+        </div>
+      </div>
+
+      <!-- Grid -->
+      <div class="pastel-card order-card overflow-hidden fade-up table-scroll">
+        <table id="grid" class="table-modern table table-zebra w-full" aria-label="Contract items">
+          <thead class="bg-gradient-to-r from-violet-100 to-pink-100">
             <tr>
-              <th>Product</th>
-              <th style="width:120px">Size</th>
-              <th style="width:140px">Color</th>
-              <th style="width:120px">Qty</th>
-              <th style="width:140px">Amount</th>
-              <th style="width:140px">Total</th>
-              <th style="width:160px">State</th>
-              <th style="width:200px">Input Date</th>
+              <th class="font-bold text-violet-900">Product</th>
+              <th class="font-bold text-violet-900" style="width:100px">Size</th>
+              <th class="font-bold text-violet-900" style="width:120px">Color</th>
+              <th class="font-bold text-violet-900 text-center" style="width:80px" data-col-header="qty">Qty</th>
+              <th class="font-bold text-violet-900 text-right" style="width:100px" data-col-header="price">Price</th>
+              <th class="font-bold text-violet-900 text-right" style="width:100px">Total</th>
+              <th class="font-bold text-violet-900" style="width:140px">Status</th>
+              <th class="font-bold text-violet-900" style="width:160px">Added</th>
             </tr>
           </thead>
           <tbody></tbody>
         </table>
       </div>
 
-      <div class="flex items-center gap-3 mt-3 grid-pagination">
-        <label class="text-sm">Rows per page:</label>
-        <select id="pageSize" class="select select-bordered w-20 select-sm">
-          <option value="10" selected>10</option>
-          <option value="20">20</option>
-          <option value="50">50</option>
-          <option value="100">100</option>
-        </select>
-        <button id="prevPage" class="btn btn-outline btn-sm">
-          <span class="material-icons mr-2">chevron_left</span>
-          Previous
-        </button>
-        <span id="pageInfo" class="font-semibold"></span>
-        <button id="nextPage" class="btn btn-outline btn-sm">
-          Next <span class="material-icons ml-2">chevron_right</span>
-        </button>
-        <span id="pageCountInfo" class="page-count-info ml-auto">Total records: 0</span>
+      <!-- Pagination -->
+      <div class="pastel-card mt-4 fade-up mod-pagination">
+        <div class="flex items-center gap-2">
+          <label class="mod-text-sm">Rows per page:</label>
+          <select id="pageSize" class="select select-bordered select-sm w-20 bg-white">
+            <option value="10" selected>10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="prevPage" class="btn btn-pastel-outline btn-sm">
+            <span class="material-icons mr-2">chevron_left</span>
+            Previous
+          </button>
+          <span id="pageInfo" class="mod-pagination-info"></span>
+          <button id="nextPage" class="btn btn-pastel-outline btn-sm">
+            Next
+            <span class="material-icons ml-2">chevron_right</span>
+          </button>
+        </div>
+
+        <span id="pageCountInfo" class="mod-pagination-count"></span>
       </div>
     </div>
+
+    <!-- Trust bar -->
+    <section class="trust-bar mt-8 fade-up">
+      <div class="trust-item"><span class="material-icons icon-success">verified</span> <span>Secure Orders</span></div>
+      <div class="trust-item"><span class="material-icons icon-success">local_shipping</span> <span>Fast Delivery</span></div>
+      <div class="trust-item"><span class="material-icons icon-success">support_agent</span> <span>Customer Support</span></div>
+    </section>
   </main>
 
-  <div id="loadingOverlay" class="loading-overlay hidden"><div class="loading-box">Loading...</div></div>
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loading-box bg-white shadow-lg rounded-xl p-6 flex flex-col items-center gap-3">
+      <span class="loading loading-spinner loading-lg text-primary"></span>
+      <span class="text-gray-700">Loading your order...</span>
+    </div>
+  </div>
 
   <!-- Styled confirmation modal for item delete -->
   <dialog id="itemDeleteConfirm" class="modal">
-    <form method="dialog" class="modal-box">
-      <h3 class="font-bold text-lg mb-2">Delete Item</h3>
-      <p class="mb-4">Are you sure you want to delete this item? This action cannot be undone.</p>
+    <form method="dialog" class="modal-box pastel-card">
+      <h3 class="font-bold text-lg mb-2 flex items-center gap-2">
+        <span class="material-icons text-error">warning</span>
+        Remove Item
+      </h3>
+      <p class="mb-4 text-gray-700">Are you sure you want to remove this item from your order?</p>
       <div class="modal-action">
-        <button class="btn">Cancel</button>
-        <button id="itemConfirmOk" class="btn btn-error">OK</button>
+        <button class="btn btn-ghost">Keep Item</button>
+        <button id="itemConfirmOk" class="btn btn-error">Yes, Remove It</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Simulate Payment Result modal (Testing/Development only) -->
+  <dialog id="simulatePaymentModal" class="modal">
+    <form method="dialog" class="modal-box pastel-card">
+      <h3 class="font-bold text-lg mb-2 flex items-center gap-2">
+        <span class="material-icons text-amber-600">science</span>
+        Simulate Payment Result
+      </h3>
+      <p class="mb-4 text-gray-600">Reference: <span id="simulateRef" class="font-mono bg-base-200 px-2 py-1 rounded"></span></p>
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="btnSimPaySuccess" class="btn btn-success btn-sm" type="button">
+          <span class="material-icons mr-1">check_circle</span>
+          Success
+        </button>
+        <button id="btnSimPayFailure" class="btn btn-error btn-sm" type="button">
+          <span class="material-icons mr-1">error</span>
+          Failure
+        </button>
+        <button id="btnSimPayCancel" class="btn btn-warning btn-sm" type="button">
+          <span class="material-icons mr-1">cancel</span>
+          Cancel
+        </button>
+      </div>
+      <div class="modal-action">
+        <button class="btn btn-ghost">Close</button>
       </div>
     </form>
   </dialog>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Payment Processing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="/css/tailwind.css" rel="stylesheet" />
+</head>
+<body class="p-6">
+  <div class="max-w-xl mx-auto">
+    <h1 class="text-2xl font-semibold mb-2">Processing your payment…</h1>
+    <p class="text-gray-700">Please wait for confirmation. This page will update automatically.</p>
+    <div id="status" class="mt-4 text-sm text-gray-600">Checking status…</div>
+  </div>
+  <script>
+    (function(){
+      const qs = new URLSearchParams(window.location.search);
+      const ref = qs.get('ref') || qs.get('externalOrderId') || '';
+      const el = document.getElementById('status');
+      const backoff = [2000,2000,3000,5000,5000,5000,8000,8000,10000,10000];
+      let idx = 0;
+      let elapsed = 0;
+      async function poll(){
+        try{
+          const url = ref ? `/api/payments/status?reference=${encodeURIComponent(ref)}` : '';
+          if(!url){ el.textContent = 'Awaiting confirmation…'; return; }
+          const res = await fetch(url, {credentials:'include'});
+          const j = await res.json();
+          if(j && j.status === 'Succeeded'){
+            el.textContent = 'Payment confirmed. Redirecting…';
+            const cid = j.contractId ? String(j.contractId) : '';
+            const dest = cid ? `/contractshistory/${cid}` : '/contractshistory';
+            setTimeout(()=>{ window.location.href = dest; }, 1200);
+            return;
+          }
+          if(j && j.status === 'Failed'){
+            el.textContent = 'Payment failed. Your order remains in Draft.';
+            return;
+          }
+          el.textContent = 'Pending…';
+        }catch{ el.textContent = 'Awaiting confirmation…'; }
+        const wait = backoff[Math.min(idx, backoff.length-1)];
+        idx++; elapsed += wait;
+        if(elapsed < 90000) { setTimeout(poll, wait); } else {
+          const qs2 = new URLSearchParams(window.location.search);
+          const cid2 = qs2.get('cid') || '';
+          const dest2 = cid2 ? `/contractshistory/${cid2}` : '/contractshistory';
+          el.innerHTML = 'We’re still waiting for the confirmation. Please refresh later or contact support. <br/><a class="link" href="'+dest2+'">Back to order</a>';
+        }
+      }
+      poll();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,370 @@
+/* ==========================================================================
+   Address Page Modern Styles
+   Scoped to /address page only - do not include on other pages
+   ========================================================================== */
+
+:root {
+  --addr-max: 1200px;
+  --space-1: 8px;
+  --space-2: 12px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --brand-500: #7a62ff;
+  --ink-900: #2a2a2a;
+  --ink-700: #424242;
+  --ink-300: #b6b6c2;
+  --paper: #fff;
+  --bg-soft: #f6f4ff;
+  --ring: 0 0 0 3px rgba(122, 98, 255, 0.22);
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --shadow-sm: 0 2px 10px rgba(20, 20, 43, 0.06);
+  --shadow-md: 0 8px 24px rgba(20, 20, 43, 0.08);
+}
+
+/* Centered container wrapper */
+.addr-wrap {
+  max-width: var(--addr-max);
+  margin-inline: auto;
+  padding: var(--space-5) var(--space-3);
+}
+
+@media (min-width: 768px) {
+  .addr-wrap {
+    padding: var(--space-5) var(--space-5);
+  }
+}
+
+/* Header section */
+.addr-header {
+  margin-bottom: var(--space-4);
+}
+
+/* Grid for store cards */
+.addr-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* Store Card */
+.store-card-modern {
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+  border-left: 4px solid var(--brand-500);
+}
+
+/* Two-column grid inside each store card */
+.store-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .store-grid {
+    grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.2fr);
+    align-items: start;
+  }
+}
+
+/* Store info section */
+.store-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.store-name {
+  margin: 0 0 var(--space-2);
+  font-size: clamp(1.1rem, 2vw, 1.4rem);
+  color: var(--ink-900);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.store-name-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.store-name-icon .material-icons {
+  color: var(--brand-500);
+  font-size: 20px;
+}
+
+.store-addr {
+  margin: 0;
+  color: var(--ink-700);
+  background: linear-gradient(90deg, #fff1f2 0%, #fce7f3 100%);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+}
+
+.store-addr .material-icons {
+  color: #f43f5e;
+  font-size: 18px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+/* Store metadata (phone, email, hours) */
+.store-meta {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.meta-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-700);
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.meta-row.meta-phone {
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+}
+
+.meta-row.meta-phone .material-icons {
+  color: #0284c7;
+}
+
+.meta-row.meta-email {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+}
+
+.meta-row.meta-email .material-icons {
+  color: #059669;
+}
+
+/* Working hours box */
+.store-hours {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.store-hours-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #b45309;
+  margin-bottom: var(--space-2);
+}
+
+.store-hours-title .material-icons {
+  font-size: 18px;
+}
+
+.store-hours-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.store-hours-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  color: var(--ink-700);
+}
+
+.store-hours-item .material-icons {
+  font-size: 14px;
+  color: #d97706;
+}
+
+/* Map button */
+.btn-map {
+  border: 0;
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand-500) 0%, #8b5cf6 100%);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-decoration: none;
+  margin-top: var(--space-3);
+  width: fit-content;
+}
+
+.btn-map:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-map:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.btn-map .material-icons {
+  font-size: 18px;
+}
+
+/* Store photos grid */
+.store-photos {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(2, 1fr);
+  align-content: start;
+}
+
+@media (min-width: 900px) {
+  .store-photos {
+    grid-template-columns: repeat(2, minmax(200px, 260px));
+  }
+}
+
+/* Photo thumbnail */
+.photo-thumb {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  background: #eee;
+  display: block;
+}
+
+.photo-thumb-wrap {
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  border: 2px solid #ede9fe;
+}
+
+/* Micro-animations guarded by reduced-motion */
+@media (prefers-reduced-motion: no-preference) {
+  .store-card-modern {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  
+  .store-card-modern:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+  }
+  
+  .photo-thumb {
+    transition: transform 0.25s ease;
+  }
+  
+  .photo-thumb:hover {
+    transform: scale(1.05);
+  }
+  
+  .photo-thumb-wrap {
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  
+  .photo-thumb-wrap:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--brand-500);
+  }
+}
+
+/* Contact cards at top */
+.contact-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+@media (min-width: 600px) {
+  .contact-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.contact-card {
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.contact-card-phone {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+}
+
+.contact-card-email {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+}
+
+/* Trust bar alignment */
+.addr-trust-bar {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid #e5e7eb;
+}
+
+.addr-trust-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.875rem;
+  color: var(--ink-700);
+}
+
+.addr-trust-item .material-icons {
+  font-size: 20px;
+}
+
+.addr-trust-item .material-icons.icon-verified {
+  color: #10b981;
+}
+
+.addr-trust-item .material-icons.icon-store {
+  color: var(--brand-500);
+}
+
+.addr-trust-item .material-icons.icon-clock {
+  color: #f59e0b;
+}
+
+/* Back button centering */
+.addr-back {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-5);
+}

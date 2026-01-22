@@ -331,22 +331,27 @@ function ensureNotificationUI() {
           const ov = document.createElement('style');
           ov.id = 'oc-notif-override';
           ov.textContent = `
-            /* Normalize control button sizing and alignment inside notification panel */
+            /* Normalize control button sizing and alignment inside notification panel - THIN buttons */
             #notificationPanel .notification-controls .btn {
               position: relative !important;
-              padding: 6px 12px !important;
+              padding: 2px 8px !important;
+              height: 22px !important;
+              min-height: 22px !important;
+              max-height: 22px !important;
               display: inline-flex !important;
               align-items: center !important;
               justify-content: center !important;
-              gap: 8px !important;
+              gap: 4px !important;
               line-height: 1 !important;
               box-shadow: none !important;
               text-align: center !important;
-              min-width: 92px !important;
-              padding-left: 44px !important; /* make space for absolute icon */
+              min-width: 70px !important;
+              font-size: 11px !important;
+              padding-left: 24px !important; /* make space for smaller icon */
             }
             /* Position icon absolutely so text can be perfectly centered */
             #notificationPanel .notification-controls .btn .material-icons {
+              font-size: 14px !important;
               position: absolute !important;
               left: 12px !important;
               top: 50% !important;
@@ -1104,6 +1109,9 @@ function ensureNotificationUI() {
               <li><a href="/contracts" id="ddContracts"><span class="material-icons mr-2">receipt</span>Contracts</a></li>
               <li><a href="/products" id="ddProducts"><span class="material-icons mr-2">inventory_2</span>Products</a></li>
               <li><a href="/notes" id="ddNotes"><span class="material-icons mr-2">note</span>Notes</a></li>
+              <li><a href="/tasks" id="ddTasks"><span class="material-icons mr-2">task</span>Tasks</a></li>
+              <li><a href="/processes" id="ddProcesses"><span class="material-icons mr-2">schedule</span>Processes</a></li>
+              <li><a href="/approvalrules" id="ddApprovalRules"><span class="material-icons mr-2">rule</span>Approval Rules</a></li>
               <li><a href="/changestore" id="ddChangeStore"><span class="material-icons mr-2">store</span>Store Details</a></li>
               <li><a href="/users" id="ddUsersTeams"><span class="material-icons mr-2">group</span>Users &amp; Teams</a></li>
               <li><a href="/eventlog" id="ddEventLog"><span class="material-icons mr-2">list</span>All Events</a></li>
@@ -2025,7 +2033,7 @@ function ensureAdminChangeStoreModal() {
   modal.className = 'modal';
   modal.innerHTML = `
     <div class="modal-box">
-      <h3 class="font-bold text-lg mb-2 flex items-center"><span class="material-icons mr-2 text-emerald-600">edit</span>Change Store Details</h3>
+      <h3 id="adminStoreTitle" class="font-bold text-lg mb-2 flex items-center"><span class="material-icons mr-2 text-emerald-600">edit</span>Change Store Details</h3>
       <p class="text-sm text-gray-600 mb-4">Update store name, address, phone, email, and working hours.</p>
       <form id="adminStoreForm" class="space-y-3">
         <select id="storeSelect" class="hidden">
@@ -2516,6 +2524,10 @@ async function preloadStoresIntoModal() {
         setHoursEditorFromString(s?.hours || '');
         fixPairRanges();
         updateHoursEditorDisabled();
+        try {
+          const titleEl = document.getElementById('adminStoreTitle');
+          if (titleEl) titleEl.textContent = id ? `Change Store Details (Store ${id})` : 'Change Store Details';
+        } catch {}
       });
     }
 
@@ -2531,6 +2543,7 @@ async function preloadStoresIntoModal() {
     document.getElementById('storeHours').value = '';
     setHoursEditorFromString('');
     updateHoursEditorDisabled();
+    try { const titleEl = document.getElementById('adminStoreTitle'); if (titleEl) titleEl.textContent = 'Change Store Details'; } catch {}
   } catch (err) {
     // Log load error: use logged-in userId, else default to system (2)
     try {

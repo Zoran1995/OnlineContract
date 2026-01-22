@@ -9,6 +9,7 @@
   <link rel="icon" href="/resources/icons/tshirt.svg" type="image/svg+xml" />
   <link href="/css/login.css" rel="stylesheet" />
   <link href="/css/eventlog.css" rel="stylesheet" />
+  <link href="/css/app-modern.css" rel="stylesheet" />
   <link href="/dist/output.css" rel="stylesheet">
   <style>
     .hidden { display: none !important; }
@@ -112,8 +113,8 @@
           </div>
         </div>
 
-        <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
-          <table id="variantsTable" class="table table-zebra w-full" aria-label="Product variants">
+        <div class="mod-card mod-card-compact table-scroll">
+          <table id="variantsTable" class="table-modern table table-zebra w-full" aria-label="Product variants">
             <thead>
               <tr>
                 <th style="width:140px">Size</th>
@@ -128,25 +129,29 @@
             <tbody></tbody>
           </table>
         </div>
-        <div class="flex items-center gap-3 mt-3 grid-pagination">
-          <label class="text-sm">Rows per page:</label>
-          <select id="variantsPageSizeSel" class="select select-bordered w-20 select-sm">
-            <option value="10">10</option>
-            <option value="20">20</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
+        <div class="mod-pagination">
+          <div class="flex items-center gap-2">
+            <label class="mod-text-sm">Rows per page:</label>
+            <select id="variantsPageSizeSel" class="select select-bordered w-20 select-sm">
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
 
-          <button id="variantsPrev" class="btn btn-outline btn-sm">
-            <span class="material-icons mr-2">chevron_left</span>
-            Previous
-          </button>
-          <span id="variantsPageInfo" class="font-semibold">Page 1 of 1</span>
-          <button id="variantsNext" class="btn btn-outline btn-sm">
-            Next <span class="material-icons ml-2">chevron_right</span>
-          </button>
+          <div class="flex items-center gap-2">
+            <button id="variantsPrev" class="btn btn-outline btn-sm">
+              <span class="material-icons mr-2">chevron_left</span>
+              Previous
+            </button>
+            <span id="variantsPageInfo" class="mod-pagination-info"></span>
+            <button id="variantsNext" class="btn btn-outline btn-sm">
+              Next <span class="material-icons ml-2">chevron_right</span>
+            </button>
+          </div>
 
-          <span id="variantsPageCountInfo" class="page-count-info ml-auto">Total records: 0</span>
+          <span id="variantsPageCountInfo" class="mod-pagination-count"></span>
         </div>
       </div>
 
@@ -173,8 +178,8 @@
           </div>
         </div>
 
-        <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
-          <table id="notesTable" class="table table-zebra w-full" aria-label="Product notes">
+        <div class="mod-card mod-card-compact table-scroll">
+          <table id="notesTable" class="table-modern table table-zebra w-full" aria-label="Product notes">
             <thead>
               <tr>
                 <th>Subject</th>
@@ -187,25 +192,29 @@
             <tbody></tbody>
           </table>
         </div>
-        <div class="flex items-center gap-3 mt-3 grid-pagination">
-          <label class="text-sm">Rows per page:</label>
-          <select id="notesPageSizeSel" class="select select-bordered w-20 select-sm">
-            <option value="10">10</option>
-            <option value="20">20</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
+        <div class="mod-pagination">
+          <div class="flex items-center gap-2">
+            <label class="mod-text-sm">Rows per page:</label>
+            <select id="notesPageSizeSel" class="select select-bordered w-20 select-sm">
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
 
-          <button id="notesPrev" class="btn btn-outline btn-sm">
-            <span class="material-icons mr-2">chevron_left</span>
-            Previous
-          </button>
-          <span id="notesPageInfo" class="font-semibold">Page 1 of 1</span>
-          <button id="notesNext" class="btn btn-outline btn-sm">
-            Next <span class="material-icons ml-2">chevron_right</span>
-          </button>
+          <div class="flex items-center gap-2">
+            <button id="notesPrev" class="btn btn-outline btn-sm">
+              <span class="material-icons mr-2">chevron_left</span>
+              Previous
+            </button>
+            <span id="notesPageInfo" class="mod-pagination-info"></span>
+            <button id="notesNext" class="btn btn-outline btn-sm">
+              Next <span class="material-icons ml-2">chevron_right</span>
+            </button>
+          </div>
 
-          <span id="notesPageCountInfo" class="page-count-info ml-auto">Total records: 0</span>
+          <span id="notesPageCountInfo" class="mod-pagination-count"></span>
         </div>
       </div>
     </div>

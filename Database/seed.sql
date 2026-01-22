@@ -41,10 +41,28 @@ USING (
     (18 , N'ContractState', N'Returned'),
     (19 , N'ContractState', N'Cancelled'),
     (20 , N'ContractState', N'Written Off'),
-    (21 , N'ProductStateInOrder', N'Draft'),
-    (22 , N'ProductStateInOrder', N'Submitted'),
-    (23 , N'ProductStateInOrder', N'Accepted'),
-    (24 , N'ProductStateInOrder', N'Rejected')
+    (21 , N'ContractState', N'Refunded'),
+    (22 , N'ProductStateInOrder', N'Draft'),
+    (23 , N'ProductStateInOrder', N'Submitted'),
+    (24 , N'ProductStateInOrder', N'Accepted'),
+    (25 , N'ProductStateInOrder', N'Rejected'),
+    (26 , N'TaskPriority', N'1 - Urgent'),
+    (27 , N'TaskPriority', N'2 - High'),
+    (28 , N'TaskPriority', N'3 - Normal'),
+    (29 , N'TaskPriority', N'4 - Low'),
+    (30 , N'TaskStatus', N'Not Started'),
+    (31 , N'TaskStatus', N'Started'),
+    (32 , N'TaskStatus', N'Approved'),
+    (33 , N'TaskStatus', N'Rejected'),
+    (34 , N'TaskStatus', N'Cancelled'),
+    (35 , N'TaskStatus', N'Completed'),
+    (36 , N'TaskStatus', N'Failed'),
+    (37 , N'ProcessResult', N'Successful'),
+    (38 , N'ProcessResult', N'Warning'),
+    (39 , N'ProcessResult', N'Failed'),
+    (40 , N'ProcessResult', N'Successful Nothing Processed'),
+    (41 , N'ApprovalRuleContext', N'Refund Payment'),
+    (42 , N'ApprovalRuleContext', N'Contract Write-Off')
 ) AS src(lookup_set_id, set_name, value)
 ON (tgt.lookup_set_id = src.lookup_set_id)
 
@@ -66,18 +84,19 @@ IF @is_identity_contract_state = 1 SET IDENTITY_INSERT dbo.contract_state ON;
 MERGE dbo.contract_state AS tgt
 USING (
     VALUES
-    (1 , 9 , 0, 1),
-    (2 , 10, 1, 0),
+    (1 , 9 , 1, 0),
+    (2 , 10, 0, 0),
     (3 , 11, 0, 0),
     (4 , 12, 0, 0),
-    (5 , 13, 0, 0),
+    (5 , 13, 0, 1),
     (6 , 14, 0, 0),
     (7 , 15, 0, 0),
     (8 , 16, 0, 0),
     (9 , 17, 0, 1),
-    (10, 18, 0, 1),
+    (10, 18, 0, 0),
     (11, 19, 0, 1),
-    (12, 20, 0, 1)
+    (12, 20, 0, 1),
+    (13, 21, 0, 1)
 ) AS src(contract_state_id, lookup_set_id, is_start_state, is_end_state)
 ON (tgt.contract_state_id = src.contract_state_id)
 WHEN NOT MATCHED THEN
@@ -263,7 +282,34 @@ WHEN MATCHED AND (
 
 IF @is_identity_store = 1 SET IDENTITY_INSERT dbo.store OFF;
 
-COMMIT TRAN;
+/* approval_rule seed */
+MERGE dbo.approval_rule AS tgt
+USING (
+    VALUES
+    (N'Refund Payment',       N'Approval rule for refund payments',       1, 0, 3, CAST('0.00' AS DECIMAL(18,2)), CAST('1.00' AS DECIMAL(18,2)), 0, 41),
+    (N'Contract Write-Off',   N'Approval rule for contract write-off',    1, 0, 3, CAST('1.00' AS DECIMAL(18,2)), CAST('0.00' AS DECIMAL(18,2)), 0, 42)
+) AS src(name, description, is_active, is_deleted, task_assigned_to_id, amt_threshold, pct_threshold, stamp, approval_rule_context_id)
+ON (tgt.name = src.name)
+WHEN NOT MATCHED THEN
+    INSERT (name, description, is_active, is_deleted, task_assigned_to_id, amt_threshold, pct_threshold, stamp, approval_rule_context_id)
+    VALUES (src.name, src.description, src.is_active, src.is_deleted, src.task_assigned_to_id, src.amt_threshold, src.pct_threshold, src.stamp, src.approval_rule_context_id)
+WHEN MATCHED AND (
+    ISNULL(tgt.description,'') <> ISNULL(src.description,'') OR
+    ISNULL(tgt.is_active,0) <> ISNULL(src.is_active,0) OR
+    ISNULL(tgt.is_deleted,0) <> ISNULL(src.is_deleted,0) OR
+    ISNULL(tgt.task_assigned_to_id,0) <> ISNULL(src.task_assigned_to_id,0) OR
+    ISNULL(tgt.amt_threshold,0) <> ISNULL(src.amt_threshold,0) OR
+    ISNULL(tgt.pct_threshold,0) <> ISNULL(src.pct_threshold,0) OR
+    ISNULL(tgt.approval_rule_context_id,0) <> ISNULL(src.approval_rule_context_id,0)
+)
+THEN UPDATE SET
+    description = src.description,
+    is_active = src.is_active,
+    is_deleted = src.is_deleted,
+    task_assigned_to_id = src.task_assigned_to_id,
+    amt_threshold = src.amt_threshold,
+    pct_threshold = src.pct_threshold,
+    approval_rule_context_id = src.approval_rule_context_id;
 
-PRINT 'Base data seeded (lookup_set, contract_state, transitions, ax_user; product/contract defaults; store).';
+COMMIT TRAN;
 GO

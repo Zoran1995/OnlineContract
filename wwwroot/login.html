@@ -6,8 +6,12 @@
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
   <link rel="icon" href="/resources/icons/key-heart.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="/css/login.css" />
+  <link rel="stylesheet" href="/css/home.css" />
+  <link rel="stylesheet" href="/css/theme-pastel.css" />
   <link href="/dist/output.css" rel="stylesheet">
+  <style>
+    .auth-card { border-left: 4px solid var(--brand-500); }
+  </style>
 </head>
 <body class="bg-base-200 text-base-content">
 
@@ -33,48 +37,70 @@
     </div>
   </div>
 
-  <!-- Log In form -->
   <main class="container mx-auto p-6">
-      <!-- Header / Hero for Auth -->
-      <section class="rounded-xl shadow overflow-hidden mb-8">
-        <div class="bg-gradient-to-r from-sky-200 via-teal-200 to-emerald-200 px-8 py-10 text-center">
-          <h1 class="text-4xl font-extrabold tracking-tight text-violet-900 mb-2">Access Your Account</h1>
-          <p class="text-lg md:text-xl text-violet-800">Log in or create an account to shop kids clothing faster.</p>
+    <!-- Hero Section -->
+    <section class="pastel-hero home-hero mb-6 fade-up text-center py-10">
+      <div class="flex justify-center mb-4">
+        <span class="material-icons text-6xl text-violet-600">account_circle</span>
+      </div>
+      <h1 class="text-4xl font-extrabold tracking-tight text-violet-900 mb-3 pastel-heading">Welcome to KidzStyle</h1>
+      <p class="text-lg text-violet-800 mb-4">Log in or create an account to shop adorable kids clothing</p>
+      <div class="feature-chips">
+        <span class="feature-chip"><span class="material-icons">bolt</span>Fast Checkout</span>
+        <span class="feature-chip"><span class="material-icons">security</span>Secure Account</span>
+        <span class="feature-chip"><span class="material-icons">favorite</span>Save Favorites</span>
+      </div>
+    </section>
+
+    <!-- Log In form -->
+    <div id="loginFormContainer" class="max-w-lg mx-auto pastel-card auth-card fade-up">
+      <div class="p-6">
+        <div class="flex items-center gap-3 mb-6">
+          <span class="material-icons text-3xl text-violet-600">login</span>
+          <h2 class="text-2xl font-bold pastel-heading">Log In</h2>
         </div>
-  <img src="/resources/photos/CoverImage.jpg" alt="Kids Fashion Cover" class="w-full h-56 md:h-72 object-cover" loading="lazy" />
-      </section>
-  <div id="loginFormContainer" class="max-w-3xl mx-auto bg-base-100 shadow rounded-xl p-6 hidden">
-      <h2 class="text-2xl font-bold mb-4">Log In</h2>
-        <div class="grid md:grid-cols-2 gap-6 mb-4 items-center">
-          <div class="rounded-lg overflow-hidden shadow hidden md:block">
-            <img src="/resources/photos/HomePage.jpg" alt="KidzStyle Illustration" class="w-full h-full object-cover" loading="lazy" />
-          </div>
-          <div>
-      <form id="loginForm" class="space-y-4 max-w-md mx-auto">
-        <div class="form-control w-full">
-          <label class="label"><span class="label-text">User code</span></label>
-          <input id="code" type="text" class="input input-bordered w-full" required />
-        </div>
-        <div class="form-control w-full">
-          <label class="label"><span class="label-text">Password</span></label>
-          <input id="password" type="password" class="input input-bordered w-full" required />
-        </div>
-        <div class="text-right">
-          <button id="forgotPasswordBtn" type="button" class="btn btn-modern btn-sm">Forgot credentials?</button>
-        </div>
-        <div class="flex items-center gap-3">
-          <button id="loginBtn" type="submit" class="btn btn-primary">Log In</button>
-          <button id="loginClearBtn" type="button" class="btn btn-outline">Clear</button>
-          <span id="loginLoading" class="hidden"><span class="spinner"></span> Logging in...</span>
-        </div>
-      </form>
-            <div class="mt-4 flex flex-wrap gap-2">
-              <span class="badge badge-success">Fast access</span>
-              <span class="badge badge-info">Secure</span>
-              <span class="badge badge-warning">Support 24/7</span>
+        <form id="loginForm" class="space-y-4">
+          <div class="form-control w-full">
+            <label class="label"><span class="label-text font-medium">User code</span></label>
+            <div class="relative">
+              <span class="material-icons absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">person</span>
+              <input id="code" type="text" class="input input-bordered w-full pl-10" placeholder="Enter your user code" required />
             </div>
           </div>
+          <div class="form-control w-full">
+            <label class="label"><span class="label-text font-medium">Password</span></label>
+            <div class="relative">
+              <span class="material-icons absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">lock</span>
+              <input id="password" type="password" class="input input-bordered w-full pl-10" placeholder="Enter your password" required />
+            </div>
+          </div>
+          <div class="text-right">
+            <button id="forgotPasswordBtn" type="button" class="btn btn-ghost btn-sm text-violet-600">
+              <span class="material-icons text-sm mr-1">help_outline</span>
+              Forgot credentials?
+            </button>
+          </div>
+          <div class="flex items-center gap-3 pt-2">
+            <button id="loginBtn" type="submit" class="btn btn-primary btn-sheen flex-1">
+              <span class="material-icons mr-2">login</span>
+              Log In
+            </button>
+            <button id="loginClearBtn" type="button" class="btn btn-ghost">Clear</button>
+            <span id="loginLoading" class="hidden flex items-center gap-2">
+              <span class="loading loading-spinner loading-sm"></span>
+              Logging in...
+            </span>
+          </div>
+        </form>
+        <div class="divider my-6">OR</div>
+        <div class="text-center">
+          <p class="text-gray-600 mb-3">Don't have an account?</p>
+          <a href="/login?mode=signin" class="btn btn-pastel-outline">
+            <span class="material-icons mr-2">person_add</span>
+            Create Account
+          </a>
         </div>
+      </div>
     </div>
 
     <!-- Modal: Change temporary password -->
@@ -96,131 +122,143 @@
         </div>
         <input id="tmpStamp" type="hidden" />
         <div class="modal-action">
-          <button id="tmpCancel" class="btn">Cancel</button>
-          <button id="tmpSave" class="btn btn-primary">Set New Password</button>
+          <button id="tmpCancel" class="btn btn-ghost">Cancel</button>
+          <button id="tmpSave" class="btn btn-primary btn-sheen">Set New Password</button>
         </div>
       </form>
     </dialog>
 
-    <!-- Top product preview removed; previews remain below the registration form -->
-
     <!-- Sign In form -->
-  <div id="registerFormContainer" class="w-full max-w-6xl mx-auto bg-base-100 shadow rounded-xl p-6 hidden">
-    <h2 class="text-2xl font-bold mb-4 text-center">Create Account</h2>
+    <div id="registerFormContainer" class="max-w-2xl mx-auto pastel-card auth-card fade-up hidden">
+      <div class="p-6">
+        <div class="flex items-center gap-3 mb-6">
+          <span class="material-icons text-3xl text-emerald-600">person_add</span>
+          <h2 class="text-2xl font-bold pastel-heading">Create Account</h2>
+        </div>
 
-    <!-- Tabbed widget -->
-    <div class="tabs tabs-lifted w-full">
-      <a class="tab tab-active" id="tabPersonal" role="tab" aria-selected="true">Profile</a>
-      <a class="tab" id="tabAddress" role="tab" aria-selected="false">Address</a>
-    </div>
+        <!-- Tabbed widget -->
+        <div class="tabs tabs-boxed bg-base-200 p-1 rounded-lg mb-6">
+          <a class="tab tab-active" id="tabPersonal" role="tab" aria-selected="true">
+            <span class="material-icons mr-1 text-sm">person</span>
+            Profile
+          </a>
+          <a class="tab" id="tabAddress" role="tab" aria-selected="false">
+            <span class="material-icons mr-1 text-sm">home</span>
+            Address
+          </a>
+        </div>
 
-  <form id="registerForm" class="mt-4 w-full text-center">
-      <!-- Tab panels -->
-      <div id="panelPersonal" role="tabpanel" aria-labelledby="tabPersonal" class="block">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- Role selector (visible only when logged-in Admin or Manager). First field. -->
-          <div class="form-control w-full md:col-span-2 hidden" id="roleSelectorRow">
-            <label class="label justify-center"><span class="label-text">Assign Role</span></label>
-            <select id="roleSelector" class="select select-bordered w-full max-w-md mx-auto">
-              <!-- Sorted by id descending: 8,7,6,5 -->
-              <option value="8">Administrator</option>
-              <option value="7">Manager</option>
-              <option value="6">Worker</option>
-              <option value="5">Customer</option>
-            </select>
-            <label class="label justify-center"><span class="label-text-alt">Managers cannot assign Administrator.</span></label>
-          </div>
-          <div class="form-control w-full">
-            <label class="label justify-center"><span class="label-text">First Name</span></label>
-            <input id="firstName" type="text" class="input input-bordered w-full" required />
-          </div>
-          <div class="form-control w-full">
-            <label class="label justify-center"><span class="label-text">Last Name</span></label>
-            <input id="lastName" type="text" class="input input-bordered w-full" required />
-          </div>
-          <div class="form-control w-full md:col-span-2">
-            <label class="label justify-center"><span class="label-text">Email</span></label>
-            <input id="email" type="email" class="input input-bordered w-full" required />
-          </div>
-          <div class="form-control w-full md:col-span-2">
-            <label class="label justify-center"><span class="label-text">Phone Number</span></label>
-            <div class="grid grid-cols-[auto,1fr] items-center gap-3 w-full">
-              <input type="text" value="+381" class="input input-bordered w-24 bg-gray-100 text-center" readonly />
-              <input id="phone" type="text" class="input input-bordered w-full" pattern="[0-9]+" required />
+        <form id="registerForm" class="w-full">
+          <!-- Tab panels -->
+          <div id="panelPersonal" role="tabpanel" aria-labelledby="tabPersonal" class="block">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Role selector (visible only when logged-in Admin or Manager). First field. -->
+              <div class="form-control w-full md:col-span-2 hidden" id="roleSelectorRow">
+                <label class="label"><span class="label-text font-medium">Assign Role</span></label>
+                <select id="roleSelector" class="select select-bordered w-full">
+                  <option value="8">Administrator</option>
+                  <option value="7">Manager</option>
+                  <option value="6">Worker</option>
+                  <option value="5">Customer</option>
+                </select>
+                <label class="label"><span class="label-text-alt text-gray-500">Managers cannot assign Administrator.</span></label>
+              </div>
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text font-medium">First Name</span></label>
+                <input id="firstName" type="text" class="input input-bordered w-full" placeholder="John" required />
+              </div>
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text font-medium">Last Name</span></label>
+                <input id="lastName" type="text" class="input input-bordered w-full" placeholder="Doe" required />
+              </div>
+              <div class="form-control w-full md:col-span-2">
+                <label class="label"><span class="label-text font-medium">Email</span></label>
+                <input id="email" type="email" class="input input-bordered w-full" placeholder="john@example.com" required />
+              </div>
+              <div class="form-control w-full md:col-span-2">
+                <label class="label"><span class="label-text font-medium">Phone Number</span></label>
+                <div class="flex items-center gap-2">
+                  <span class="input input-bordered w-20 flex items-center justify-center bg-gray-100 text-gray-600">+381</span>
+                  <input id="phone" type="text" class="input input-bordered flex-1" pattern="[0-9]+" placeholder="612345678" required />
+                </div>
+              </div>
+              <div class="form-control w-full md:col-span-2">
+                <label class="label"><span class="label-text font-medium">Username</span></label>
+                <input id="username" type="text" class="input input-bordered w-full" placeholder="johndoe" required />
+              </div>
+              <div class="form-control w-full md:col-span-2">
+                <label class="label"><span class="label-text font-medium">Password</span></label>
+                <input id="regPassword" type="password" class="input input-bordered w-full" placeholder="Create a secure password" required />
+              </div>
             </div>
           </div>
-          <div class="form-control w-full md:col-span-2">
-            <label class="label justify-center"><span class="label-text">Username</span></label>
-            <input id="username" type="text" class="input input-bordered w-full" required />
+
+          <div id="panelAddress" role="tabpanel" aria-labelledby="tabAddress" class="hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text font-medium">City (optional)</span></label>
+                <input id="city" type="text" class="input input-bordered w-full" placeholder="Belgrade" />
+              </div>
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text font-medium">Postal Code (optional)</span></label>
+                <input id="postalCode" type="text" class="input input-bordered w-full" inputmode="numeric" pattern="[0-9]{5}" minlength="5" maxlength="5" placeholder="11000" />
+                <label class="label"><span class="label-text-alt text-gray-500">Exactly 5 digits</span></label>
+              </div>
+              <div class="form-control w-full md:col-span-2">
+                <label class="label"><span class="label-text font-medium">Street Address (optional)</span></label>
+                <input id="streetAddress" type="text" class="input input-bordered w-full" placeholder="Main Street 123" />
+              </div>
+            </div>
           </div>
-          <div class="form-control w-full">
-            <label class="label justify-center"><span class="label-text">Password</span></label>
-            <input id="regPassword" type="password" class="input input-bordered w-full" required />
+
+          <div class="flex items-center justify-center gap-3 mt-6 pt-4 border-t border-base-200">
+            <button id="registerBtn" type="submit" class="btn btn-primary btn-sheen">
+              <span class="material-icons mr-2">person_add</span>
+              Create Account
+            </button>
+            <span id="registerLoading" class="hidden flex items-center gap-2">
+              <span class="loading loading-spinner loading-sm"></span>
+              Creating...
+            </span>
           </div>
+        </form>
+
+        <div class="divider my-6">OR</div>
+        <div class="text-center">
+          <p class="text-gray-600 mb-3">Already have an account?</p>
+          <button id="switchToLogIn" class="btn btn-pastel-outline">
+            <span class="material-icons mr-2">login</span>
+            Log In
+          </button>
         </div>
       </div>
-
-        <div id="panelAddress" role="tabpanel" aria-labelledby="tabAddress" class="hidden">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="form-control w-full">
-            <label class="label justify-center"><span class="label-text">City (optional)</span></label>
-            <input id="city" type="text" class="input input-bordered w-full" />
-          </div>
-          <div class="form-control w-full md:col-span-2">
-            <label class="label justify-center"><span class="label-text">Street Address (optional)</span></label>
-            <input id="streetAddress" type="text" class="input input-bordered w-full" />
-          </div>
-          <div class="form-control w-full">
-            <label class="label justify-center"><span class="label-text">Postal Code (optional)</span></label>
-            <input id="postalCode" type="text" class="input input-bordered w-full" inputmode="numeric" pattern="[0-9]{5}" minlength="5" maxlength="5" />
-            <label class="label">
-              <span class="label-text-alt">Exactly 5 digits</span>
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <div class="actions-row full-span flex justify-center gap-3 mt-6">
-        <button id="registerBtn" type="submit" class="btn btn-primary">Create Account</button>
-        <span id="registerLoading" class="hidden"><span class="spinner"></span> Creating...</span>
-      </div>
-    </form>
-
-      <!-- Product preview images (appear directly below the registration form) -->
-      <div id="authProductImagesRegister" class="grid md:grid-cols-3 gap-4 my-6">
-        <div class="rounded-lg overflow-hidden shadow">
-          <img src="/resources/photos/HomePage.jpg" alt="New Arrivals" class="w-full h-40 object-cover" loading="lazy" />
-        </div>
-        <div class="rounded-lg overflow-hidden shadow hidden md:block">
-          <img src="/resources/photos/Item1.jpg" alt="Baby & Toddler" class="w-full h-40 object-cover" loading="lazy" />
-        </div>
-        <div class="rounded-lg overflow-hidden shadow hidden md:block">
-          <img src="/resources/photos/Item2.jpg" alt="Kids & Teens" class="w-full h-40 object-cover" loading="lazy" />
-        </div>
-      </div>
-
-    <div class="mt-4 flex flex-wrap gap-2 justify-center">
-      <span class="badge badge-success">Welcome</span>
-      <span class="badge badge-info">Fast Sign Up</span>
-      <span class="badge badge-warning">Secure</span>
     </div>
-  </div>
+
+    <!-- Trust bar -->
+    <section class="trust-bar mt-8 fade-up">
+      <div class="trust-item"><span class="material-icons icon-success">verified</span> <span>Secure Account</span></div>
+      <div class="trust-item"><span class="material-icons icon-success">local_shipping</span> <span>Free Shipping 40€+</span></div>
+      <div class="trust-item"><span class="material-icons icon-success">support_agent</span> <span>Customer Support</span></div>
+    </section>
   </main>
 
   <!-- Notification UI injected by /js/shared.js -->
 
   <!-- Forgot password modal -->
   <dialog id="forgotModal" class="modal">
-    <form method="dialog" class="modal-box">
-      <h3 class="font-bold text-lg mb-2">Reset your password</h3>
-      <p class="mb-3">Enter the email address associated with your account and we'll send reset instructions.</p>
+    <form method="dialog" class="modal-box pastel-card">
+      <h3 class="font-bold text-lg mb-2 flex items-center gap-2">
+        <span class="material-icons text-amber-600">lock_reset</span>
+        Reset your password
+      </h3>
+      <p class="mb-4 text-gray-600">Enter the email address associated with your account and we'll send reset instructions.</p>
       <div class="form-control">
-        <label class="label"><span class="label-text">Email</span></label>
-        <input id="forgotEmail" type="email" class="input input-bordered" />
+        <label class="label"><span class="label-text font-medium">Email</span></label>
+        <input id="forgotEmail" type="email" class="input input-bordered" placeholder="your@email.com" />
       </div>
       <div class="modal-action">
-        <button id="forgotCancel" class="btn">Cancel</button>
-        <button id="forgotSend" class="btn btn-primary">Send Instructions</button>
+        <button id="forgotCancel" class="btn btn-ghost">Cancel</button>
+        <button id="forgotSend" class="btn btn-primary btn-sheen">Send Instructions</button>
       </div>
     </form>
   </dialog>

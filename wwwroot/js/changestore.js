@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const total = stores.length || 0;
     const startIndex = total === 0 ? 0 : start + 1;
     const endIndex = Math.min(start + pageSize, total);
-    if (pgInfo) pgInfo.textContent = `${startIndex}–${endIndex} of ${total} · pages ${totalPages}`;
+    if (pgInfo) pgInfo.innerHTML = `Page <b>${page}</b> of <b>${totalPages}</b>`;
     if (pgPrev) pgPrev.disabled = page <= 1;
     if (pgNext) pgNext.disabled = page >= totalPages;
     const pageCountInfo = document.getElementById('pageCountInfo');

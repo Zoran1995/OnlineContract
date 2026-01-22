@@ -24,3 +24,13 @@ tr.selected { background:#f0f7ff; }
   gap: 6px 8px; /* row-gap 6px, column-gap 8px;*/
 }
 
+/* Allocation Status bracket styling */
+.alloc-bracket {
+  font-weight: 700;     /* bold */
+  font-size: 1.25rem;   /* ~20px, slightly larger */
+  line-height: 1;       /* avoid extra vertical spacing */
+  display: inline-flex; /* align nicely */
+  align-items: center;
+  justify-content: center;
+}
+

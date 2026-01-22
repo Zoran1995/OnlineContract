@@ -10,6 +10,7 @@
   <link rel="icon" href="/resources/icons/user.svg" type="image/svg+xml" />
   <link href="/css/login.css" rel="stylesheet" />
   <link href="/css/eventlog.css" rel="stylesheet" />
+  <link href="/css/app-modern.css" rel="stylesheet" />
   <link href="/dist/output.css" rel="stylesheet">
   <style>
     .hidden { display: none !important; }
@@ -43,10 +44,9 @@
   </div>
 
   <main class="container mx-auto p-4">
-    <h1 class="text-2xl font-bold mb-4">Users &amp; Teams</h1>
-
-    <!-- Toolbar -->
-    <div class="flex items-center gap-2 mb-3 justify-end">
+    <div class="mod-toolbar">
+      <h1 class="mod-toolbar-title">Users &amp; Teams</h1>
+      <div class="mod-toolbar-actions">
       <button id="btnOpen" class="btn btn-sm" disabled>
         <span class="material-icons">open_in_new</span> <span>Open</span>
       </button>
@@ -66,10 +66,11 @@
           <li><a id="btnDelete" role="menuitem"><span class="material-icons mr-2">delete</span>Delete</a></li>
         </ul>
       </div>
+      </div>
     </div>
 
     <!-- Filter bar -->
-    <section class="bg-base-100 rounded-xl shadow p-4 mb-2">
+    <section class="mod-filters">
       <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
         <div>
           <label class="label"><span class="label-text">Name</span></label>
@@ -92,8 +93,8 @@
     </section>
 
     <!-- Grid -->
-    <div class="bg-base-100 rounded-xl shadow p-2 overflow-x-auto">
-      <table id="usersTable" class="table table-zebra w-full" aria-label="Users &amp; Teams">
+    <div class="mod-card mod-card-compact table-scroll">
+      <table id="usersTable" class="table-modern" aria-label="Users &amp; Teams">
         <thead>
           <tr>
             <th>ID</th>
@@ -110,20 +111,24 @@
     </div>
 
     <!-- Pagination -->
-    <div class="flex items-center gap-3 mt-3 grid-pagination">
-      <label class="text-sm">Rows per page:</label>
-      <select id="pgSize" class="select select-bordered w-20 select-sm">
-        <option value="10" selected>10</option>
-        <option value="20">20</option>
-        <option value="50">50</option>
-        <option value="100">100</option>
-      </select>
+    <div class="mod-pagination">
+      <div class="flex items-center gap-2">
+        <label class="mod-text-sm">Rows per page:</label>
+        <select id="pgSize" class="select select-bordered w-20 select-sm">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </div>
 
-      <button id="pgPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
-      <span id="pgInfo" class="font-semibold"></span>
-      <button id="pgNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
+      <div class="flex items-center gap-2">
+        <button id="pgPrev" class="btn btn-outline btn-sm"><span class="material-icons mr-2">chevron_left</span> Previous</button>
+        <span id="pgInfo" class="mod-pagination-info"></span>
+        <button id="pgNext" class="btn btn-outline btn-sm">Next <span class="material-icons ml-2">chevron_right</span></button>
+      </div>
 
-      <span id="pageCountInfo" class="page-count-info"></span>
+      <span id="pageCountInfo" class="mod-pagination-count"></span>
     </div>
   </main>
 
