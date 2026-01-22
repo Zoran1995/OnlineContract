@@ -143,7 +143,14 @@ namespace OnlineContract.Controllers
                 foreach (var x in pageRows)
                 {
                     string stateText = x.ContractState.ToString();
-                    try { stateText = await LookupHelper.GetLookupValueAsync(_db, (int)x.ContractState); } catch { }
+                    try
+                    {
+                        stateText = await LookupHelper.GetLookupValueAsync(_db, (int)x.ContractState);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Failed to resolve contract state lookup for value '{x.ContractState}': {ex}");
+                    }
 
                     items.Add(new
                     {
