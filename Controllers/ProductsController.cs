@@ -427,7 +427,7 @@ namespace OnlineContract.Controllers
                     }
                 }
 
-                foreach (var vd in (dto.Variants ?? Enumerable.Empty<Dtos.ProductVariantDto>()).Where(vd => vd.IsDeleted != true))
+                foreach (var vd in (dto.Variants ?? Enumerable.Empty<Dtos.ProductVariantDto>()).Where(vd => !vd.IsDeleted))
                 {
 
                     int vId = vd.Id.GetValueOrDefault(0);
@@ -533,7 +533,6 @@ namespace OnlineContract.Controllers
                         await _db.Database.ExecuteSqlInterpolatedAsync($@"INSERT INTO dbo.note (product_id, contract_id, comment, subject, is_main, is_deleted, is_active, input_dt, input_user_id, last_modified_by_id, last_updated_dt, stamp) VALUES ({id}, NULL, {text}, '', 0, 0, {(add.IsActive ? 1 : 0)}, dbo.GetLocalTime(), {CurrentUserId()}, {CurrentUserId()}, dbo.GetLocalTime(), 0);");
                     }
 
-                var updatedIds = (notesDto.Update ?? new List<Dtos.NoteUpdateDto>()).Select(u => u.Id).ToList();
                     foreach (var upd in notesDto.Update ?? new List<Dtos.NoteUpdateDto>())
                     {
                         var existing = await _db.Notes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == upd.Id && x.ProductId == id && !x.IsDeleted);

@@ -382,9 +382,8 @@ namespace OnlineContract.Controllers
             var provider = _db.Database.ProviderName ?? string.Empty;
             if (provider.IndexOf("Sqlite", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                foreach (var val in Enum.GetValues(typeof(ContractState)).Cast<ContractState>())
+                foreach (var val in Enum.GetValues(typeof(ContractState)).Cast<ContractState>().Where(v => v != c.ContractState))
                 {
-                    if (val == c.ContractState) continue;
                     string name = val.ToString();
                     try 
                     { 
