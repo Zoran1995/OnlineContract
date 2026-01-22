@@ -311,7 +311,7 @@ namespace OnlineContract.Controllers
             catch (Exception ex)
             {
                 await tx.RollbackAsync();
-                try { _db.ChangeTracker.Clear(); } catch { }
+                try { _db.ChangeTracker.Clear(); } catch (Exception clearEx) { System.Diagnostics.Debug.WriteLine($"Failed to clear EF Core ChangeTracker after error: {clearEx}"); }
                 await LoggerHelper.LogEventAsync(_db, Helpers.EventType.Error, "Save contract notes failed", ex.ToString(), Infrastructure.UserContextHelper.GetCurrentUserId(HttpContext));
                 return JsonResultHelper.StableJson(_env, new { success = false, message = "Failed to save notes. Please try again later." });
             }
