@@ -427,9 +427,8 @@ namespace OnlineContract.Controllers
                     }
                 }
 
-                foreach (var vd in dto.Variants ?? Enumerable.Empty<Dtos.ProductVariantDto>())
+                foreach (var vd in (dto.Variants ?? Enumerable.Empty<Dtos.ProductVariantDto>()).Where(vd => vd.IsDeleted != true))
                 {
-                    if (vd.IsDeleted == true) continue;
 
                     int vId = vd.Id.GetValueOrDefault(0);
                     string size = vd.Size ?? ""; string color = vd.Color ?? ""; decimal amount = vd.Amount; string? photo = NormalizePhotoFileName(vd.PhotoFileName); bool isActive = vd.IsActive; int qty1 = Math.Max(0, vd.QtyStore1); int qty2 = Math.Max(0, vd.QtyStore2);
@@ -453,7 +452,15 @@ namespace OnlineContract.Controllers
                         };
                         _db.ProductVariants.Add(v);
                         await _db.SaveChangesAsync();
-                        try { await LoggerHelper.LogEventAsync(_db, EventType.Information, "Variant created", $"ProductId={id}; VariantId={v.Id}", uid); } catch { }
+                        try 
+                        { 
+                            await LoggerHelper.LogEventAsync(_db, EventType.Information, "Variant created", $"ProductId={id}; VariantId={v.Id}", uid); 
+                        } 
+                        catch (Exception ex) 
+                        { 
+                            // Logging failures are non-fatal; write to stderr for diagnostics
+                            System.Console.Error.WriteLine($"Failed to log 'Variant created' event for ProductId={id}, VariantId={v.Id}: {ex}");
+                        }
                     }
                     else
                     {
@@ -504,7 +511,15 @@ namespace OnlineContract.Controllers
 
                     await UpsertInvAsync(1, qty1, vd.QtyStore1Stamp);
                     await UpsertInvAsync(2, qty2, vd.QtyStore2Stamp);
-                    try { await LoggerHelper.LogEventAsync(_db, EventType.Information, "Variant inventory upserted", $"ProductId={id}; VariantTmpId={vId}; VariantRealId={v?.Id}; Qty1={qty1}; Qty2={qty2}", uid); } catch { }
+                    try 
+                    { 
+                        await LoggerHelper.LogEventAsync(_db, EventType.Information, "Variant inventory upserted", $"ProductId={id}; VariantTmpId={vId}; VariantRealId={v?.Id}; Qty1={qty1}; Qty2={qty2}", uid); 
+                    } 
+                    catch (Exception ex) 
+                    { 
+                        // Logging failures are non-fatal for the main operation; write to stderr for diagnostics
+                        System.Console.Error.WriteLine($"Failed to log 'Variant inventory upserted' event for ProductId={id}, VariantId={v?.Id}: {ex}");
+                    }
                 }
 
                 await _db.SaveChangesAsync();
@@ -518,7 +533,7 @@ namespace OnlineContract.Controllers
                         await _db.Database.ExecuteSqlInterpolatedAsync($@"INSERT INTO dbo.note (product_id, contract_id, comment, subject, is_main, is_deleted, is_active, input_dt, input_user_id, last_modified_by_id, last_updated_dt, stamp) VALUES ({id}, NULL, {text}, '', 0, 0, {(add.IsActive ? 1 : 0)}, dbo.GetLocalTime(), {CurrentUserId()}, {CurrentUserId()}, dbo.GetLocalTime(), 0);");
                     }
 
-                    var updatedIds = (notesDto.Update ?? new List<Dtos.NoteUpdateDto>()).Select(u => u.Id).ToList();
+                var updatedIds = (notesDto.Update ?? new List<Dtos.NoteUpdateDto>()).Select(u => u.Id).ToList();
                     foreach (var upd in notesDto.Update ?? new List<Dtos.NoteUpdateDto>())
                     {
                         var existing = await _db.Notes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == upd.Id && x.ProductId == id && !x.IsDeleted);
@@ -609,7 +624,14 @@ namespace OnlineContract.Controllers
             catch (Exception ex)
             {
                 await tx.RollbackAsync();
-                try { _db.ChangeTracker.Clear(); } catch { }
+                try 
+                { 
+                    _db.ChangeTracker.Clear(); 
+                } 
+                catch (Exception clearEx) 
+                { 
+                    System.Diagnostics.Debug.WriteLine($"Failed to clear change tracker after error: {clearEx}");
+                }
                 await LoggerHelper.LogEventAsync(_db, EventType.Error, "Save product details failed", ex.ToString(), CurrentUserId());
                 var msg = ex is InvalidOperationException ? ex.Message : "Product details could not be saved. Please try again.";
                 return JsonResultHelper.StableJson(_env, new { success = false, message = msg });
@@ -685,7 +707,7 @@ namespace OnlineContract.Controllers
                 }
                 else
                 {
-                    var updatedProduct = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+                    _ = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
                     updatedVariants = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_variant SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
                     updatedInventories = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_inventory SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_variant_id IN (SELECT product_variant_id FROM dbo.product_variant WHERE product_id = {id} AND is_deleted = 0) AND is_deleted = 0;");
                     updatedNotes = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.note SET is_active = 0, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
@@ -738,7 +760,7 @@ namespace OnlineContract.Controllers
                 }
                 else
                 {
-                    var updatedProduct = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+                    _ = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
                     updatedVariants = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_variant SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
                     updatedInventories = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_inventory SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_variant_id IN (SELECT product_variant_id FROM dbo.product_variant WHERE product_id = {id} AND is_deleted = 0) AND is_deleted = 0;");
                     updatedNotes = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.note SET is_active = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
@@ -765,7 +787,7 @@ namespace OnlineContract.Controllers
                 var p = await _db.Products.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
                 if (p == null) return NotFound(new { message = "Product not found. The product may have been removed." });
                 var uid = CurrentUserId(); var now = DateTime.Now;
-                var updatedProduct = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
+                _ = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
                 var updatedVariants = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_variant SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");
                 var updatedInventories = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.product_inventory SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_variant_id IN (SELECT product_variant_id FROM dbo.product_variant WHERE product_id = {id} AND is_deleted = 0) AND is_deleted = 0;");
                 var updatedNotes = await _db.Database.ExecuteSqlInterpolatedAsync($@"UPDATE dbo.note SET is_active = 0, is_deleted = 1, last_modified_by_id = {uid}, last_updated_dt = {now}, stamp = stamp + 1 WHERE product_id = {id} AND is_deleted = 0;");

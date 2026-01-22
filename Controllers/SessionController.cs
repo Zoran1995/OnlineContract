@@ -29,7 +29,19 @@ namespace OnlineContract.Controllers
                 var productId = (dto != null && dto.TryGetValue("productId", out var pid)) ? pid : 0;
                 if (productId <= 0) return JsonResultHelper.StableJson(_env, new { message = "productId is required" }, StatusCodes.Status400BadRequest);
                 _sessionSvc.SetPendingAdd(HttpContext, productId);
-                try { await Helpers.LoggerHelper.LogEventAsync(HttpContext.RequestServices.GetRequiredService<Data.AppDbContext>(), Helpers.EventType.Information, "PendingAddToCart set", $"ProductId={productId}", Infrastructure.UserContextHelper.GetCurrentUserId(HttpContext)); } catch { }
+                try 
+                { 
+                    await Helpers.LoggerHelper.LogEventAsync(
+                        HttpContext.RequestServices.GetRequiredService<Data.AppDbContext>(), 
+                        Helpers.EventType.Information, 
+                        "PendingAddToCart set", 
+                        $"ProductId={productId}", 
+                        Infrastructure.UserContextHelper.GetCurrentUserId(HttpContext)); 
+                } 
+                catch (Exception ex) 
+                { 
+                    System.Console.Error.WriteLine($"Failed to log 'PendingAddToCart set' event for ProductId={productId}: {ex}");
+                }
                 return JsonResultHelper.StableJson(_env, new { success = true });
             }
             catch
