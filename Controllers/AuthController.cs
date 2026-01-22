@@ -303,7 +303,11 @@ namespace OnlineContract.Controllers
                     c.Type == ClaimTypes.Role || c.Type.EndsWith("/role", StringComparison.OrdinalIgnoreCase))?.Value;
                 if (!string.IsNullOrEmpty(roleClaim)) int.TryParse(roleClaim, out roleId);
             }
-            catch { }
+            catch (Exception)
+            {
+                // If there is any issue resolving or parsing the role claim, fall back to the default roleId (0).
+                roleId = 0;
+            }
 
             return new JsonResult(new
             {
