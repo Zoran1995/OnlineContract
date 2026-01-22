@@ -8,8 +8,8 @@ namespace OnlineContract.Models
         public DateTime? LastEndDt { get; set; }
         public DateTime? LastStartDt { get; set; }
         public DateTime? NextRunDt { get; set; }
-        public int? Duration { get; set; }
-        public int Status { get; set; }
+        public int? DurationSec { get; set; }
+        public string? DurationFmt { get; set; }
         public bool IsActive { get; set; }
         public bool IsDeleted { get; set; }
         public int Stamp { get; set; }

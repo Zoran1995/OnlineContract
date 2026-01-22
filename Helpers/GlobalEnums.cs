@@ -56,20 +56,15 @@ namespace OnlineContract.Helpers
         Rejected = 33,
         Cancelled = 34,
         Completed = 35,
-        Failed = 36
-    }
-
-    public enum ProcessResult
-    {
+        Failed = 36,
         Successful = 37,
         Warning = 38,
-        Failed = 39,
-        SuccessfulNothingProcessed = 40
+        SuccessfulNothingProcessed = 39
     }
 
     public enum ApprovalRuleContext
     {
-        RefundPayment = 41,
-        ContractWriteOff = 42
+        RefundPayment = 40,
+        ContractWriteOff = 41
     }
 }
