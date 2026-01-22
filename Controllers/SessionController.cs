@@ -57,7 +57,19 @@ namespace OnlineContract.Controllers
             try
             {
                 _sessionSvc.ClearPendingAdd(HttpContext);
-                try { await Helpers.LoggerHelper.LogEventAsync(HttpContext.RequestServices.GetRequiredService<Data.AppDbContext>(), Helpers.EventType.Information, "PendingAddToCart cleared", string.Empty, Infrastructure.UserContextHelper.GetCurrentUserId(HttpContext)); } catch { }
+                try 
+                { 
+                    await Helpers.LoggerHelper.LogEventAsync(
+                        HttpContext.RequestServices.GetRequiredService<Data.AppDbContext>(), 
+                        Helpers.EventType.Information, 
+                        "PendingAddToCart cleared", 
+                        string.Empty, 
+                        Infrastructure.UserContextHelper.GetCurrentUserId(HttpContext)); 
+                } 
+                catch (Exception ex) 
+                { 
+                    System.Console.Error.WriteLine($"Failed to log 'PendingAddToCart cleared' event: {ex}");
+                }
                 return JsonResultHelper.StableJson(_env, new { success = true });
             }
             catch { return StatusCode(StatusCodes.Status500InternalServerError); }
