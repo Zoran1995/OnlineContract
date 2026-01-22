@@ -655,7 +655,15 @@ namespace OnlineContract.Controllers
                     if (body != null && body.TryGetValue("contractStamp", out var cs) && cs.HasValue && contract.Stamp != cs.Value)
                         return StatusCode(StatusCodes.Status409Conflict);
                 }
-                catch { }
+                catch (System.Exception ex)
+                {
+                    await LoggerHelper.LogEventAsync(
+                        _db,
+                        EventType.Information,
+                        "Failed to read contractStamp from request body",
+                        $"ContractId={id}; Error={ex.Message}",
+                        currentUserId);
+                }
 
                 var dets = await _db.ContractDets.Where(d => d.ContractId == id && !d.IsDeleted).ToListAsync();
                 foreach (var d in dets)
