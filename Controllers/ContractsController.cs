@@ -214,7 +214,16 @@ namespace OnlineContract.Controllers
                 return JsonResultHelper.StableJson(_env, new { message = "Contract not found. The contract may have been removed." }, StatusCodes.Status404NotFound);
 
             string contractStateText = row.ContractState.ToString();
-            try { contractStateText = await LookupHelper.GetLookupValueAsync(_db, (int)row.ContractState); } catch { }
+            try
+            {
+                contractStateText = await LookupHelper.GetLookupValueAsync(_db, (int)row.ContractState);
+            }
+            catch (Exception ex)
+            {
+                // Fallback to the default contract state text and log the failure.
+                contractStateText = row.ContractState.ToString();
+                System.Console.Error.WriteLine($"Failed to get lookup value for contract state '{row.ContractState}': {ex}");
+            }
 
             return JsonResultHelper.StableJson(_env, new
             {
