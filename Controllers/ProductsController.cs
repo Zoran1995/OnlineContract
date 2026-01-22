@@ -782,7 +782,14 @@ namespace OnlineContract.Controllers
                 catch (Exception rollbackEx)
                 {
                     // Log rollback failure but do not change the response to the client.
-                    await LoggerHelper.LogEventAsync(_db, EventType.Error, "Rollback transaction failed during product delete", rollbackEx.ToString(), CurrentUserId());
+                    try
+                    {
+                        await LoggerHelper.LogEventAsync(_db, EventType.Error, "Rollback transaction failed during product delete", rollbackEx.ToString(), CurrentUserId());
+                    }
+                    catch
+                    {
+                        // Suppress any logging errors to avoid masking the original exception
+                    }
                 }
                 await LoggerHelper.LogEventAsync(_db, EventType.Error, "Delete product failed", ex.ToString(), CurrentUserId());
                 return StatusCode(StatusCodes.Status500InternalServerError);
