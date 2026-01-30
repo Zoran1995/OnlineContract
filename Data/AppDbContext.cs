@@ -24,6 +24,7 @@ namespace OnlineContract.Data
         public DbSet<TaskItem> Tasks { get; set; }
         public DbSet<SchedulerProcess> SchedulerProcesses { get; set; }
         public DbSet<LookupSet> LookupSets { get; set; }
+        public DbSet<Review> Reviews { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -83,12 +84,14 @@ namespace OnlineContract.Data
                 // Computed columns: EF must not attempt to INSERT/UPDATE these
                 var amtTaxProp = entity.Property(e => e.AmtTax)
                     .HasColumnName("amt_tax")
+                    .HasColumnType("decimal(18,2)")
                     .HasComputedColumnSql("([amount] * 0.20)", stored: true);
                 amtTaxProp.Metadata.SetBeforeSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
                 amtTaxProp.Metadata.SetAfterSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
 
                 var amtGrossProp = entity.Property(e => e.AmtGross)
                     .HasColumnName("amt_gross")
+                    .HasColumnType("decimal(18,2)")
                     .HasComputedColumnSql("(([quantity] * [amount]))", stored: true);
                 amtGrossProp.Metadata.SetBeforeSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
                 amtGrossProp.Metadata.SetAfterSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
@@ -278,8 +281,9 @@ namespace OnlineContract.Data
                 entity.Property(e => e.LastEndDt).HasColumnName("last_end_dt");
                 entity.Property(e => e.LastStartDt).HasColumnName("last_start_dt");
                 entity.Property(e => e.NextRunDt).HasColumnName("next_run_dt");
-                entity.Property(e => e.DurationSec).HasColumnName("duration_sec");
-                entity.Property(e => e.DurationFmt).HasColumnName("duration_fmt");
+                // Computed columns - must be marked as database-generated
+                entity.Property(e => e.DurationSec).HasColumnName("duration_sec").ValueGeneratedOnAddOrUpdate();
+                entity.Property(e => e.DurationFmt).HasColumnName("duration_fmt").ValueGeneratedOnAddOrUpdate();
                 entity.Property(e => e.IsActive).HasColumnName("is_active");
                 entity.Property(e => e.IsDeleted).HasColumnName("is_deleted");
                 entity.Property(e => e.Stamp).HasColumnName("stamp");

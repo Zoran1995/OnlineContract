@@ -310,5 +310,59 @@ THEN UPDATE SET
     pct_threshold = src.pct_threshold,
     approval_rule_context_id = src.approval_rule_context_id;
 
+/* scheduler_process seed */
+IF NOT EXISTS (SELECT 1 FROM dbo.scheduler_process WHERE [name] = N'EOM Report Generation')
+BEGIN
+    INSERT INTO dbo.scheduler_process (
+        [name],
+        [description],
+        [last_start_dt],
+        [last_end_dt],
+        [next_run_dt],
+        [is_active],
+        [is_deleted],
+        [stamp]
+    )
+    VALUES (
+        N'EOM Report Generation',
+        N'Generates monthly End of Month Contract Status Summary reports with PDF output.',
+        '1900-01-01',
+        '1900-01-01',
+        DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) + 1, 0),
+        1,
+        0,
+        0
+    );
+END
+
+-- Draft Contract Purge: runs daily at 03:00 local time
+IF NOT EXISTS (SELECT 1 FROM dbo.scheduler_process WHERE [name] = N'Draft Contract Purge')
+BEGIN
+    DECLARE @now DATETIME = GETDATE();
+    DECLARE @today0300 DATETIME = DATEADD(HOUR, 3, CAST(CAST(@now AS DATE) AS DATETIME));
+    DECLARE @next0300 DATETIME = CASE WHEN @now < @today0300 THEN @today0300 ELSE DATEADD(DAY, 1, @today0300) END;
+
+    INSERT INTO dbo.scheduler_process (
+        [name],
+        [description],
+        [last_start_dt],
+        [last_end_dt],
+        [next_run_dt],
+        [is_active],
+        [is_deleted],
+        [stamp]
+    )
+    VALUES (
+        N'Draft Contract Purge',
+        N'Deletes Draft contracts older than 30 days and all their dependent records.',
+        '1900-01-01',
+        '1900-01-01',
+        @next0300,
+        1,
+        0,
+        0
+    );
+END
+
 COMMIT TRAN;
 GO

@@ -25,7 +25,7 @@ namespace OnlineContract.Controllers
         public UsersController(AppDbContext db, IHostEnvironment env) { _db = db; _env = env; }
 
         [HttpGet]
-        public async Task<IActionResult> List([FromQuery] string? name, [FromQuery] string? team, [FromQuery] int page, [FromQuery] int pageSize, [FromQuery] int? userId, [FromQuery] string? sortBy, [FromQuery] string? sortDir)
+        public async Task<IActionResult> List([FromQuery] string? name, [FromQuery] string? email, [FromQuery] string? team, [FromQuery] int page, [FromQuery] int pageSize, [FromQuery] int? userId, [FromQuery] string? sortBy, [FromQuery] string? sortDir)
         {
             try
             {
@@ -42,6 +42,12 @@ namespace OnlineContract.Controllers
                         (u.FirstName ?? "").ToLower().Contains(n)
                         || (u.LastName ?? "").ToLower().Contains(n)
                         || (u.Code ?? "").ToLower().Contains(n));
+                }
+
+                if (!string.IsNullOrWhiteSpace(email))
+                {
+                    var e = email.Trim().ToLower();
+                    q = q.Where(u => (u.Email ?? "").ToLower().Contains(e));
                 }
 
                 if (!string.IsNullOrWhiteSpace(team))
@@ -97,6 +103,10 @@ namespace OnlineContract.Controllers
                     usersQuery = usersQuery.Where(u => (u.FirstName ?? "").ToLower().Contains(n)
                         || (u.LastName ?? "").ToLower().Contains(n)
                         || (u.Code ?? "").ToLower().Contains(n));
+                }
+                if (!string.IsNullOrWhiteSpace(email)) {
+                    var e = email.Trim().ToLower();
+                    usersQuery = usersQuery.Where(u => (u.Email ?? "").ToLower().Contains(e));
                 }
                 if (!string.IsNullOrWhiteSpace(team)) {
                     var t = team.Trim().ToLower();

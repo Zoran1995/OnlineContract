@@ -98,6 +98,27 @@ builder.Services.AddScoped<OnlineContract.Services.AnonCartCacheService>();
 builder.Services.AddScoped<OnlineContract.Services.CartMergeService>();
 builder.Services.AddScoped<OnlineContract.Services.VariantAvailabilityService>();
 builder.Services.AddScoped<OnlineContract.Services.WriteOffApprovalTaskService>();
+
+// EOM Report services
+builder.Services.Configure<OnlineContract.Services.Reports.EomReportSettings>(
+    builder.Configuration.GetSection("ReportSettings"));
+builder.Services.AddSingleton<OnlineContract.Services.Notifications.INotificationService, OnlineContract.Services.Notifications.NotificationService>();
+builder.Services.AddScoped<OnlineContract.Services.Reports.IEomReportPdfRenderer, OnlineContract.Services.Reports.EomReportPdfRenderer>();
+builder.Services.AddScoped<OnlineContract.Services.Reports.IEomReportService, OnlineContract.Services.Reports.EomReportService>();
+// Only register the scheduler in non-Testing environments
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHostedService<OnlineContract.Services.Reports.EomReportScheduler>();
+}
+
+// Draft Contract Purge services
+builder.Services.AddScoped<OnlineContract.Services.DraftPurge.IDraftContractPurgeService, OnlineContract.Services.DraftPurge.DraftContractPurgeService>();
+// Only register the scheduler in non-Testing environments
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHostedService<OnlineContract.Services.DraftPurge.DraftContractPurgeScheduler>();
+}
+
 // Payments
 // Use stub client in non-Production environments to allow local testing without credentials
 var wspEnv = builder.Configuration["Payments:WSPay:Environment"] ?? (builder.Environment.IsProduction() ? "Production" : "Testing");
@@ -167,6 +188,11 @@ builder.Services.AddControllers(options =>
         // Prefer stream-based JSON formatter first to avoid PipeWriter issues in TestServer
         options.OutputFormatters.Insert(0, new StreamJsonOutputFormatter(new JsonSerializerOptions(JsonSerializerDefaults.Web)));
     }
+})
+.AddJsonOptions(options =>
+{
+    // Use UnsafeRelaxedJsonEscaping to properly display Latin diacritics (ć, č, š, ž, đ, etc.)
+    options.JsonSerializerOptions.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
 });
 
 // Suppress automatic 400 responses from [ApiController] so validation stays manual,
@@ -244,12 +270,15 @@ var rewriteOptions = new RewriteOptions()
     .AddRewrite("(?i)^contracts$", "contracts.html", skipRemainingRules: true)
     .AddRewrite("(?i)^approvalrules$", "approvalrules.html", skipRemainingRules: true)
     .AddRewrite("(?i)^processes$", "processes.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^processlog$", "processlog.html", skipRemainingRules: true)
     .AddRewrite("(?i)^tasks$", "tasks.html", skipRemainingRules: true)
     .AddRewrite("(?i)^reset$", "reset-password.html", skipRemainingRules: true)
     .AddRewrite("(?i)^contractshistory$", "contractshistory.html", skipRemainingRules: true)
     .AddRewrite("(?i)^payments/wspay/return/success$", "payments-return-success.html", skipRemainingRules: true)
     .AddRewrite("(?i)^payments/wspay/return/cancel$", "payments-return-cancel.html", skipRemainingRules: true)
-    .AddRewrite("(?i)^payments/wspay/mock$", "payments-mock.html", skipRemainingRules: true);
+    .AddRewrite("(?i)^payments/wspay/mock$", "payments-mock.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^terms$", "terms.html", skipRemainingRules: true)
+    .AddRewrite("(?i)^privacy$", "privacy.html", skipRemainingRules: true);
 
 app.UseRewriter(rewriteOptions);
 

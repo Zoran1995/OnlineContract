@@ -273,6 +273,12 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    // Check if user is privileged before loading data
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    const roleId = parseInt(localStorage.getItem('roleId') || '0', 10);
+    const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
+    if (!isPrivileged) return; // Access Denied is handled in HTML script
+    
     // Explicitly hide Export CSV on this page regardless of navbar layout tweaks
     try { document.getElementById('exportBtn')?.classList.add('hidden'); } catch {}
 

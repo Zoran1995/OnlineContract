@@ -38,6 +38,10 @@
         <span class="material-icons">play_circle</span>
         <span>Run</span>
       </button>
+      <button id="btnCancel" class="btn btn-sm btn-warning" disabled>
+        <span class="material-icons">cancel</span>
+        <span>Cancel</span>
+      </button>
       <div id="toolbarMenu" class="dropdown dropdown-end" tabindex="0">
         <button id="btnToolbarMenu" class="btn btn-sm btn-ghost" tabindex="0" aria-haspopup="menu" aria-expanded="false">
           <span class="material-icons align-middle" aria-hidden="true">more_vert</span>
@@ -61,8 +65,7 @@
             <th style="width:180px">Last End</th>
             <th style="width:180px">Next Run</th>
             <th style="width:120px">Duration</th>
-            <th style="width:140px">Status</th>
-            <th style="width:120px">Active</th>
+            <th style="width:100px">Status</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -109,13 +112,19 @@
       const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
       if (!isPrivileged) {
         const main = document.querySelector('main');
-        if (main) main.innerHTML = `
-          <div class="access-denied-container">
-            <div class="access-denied">
-              <h2><span class="material-icons">block</span> Access Denied</h2>
-              <p>You are not allowed to see this page.</p>
+        if (main) main.classList.add('hidden');
+        
+        const container = document.createElement('section');
+        container.className = 'container mx-auto p-6';
+        container.innerHTML = `
+          <div class="bg-base-100 rounded-xl shadow p-8 text-center">
+            <div class="flex items-center justify-center gap-2 mb-3">
+              <span class="material-icons text-rose-600">block</span>
+              <h2 class="text-2xl font-bold">Access Denied</h2>
             </div>
+            <p class="text-gray-700">You are not allowed to see this page.</p>
           </div>`;
+        document.body.appendChild(container);
       }
     });
   </script>

@@ -5,6 +5,7 @@
   const pageTitle = document.getElementById('pageTitle');
   const pendingBanner = document.getElementById('pendingTasksBanner');
   const pendingBannerText = document.getElementById('pendingTasksText');
+  const pendingTaskLink = document.getElementById('pendingTaskLink');
 
   // Basic details elements
   const contractIdEl = document.getElementById('contractId');
@@ -159,6 +160,14 @@
       if (show && pendingBannerText) {
         const count = Number(data.count || 0);
         pendingBannerText.textContent = count > 1 ? 'This contract has tasks in pending state.' : 'This contract has a task in pending state.';
+        
+        // Show task link if taskId is available - opens tasks page with auto-search and auto-open
+        if (pendingTaskLink && data.taskId) {
+          pendingTaskLink.href = `/tasks?taskId=${data.taskId}&autoOpen=1`;
+          pendingTaskLink.classList.remove('hidden');
+        } else if (pendingTaskLink) {
+          pendingTaskLink.classList.add('hidden');
+        }
       }
       // Update button states based on pending tasks
       updateContractStateButton();
@@ -635,7 +644,7 @@
         if (noteProductId) { noteProductId.value = ''; noteProductId.disabled = true; }
         if (noteContractId) { noteContractId.value = String(state.id || ''); noteContractId.disabled = true; }
         if (noteActive) { noteActive.checked = !!data.isActive; noteActive.disabled = isSystem ? true : false; }
-        if (noteModalTitle) noteModalTitle.textContent = (isSystem ? 'View Note' : 'Edit Note') + (data?.id ? `${data.id}` : '');
+        if (noteModalTitle) noteModalTitle.textContent = (isSystem ? 'View Note ' : 'Edit Note ') + (data?.id ? `${data.id}` : '');
         if (noteModal) { noteModal.dataset.mode = isSystem ? 'view' : 'edit'; noteModal.dataset.editId = String(data.id || ''); noteModal.dataset.editStamp = String(data.stamp || ''); }
         if (noteSave) {
           if (isSystem) { noteSave.disabled = true; noteSave.classList.add('hidden'); }

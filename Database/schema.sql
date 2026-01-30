@@ -52,8 +52,8 @@ BEGIN
     SET QUOTED_IDENTIFIER ON;
     CREATE TABLE [dbo].[ax_user](
         [ax_user_id] [int] IDENTITY(1,1) NOT NULL,
-        [first_name] [nvarchar](50) NOT NULL,
-        [last_name] [nvarchar](50) NOT NULL,
+        [first_name] [nvarchar](50) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
+        [last_name] [nvarchar](50) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
         [code] [nvarchar](50) NOT NULL,
         [password] [nvarchar](255) NOT NULL,
         [is_active] [bit] NOT NULL,
@@ -66,8 +66,8 @@ BEGIN
         [owner_id] [int] NOT NULL,
         [created_dt] [datetime] NOT NULL,
         [password_dt] [datetime] NOT NULL,
-        [city] [nvarchar](100) NULL,
-        [street_address] [nvarchar](200) NULL,
+        [city] [nvarchar](100) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NULL,
+        [street_address] [nvarchar](200) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NULL,
         [postal_code] [nvarchar](20) NULL,
         [role_id] [int] NULL,
         [input_user_id] [int] NULL,
@@ -189,9 +189,9 @@ BEGIN
         [amount]              [decimal](18,2) NOT NULL,
         [amt_tax]             AS ([amount] * 0.20) PERSISTED,
         [amt_gross]           AS (([quantity] * [amount])) PERSISTED,
-        [product_name]        [nvarchar](255) NOT NULL,
-        [size]                [nvarchar](50)  NOT NULL,
-        [color]               [nvarchar](50)  NOT NULL,
+        [product_name]        [nvarchar](255) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
+        [size]                [nvarchar](50)  COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
+        [color]               [nvarchar](50)  COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
         [item_state_id]       [int] NOT NULL,
         [input_dt]            [datetime2](0) NOT NULL,
         [input_user_id]       [int] NOT NULL,
@@ -356,8 +356,8 @@ BEGIN
         [event_log_id] [int] IDENTITY(1,1) NOT NULL,
         [event_type] [int] NOT NULL,
         [input_dt] [datetime] NOT NULL,
-        [description] [nvarchar](max) NOT NULL,
-        [stack_trace] [nvarchar](max) NULL,
+        [description] [nvarchar](max) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
+        [stack_trace] [nvarchar](max) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NULL,
         [user_id] [int] NOT NULL,
         [stamp] [int] NOT NULL,
         CONSTRAINT [PK_event_log] PRIMARY KEY CLUSTERED ([event_log_id] ASC)
@@ -385,7 +385,7 @@ BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
     CREATE TABLE [dbo].[product](
         [product_id] [int] IDENTITY(1,1) NOT NULL,
-        [name] [nvarchar](200) NULL,
+        [name] [nvarchar](200) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NULL,
         [input_dt] [datetime2](0) NOT NULL,
         [input_user_id] [int] NOT NULL,
         [last_modified_by_id] [int] NOT NULL,
@@ -428,8 +428,8 @@ BEGIN
     CREATE TABLE [dbo].[product_variant](
         [product_variant_id] [int] IDENTITY(1,1) NOT NULL,
         [product_id] [int] NOT NULL,
-        [size] [nvarchar](20) NULL,
-        [color] [nvarchar](30) NULL,
+        [size] [nvarchar](20) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NULL,
+        [color] [nvarchar](30) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NULL,
         [amount] [decimal](18, 2) NOT NULL,
         [input_dt] [datetime2](0) NOT NULL,
         [input_user_id] [int] NOT NULL,
@@ -487,11 +487,11 @@ BEGIN
     SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
     CREATE TABLE [dbo].[store](
         [store_id] [int] IDENTITY(1,1) NOT NULL,
-        [name] [nvarchar](100) NOT NULL,
-        [address] [nvarchar](255) NOT NULL,
+        [name] [nvarchar](100) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
+        [address] [nvarchar](255) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
         [phone_number] [nvarchar](20) NOT NULL,
         [email] [nvarchar](100) NULL,
-        [working_hours] [nvarchar](255) NULL,
+        [working_hours] [nvarchar](255) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NULL,
         [created_dt] [datetime2](0) NOT NULL,
         [updated_dt] [datetime2](0) NOT NULL,
         [last_modified_user_id] [int] NOT NULL,
@@ -579,7 +579,7 @@ BEGIN
         [note_id] [int] IDENTITY(1,1) NOT NULL,
         [contract_id] [int] NULL,
         [product_id] [int] NULL,
-        [subject] [nvarchar](200) NOT NULL,
+        [subject] [nvarchar](200) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
         [is_main] [bit] NOT NULL,
         [input_user_id] [int] NOT NULL,
         [last_modified_by_id] [int] NOT NULL,
@@ -587,7 +587,7 @@ BEGIN
         [last_updated_dt] [datetime2](0) NOT NULL,
         [stamp] [int] NOT NULL,
         [is_deleted] [bit] NOT NULL,
-        [comment] [nvarchar](max) NOT NULL,
+        [comment] [nvarchar](max) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
         [is_active] [bit] NOT NULL,
         CONSTRAINT [PK_note] PRIMARY KEY CLUSTERED ([note_id] ASC)
             WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
@@ -702,8 +702,8 @@ BEGIN
 
     CREATE TABLE [dbo].[approval_rule](
         [approval_rule_id]   [int] IDENTITY(1,1) NOT NULL,
-        [name]               [nvarchar](200)     NOT NULL,
-        [description]        [nvarchar](500)     NULL,
+        [name]               [nvarchar](200) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
+        [description]        [nvarchar](500) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NULL,
         [is_active]          [bit]               NOT NULL,
         [is_deleted]         [bit]               NOT NULL,
         [task_assigned_to_id][int]               NOT NULL,
@@ -766,8 +766,8 @@ BEGIN
     CREATE TABLE [dbo].[task]
     (
         [task_id]               [int] IDENTITY(1,1) NOT NULL,
-        [subject]               [nvarchar](255)     NOT NULL,
-        [comments]              [nvarchar](max)     NOT NULL,
+        [subject]               [nvarchar](255) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
+        [comments]              [nvarchar](max) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NOT NULL,
         [input_dt]              datetime2           NOT NULL,
         [assigned_to_user_id]   [int]               NOT NULL,
         [initiated_by_user_id]  [int]               NOT NULL,
@@ -808,7 +808,7 @@ BEGIN
     ALTER TABLE [dbo].[task] CHECK CONSTRAINT [FK_task_status_lookup_set];
 
     ALTER TABLE [dbo].[task]  WITH CHECK ADD  CONSTRAINT [CK_task_status_set]
-        CHECK ([status] IN (30, 31, 32, 33, 34, 35, 36));
+        CHECK ([status] IN (30, 31, 32, 33, 34, 35, 36, 37, 38, 39));
     ALTER TABLE [dbo].[task] CHECK CONSTRAINT [CK_task_status_set];
 
     ALTER TABLE [dbo].[task]  WITH CHECK ADD  CONSTRAINT [FK_task_contract]
@@ -848,13 +848,12 @@ BEGIN
     SET QUOTED_IDENTIFIER ON;
 
     CREATE TABLE [dbo].[scheduler_process] (
-        [scheduler_process_id]  int         NOT NULL,
-        [name]                  nvarchar    NOT NULL,
-        [description]           nvarchar    NULL,
-        [last_end_dt]           datetime2   NULL,
-        [last_start_dt]         datetime2   NULL,
-        [next_run_dt]           datetime2   NULL,
-
+        [scheduler_process_id]  int              NOT NULL,
+        [name]                  nvarchar(255)    NOT NULL,
+        [description]           nvarchar(255)    NULL,
+        [last_end_dt]           datetime2        NULL,
+        [last_start_dt]         datetime2        NULL,
+        [next_run_dt]           datetime2        NULL,
         [duration_sec] AS (
             CASE 
                 WHEN [last_start_dt] IS NOT NULL AND [last_end_dt] IS NOT NULL 
@@ -897,6 +896,55 @@ BEGIN
     CREATE INDEX [IX_scheduler_process_next_run]
       ON [dbo].[scheduler_process] ([next_run_dt])
       INCLUDE ([is_active], [is_deleted]);
+END
+GO
+
+/* 2.18 review */
+IF OBJECT_ID(N'dbo.review', N'U') IS NULL
+BEGIN
+    SET ANSI_NULLS ON;
+    SET QUOTED_IDENTIFIER ON;
+
+    CREATE TABLE [dbo].[review](
+        [review_id]       [int] IDENTITY(1,1) NOT NULL,
+        [input_dt]        [datetime2](0) NOT NULL,
+        [input_user_id]   [int] NOT NULL,
+        [comment]         [nvarchar](1000) COLLATE Latin1_General_100_CI_AS_SC_UTF8 NULL,
+        [mark]            [int] NOT NULL,
+        [is_active]       [bit] NOT NULL,
+        [is_deleted]      [bit] NOT NULL,
+        [stamp]           [int] NOT NULL,
+        CONSTRAINT [PK_review] PRIMARY KEY CLUSTERED ([review_id] ASC)
+            WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF,
+                  ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF)
+            ON [PRIMARY]
+    ) ON [PRIMARY];
+
+    ALTER TABLE [dbo].[review] ADD CONSTRAINT [DF_review_input_dt]     DEFAULT (dbo.GetLocalTime()) FOR [input_dt];
+    ALTER TABLE [dbo].[review] ADD CONSTRAINT [DF_review_input_user]   DEFAULT ((0)) FOR [input_user_id];
+    ALTER TABLE [dbo].[review] ADD CONSTRAINT [DF_review_is_active]    DEFAULT ((1)) FOR [is_active];
+    ALTER TABLE [dbo].[review] ADD CONSTRAINT [DF_review_is_deleted]   DEFAULT ((0)) FOR [is_deleted];
+    ALTER TABLE [dbo].[review] ADD CONSTRAINT [DF_review_stamp]        DEFAULT ((0)) FOR [stamp];
+
+    ALTER TABLE [dbo].[review]  WITH CHECK ADD CONSTRAINT [CK_review_mark_range]
+        CHECK ([mark] >= 1 AND [mark] <= 5);
+    ALTER TABLE [dbo].[review] CHECK CONSTRAINT [CK_review_mark_range];
+
+    ALTER TABLE [dbo].[review]  WITH CHECK ADD CONSTRAINT [CK_review_active_deleted_exclusive]
+        CHECK (NOT ([is_active] = 1 AND [is_deleted] = 1));
+    ALTER TABLE [dbo].[review] CHECK CONSTRAINT [CK_review_active_deleted_exclusive];
+
+    ALTER TABLE [dbo].[review]  WITH CHECK ADD CONSTRAINT [CK_review_stamp_nonneg]
+        CHECK ([stamp] >= 0);
+    ALTER TABLE [dbo].[review] CHECK CONSTRAINT [CK_review_stamp_nonneg];
+
+    CREATE INDEX [IX_review_input_user]
+      ON [dbo].[review] ([input_user_id])
+      INCLUDE ([mark], [comment], [input_dt]);
+
+    CREATE INDEX [IX_review_input_dt]
+      ON [dbo].[review] ([input_dt] DESC)
+      INCLUDE ([input_user_id], [mark], [comment]);
 END
 GO
 
@@ -1045,4 +1093,101 @@ BEGIN
     FROM dbo.note AS n
     INNER JOIN inserted AS i ON i.note_id = n.note_id;
 END;
+GO
+
+/* 5. Table-Valued Parameters */
+
+-- TVP for batch contract deletion (Draft Contract Purge)
+IF NOT EXISTS (SELECT 1 FROM sys.types WHERE name = N'ContractIdList' AND is_table_type = 1)
+BEGIN
+    CREATE TYPE dbo.ContractIdList AS TABLE
+    (
+        contract_id INT NOT NULL PRIMARY KEY
+    );
+END
+GO
+
+/* 6. Stored Procedures */
+
+-- Batch delete draft contracts with dependent rows (Draft Contract Purge)
+CREATE OR ALTER PROCEDURE [dbo].[usp_DeleteDraftContractsBatch]
+    @ContractIds dbo.ContractIdList READONLY,
+    @DeletedCount INT OUTPUT,
+    @FailedCount INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT OFF; -- allow per-row continue on error
+
+    DECLARE @contract_id INT;
+    DECLARE @error_message NVARCHAR(4000);
+    
+    SET @DeletedCount = 0;
+    SET @FailedCount = 0;
+
+    DECLARE cur CURSOR LOCAL FAST_FORWARD FOR
+        SELECT contract_id FROM @ContractIds;
+
+    OPEN cur;
+    FETCH NEXT FROM cur INTO @contract_id;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        BEGIN TRY
+            BEGIN TRAN;
+
+            -- Delete children first (order matters for FK constraints)
+            DELETE FROM dbo.task        WHERE contract_id = @contract_id;
+            DELETE FROM dbo.note        WHERE contract_id = @contract_id;
+            DELETE FROM dbo.contract_det WHERE contract_id = @contract_id;
+            DELETE FROM dbo.payment     WHERE contract_id = @contract_id;
+
+            -- Delete the parent contract
+            DELETE FROM dbo.contract    WHERE contract_id = @contract_id;
+
+            COMMIT TRAN;
+            SET @DeletedCount = @DeletedCount + 1;
+
+            -- Log successful deletion
+            INSERT INTO dbo.event_log (event_type, input_dt, description, stack_trace, user_id, stamp)
+            VALUES (2, -- Information
+                    dbo.GetLocalTime(),
+                    N'Contract ' + CAST(@contract_id AS NVARCHAR(20)) + N' has been deleted.',
+                    NULL,
+                    2, -- System user
+                    0);
+        END TRY
+        BEGIN CATCH
+            IF XACT_STATE() <> 0 ROLLBACK TRAN;
+            SET @FailedCount = @FailedCount + 1;
+            SET @error_message = ERROR_MESSAGE();
+
+            -- Log the error to event_log
+            INSERT INTO dbo.event_log (event_type, input_dt, description, stack_trace, user_id, stamp)
+            VALUES (4, -- Error
+                    dbo.GetLocalTime(),
+                    N'Contract ' + CAST(@contract_id AS NVARCHAR(20)) + N' cannot be deleted: ' + @error_message,
+                    N'Error Number: ' + CAST(ERROR_NUMBER() AS NVARCHAR(20)) + N', Line: ' + CAST(ERROR_LINE() AS NVARCHAR(20)),
+                    2, -- System user
+                    0);
+        END CATCH;
+
+        FETCH NEXT FROM cur INTO @contract_id;
+    END;
+
+    CLOSE cur;
+    DEALLOCATE cur;
+END;
+GO
+
+/* 7. Indexes for scheduled processes */
+
+-- Filtered index for Draft Contract Purge (sargable query optimization)
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_contract_draft_purge' AND object_id = OBJECT_ID(N'dbo.contract'))
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_contract_draft_purge
+        ON dbo.contract (contract_state, is_deleted, input_dt)
+        INCLUDE (contract_id)
+        WHERE contract_state = 9 AND is_deleted = 0;
+END
 GO

@@ -8,9 +8,10 @@
   let totalCount = 0;
   let selectedId = null;
   let items = [];
-  let sortBy = null; // 'id'|'name'|'description'|'lastStart'|'lastEnd'|'nextRun'|'duration'|'status'|'active'
+  let sortBy = null; // 'id'|'name'|'description'|'lastStart'|'lastEnd'|'nextRun'|'duration'|'status'
   let sortDir = 'asc';
 
+  const btnCancel = document.getElementById('btnCancel');
   const btnRun = document.getElementById('btnRun');
   const btnToolbarMenu = document.getElementById('btnToolbarMenu');
   const menu = document.getElementById('toolbarMenu');
@@ -30,9 +31,27 @@
   function showLoading() { document.getElementById('loadingOverlay')?.classList.remove('hidden'); }
   function hideLoading() { document.getElementById('loadingOverlay')?.classList.add('hidden'); }
 
+  function getSelectedRow() {
+    return (items || []).find(x => x.id === selectedId) || null;
+  }
+
+  function closeKebab() {
+    menu?.classList.remove('dropdown-open');
+    menuContent?.classList.add('hidden');
+  }
+
   function updateActions() {
     const hasSel = !!selectedId;
-    if (btnRun) btnRun.disabled = !hasSel;
+    const row = getSelectedRow();
+    const isActive = !!(row && row.isActive);
+    const isRunning = !!(row && row.isRunning);
+    // Process can be cancelled if it's running OR if lastEndDt/duration are not populated
+    const canCancel = !!(row && (row.isRunning || !row.lastEndDt || !row.durationFmt));
+    const isAdmin = parseInt(localStorage.getItem('roleId') || '0', 10) === 8;
+    // Run button disabled if no selection or if selected process is inactive
+    if (btnRun) btnRun.disabled = !hasSel || !isActive;
+    // Cancel button disabled if no selection or if process cannot be cancelled
+    if (btnCancel) btnCancel.disabled = !hasSel || !canCancel;
     [btnToggleActive, btnDelete].forEach(btn => {
       if (!btn) return;
       btn.classList.toggle('disabled', !hasSel);
@@ -42,9 +61,6 @@
       btn.style.pointerEvents = hasSel ? '' : 'none';
       btn.tabIndex = hasSel ? 0 : -1;
     });
-
-    const row = (items || []).find(x => x.id === selectedId);
-    const isActive = !!(row && row.isActive);
     if (toggleText) toggleText.textContent = isActive ? 'Deactivate' : 'Activate';
     if (toggleIcon) toggleIcon.textContent = isActive ? 'block' : 'check_circle';
   }
@@ -73,16 +89,6 @@
     } finally { hideLoading(); }
   }
 
-  function statusTextFromId(id) {
-    switch (Number(id)) {
-      case 37: return 'Successful';
-      case 38: return 'Warning';
-      case 39: return 'Failed';
-      case 40: return 'Successful (No Work)';
-      default: return 'Unknown';
-    }
-  }
-
   function getSortVal(it, key) {
     switch (key) {
       case 'id': return Number(it.id || 0);
@@ -91,9 +97,8 @@
       case 'lastStart': return it.lastStartDt ? new Date(it.lastStartDt).getTime() : 0;
       case 'lastEnd': return it.lastEndDt ? new Date(it.lastEndDt).getTime() : 0;
       case 'nextRun': return it.nextRunDt ? new Date(it.nextRunDt).getTime() : 0;
-      case 'duration': return Number(it.duration || 0);
-      case 'status': return Number(it.statusId || 0);
-      case 'active': return it.isActive ? 1 : 0;
+      case 'duration': return Number(it.durationSec || 0);
+      case 'status': return it.isActive ? 1 : 0;
       default: return '';
     }
   }
@@ -104,7 +109,7 @@
     if (items.length === 0) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 9; td.className = 'empty'; td.textContent = 'No results.';
+      td.colSpan = 8; td.className = 'empty'; td.textContent = 'No results.';
       tr.appendChild(td);
       tbody.appendChild(tr);
       return;
@@ -141,11 +146,14 @@
         it.lastStartDt ? new Date(it.lastStartDt).toLocaleString() : '',
         it.lastEndDt ? new Date(it.lastEndDt).toLocaleString() : '',
         it.nextRunDt ? new Date(it.nextRunDt).toLocaleString() : '',
-        String(it.duration ?? ''),
-        statusTextFromId(it.statusId),
+        String(it.durationFmt || ''),
         it.isActive ? 'Active' : 'Inactive'
       ];
-      cells.forEach(text => { const td = document.createElement('td'); td.textContent = text; tr.appendChild(td); });
+      cells.forEach((text) => {
+        const td = document.createElement('td');
+        td.textContent = text;
+        tr.appendChild(td);
+      });
       tbody.appendChild(tr);
     });
   }
@@ -161,16 +169,196 @@
     if (nextPage) nextPage.disabled = (page >= pages || totalCount === 0);
   }
 
+  // API call for Run
+  async function runProcess() {
+    const row = getSelectedRow();
+    if (!row) { try { showToast('warning', 'Select a row first'); } catch {} return; }
+
+    const processName = row.name || 'Process';
+    try {
+      showLoading();
+      const res = await fetch(`${apiBase}/${row.id}/run`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }
+      });
+
+      if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+
+      const data = await res.json();
+
+      if (res.status === 409) {
+        // Conflict - execution already in progress
+        try { showToast('warning', data.message || `The '${processName}' process cannot be started because another run is already in progress.`); } catch {}
+        return;
+      }
+
+      if (!res.ok) {
+        try { showToast('error', data.message || `Failed to run '${processName}'`); } catch {}
+        return;
+      }
+
+      if (data.success) {
+        // First show initiation message
+        try { showToast('info', `The '${processName}' process has been initiated.`); } catch {}
+        
+        // Then show completion message based on status
+        const status = (data.status || '').toLowerCase();
+        setTimeout(() => {
+          if (status === 'warning' || status === 'successfulnothingprocessed') {
+            try { showToast('warning', data.message || `The '${processName}' process completed with warnings.`); } catch {}
+          } else if (status === 'failed') {
+            try { showToast('error', data.message || `The '${processName}' process failed.`); } catch {}
+          } else {
+            try { showToast('info', data.message || `The '${processName}' process completed successfully.`); } catch {}
+          }
+        }, 1500);
+      } else {
+        try { showToast('error', data.message || `The '${processName}' process failed.`); } catch {}
+      }
+
+      await load();
+    } catch (err) {
+      try { showToast('error', `Failed to run '${processName}'`); } catch {}
+    } finally {
+      hideLoading();
+    }
+  }
+
+  // API call for Cancel
+  async function cancelProcess() {
+    const row = getSelectedRow();
+    if (!row) return;
+    // Allow cancel if running OR if lastEndDt/duration not populated
+    const canCancel = row.isRunning || !row.lastEndDt || !row.durationFmt;
+    if (!canCancel) return; // Silently do nothing if process cannot be cancelled
+
+    const processName = row.name || 'Process';
+
+    try {
+      showLoading();
+      const res = await fetch(`${apiBase}/${row.id}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }
+      });
+
+      if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        try { showToast('error', data.message || `Failed to cancel '${processName}'`); } catch {}
+        return;
+      }
+
+      try { showToast('info', data.message || `'${processName}' has been cancelled.`); } catch {}
+      await load();
+    } catch (err) {
+      try { showToast('error', `Failed to cancel '${processName}'`); } catch {}
+    } finally {
+      hideLoading();
+    }
+  }
+
+  // API call for Activate/Deactivate
+  async function toggleActive() {
+    const row = getSelectedRow();
+    if (!row) return;
+
+    const processName = row.name || 'Process';
+    const endpoint = row.isActive ? 'deactivate' : 'activate';
+    const action = row.isActive ? 'deactivated' : 'activated';
+
+    try {
+      showLoading();
+      closeKebab();
+
+      const res = await fetch(`${apiBase}/${row.id}/${endpoint}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }
+      });
+
+      if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        try { showToast('error', data.message || `Failed to ${endpoint} '${processName}'`); } catch {}
+        return;
+      }
+
+      try { showToast('info', `'${processName}' has been ${action}.`); } catch {}
+      await load();
+    } catch (err) {
+      try { showToast('error', `Failed to ${endpoint} '${processName}'`); } catch {}
+    } finally {
+      hideLoading();
+    }
+  }
+
+  // API call for Delete
+  async function deleteProcess() {
+    const row = getSelectedRow();
+    if (!row) return;
+
+    const processName = row.name || 'Process';
+
+    if (!confirm(`Are you sure you want to delete '${processName}'?`)) {
+      closeKebab();
+      return;
+    }
+
+    try {
+      showLoading();
+      closeKebab();
+
+      const res = await fetch(`${apiBase}/${row.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (res.status === 401) { window.location.href = '/login?mode=login'; return; }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        try { showToast('error', data.message || `Failed to delete '${processName}'`); } catch {}
+        return;
+      }
+
+      try { showToast('info', `'${processName}' has been deleted.`); } catch {}
+      await load();
+    } catch (err) {
+      try { showToast('error', `Failed to delete '${processName}'`); } catch {}
+    } finally {
+      hideLoading();
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    // Check if user is privileged before loading data
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    const roleId = parseInt(localStorage.getItem('roleId') || '0', 10);
+    const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
+    if (!isPrivileged) return; // Access Denied is handled in HTML script
+    
     try { document.getElementById('exportBtn')?.classList.add('hidden'); } catch {}
 
     load();
 
+    // Run button
     btnRun?.addEventListener('click', (e) => {
       e.preventDefault();
-      if (!selectedId) { try { showToast('warning','Select a row first'); } catch {} return; }
-      // Placeholder; backend run endpoint not implemented in this task
-      try { showToast('info', `Process ${selectedId} run requested.`); } catch {}
+      runProcess();
+    });
+
+    // Cancel button
+    btnCancel?.addEventListener('click', (e) => {
+      e.preventDefault();
+      cancelProcess();
     });
 
     // Pager
@@ -181,7 +369,7 @@
     // Column sorting
     const ths = document.querySelectorAll('#grid thead th');
     ths.forEach((th, idx) => {
-      const key = ['id','name','description','lastStart','lastEnd','nextRun','duration','status','active'][idx];
+      const key = ['id','name','description','lastStart','lastEnd','nextRun','duration','status'][idx];
       if (!key) return;
       th.style.cursor = 'pointer';
       th.title = 'Click to sort';
@@ -202,22 +390,29 @@
     // Kebab open/close behaviors
     btnToolbarMenu?.addEventListener('click', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       menu.classList.toggle('dropdown-open');
       menuContent.classList.toggle('hidden');
     });
     document.addEventListener('click', (e) => {
-      if (!menu.contains(e.target)) {
-        menu.classList.remove('dropdown-open');
-        menuContent.classList.add('hidden');
+      if (!menu?.contains(e.target)) {
+        closeKebab();
       }
     });
-    btnToolbarMenu?.addEventListener('dblclick', () => {
-      menu.classList.remove('dropdown-open');
-      menuContent.classList.add('hidden');
+
+    // Kebab options
+    btnToggleActive?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!selectedId) return;
+      toggleActive();
     });
 
-    // Kebab options (no backend implemented here)
-    btnToggleActive?.addEventListener('click', (e) => { e.preventDefault(); menu.classList.remove('dropdown-open'); menuContent.classList.add('hidden'); });
-    btnDelete?.addEventListener('click', (e) => { e.preventDefault(); menu.classList.remove('dropdown-open'); menuContent.classList.add('hidden'); });
+    btnDelete?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!selectedId) return;
+      deleteProcess();
+    });
   });
 })();

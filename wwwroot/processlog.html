@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="pastel">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KidzStyle · System Process Log</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link rel="icon" href="/resources/icons/clipboard-list.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/login.css" />
+  <link rel="stylesheet" href="/css/app-modern.css" />
+  <link href="/dist/output.css" rel="stylesheet">
+  <style>
+    /* Compact filters + buttons (match Tasks/Notes/Contracts) */
+    #processLogFilters .select.select-sm,
+    #processLogFilters .input.input-sm {
+      height: 32px;
+      padding: 4px 10px;
+      font-size: 14px;
+      line-height: 1.2;
+    }
+    #processLogFilters select {
+      -webkit-appearance: none;
+      appearance: none;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    #processLogFilters .btn.btn-sm {
+      height: 32px;
+      min-height: 32px;
+      line-height: 1.2;
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+  </style>
+</head>
+<body class="bg-base-200 text-base-content">
+  <!-- Navbar -->
+  <div class="navbar sticky top-0 z-50" style="background: linear-gradient(90deg, #f6f3ff, #e8f0ff, #eafbf4); border-bottom: 1px solid rgba(0,0,0,0.06);">
+    <div class="flex-1">
+      <a href="/" class="btn btn-ghost normal-case text-xl mr-2" aria-label="KidzStyle Home">
+        <span class="inline-flex items-center justify-center w-9 h-9 rounded-full" style="background:#ffdfe8;color:#7a2e5d;border:1px solid rgba(0,0,0,0.06);">
+          <span class="material-icons" style="font-size:20px;">child_care</span>
+        </span>
+        <span class="ml-2 font-semibold" style="color:#674188;">KidzStyle</span>
+      </a>
+      <a href="/home" class="btn btn-ghost"><span class="material-icons mr-2">home</span> Home</a>
+      <a href="/about" class="btn btn-ghost"><span class="material-icons mr-2">info</span> About</a>
+      <a href="/address" class="btn btn-ghost"><span class="material-icons mr-2">location_on</span> Address</a>
+      <a href="/eventlog" class="btn btn-ghost"><span class="material-icons mr-2">bug_report</span> EventLog</a>
+    </div>
+    <div class="flex-none items-center gap-3">
+      <a id="navSignIn" href="/login" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</a>
+      <a id="navLogIn" href="/login" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</a>
+    </div>
+  </div>
+
+  <main class="container mx-auto p-4">
+    <div class="mod-toolbar">
+      <h1 class="mod-toolbar-title">System Process Log</h1>
+    </div>
+
+    <!-- Filters -->
+    <div id="processLogFilters" class="mod-filters">
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="w-48">
+          <label class="label py-0"><span class="label-text text-xs">Process Name</span></label>
+          <input id="filterProcess" type="text" class="input input-sm input-bordered w-full" placeholder="e.g. EOM Report" />
+        </div>
+        <div class="w-36">
+          <label class="label py-0"><span class="label-text text-xs">Status</span></label>
+          <select id="filterStatus" class="select select-sm select-bordered w-full">
+            <option value="">-- Any --</option>
+            <option value="31">Started</option>
+            <option value="34">Cancelled</option>
+            <option value="35">Completed</option>
+            <option value="36">Failed</option>
+            <option value="37">Successful</option>
+            <option value="38">Warning</option>
+            <option value="39">Successful Nothing Processed</option>
+          </select>
+        </div>
+        <div class="w-40">
+          <label class="label py-0"><span class="label-text text-xs">From Date</span></label>
+          <input id="filterDateFrom" type="date" class="input input-sm input-bordered w-full" />
+        </div>
+        <div class="w-40">
+          <label class="label py-0"><span class="label-text text-xs">To Date</span></label>
+          <input id="filterDateTo" type="date" class="input input-sm input-bordered w-full" />
+        </div>
+        <div class="flex gap-2 items-end ml-auto">
+          <button id="btnSearch" class="btn btn-sm btn-primary">
+            <span class="material-icons mr-1">search</span>Search
+          </button>
+          <button id="btnClear" class="btn btn-sm btn-outline">
+            <span class="material-icons mr-1">clear_all</span>Clear
+          </button>
+          <button id="btnCancel" class="btn btn-sm btn-warning" disabled>
+            <span class="material-icons mr-1">cancel</span>Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="mod-card mod-card-compact table-scroll">
+      <table id="grid" class="table-modern" aria-label="System Process Log">
+        <thead>
+          <tr>
+            <th data-sort="id" style="cursor:pointer;width:80px">ID <span class="sort-indicator"></span></th>
+            <th data-sort="process" style="cursor:pointer;width:200px">Process <span class="sort-indicator"></span></th>
+            <th data-sort="description" style="cursor:pointer">Description <span class="sort-indicator"></span></th>
+            <th data-sort="status" style="cursor:pointer;width:130px">Status <span class="sort-indicator"></span></th>
+            <th data-sort="initiatedBy" style="cursor:pointer;width:120px">Initiated By <span class="sort-indicator"></span></th>
+            <th data-sort="entryDate" style="cursor:pointer;width:160px">Entry Date <span class="sort-indicator"></span></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="mod-pagination">
+      <div class="flex items-center gap-2">
+        <label class="mod-text-sm">Rows per page:</label>
+        <select id="pageSize" class="select select-bordered w-20 select-sm">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="prevPage" class="btn btn-outline btn-sm" disabled>
+          <span class="material-icons mr-2">chevron_left</span>
+          Previous
+        </button>
+        <span id="pageInfo" class="mod-pagination-info"></span>
+        <button id="nextPage" class="btn btn-outline btn-sm" disabled>
+          Next <span class="material-icons ml-2">chevron_right</span>
+        </button>
+      </div>
+
+      <span id="pageCountInfo" class="mod-pagination-count"></span>
+    </div>
+  </main>
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="loading-overlay hidden"><div class="loading-box">Loading...</div></div>
+
+  <script src="/js/shared.js"></script>
+  <script src="/js/processlog.js"></script>
+  <script>
+    // Client-side gate: show Access Denied for non-admin/manager users
+    document.addEventListener('DOMContentLoaded', () => {
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+      const roleId = parseInt(localStorage.getItem('roleId') || '0', 10);
+      const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
+      if (!isPrivileged) {
+        const main = document.querySelector('main');
+        if (main) main.classList.add('hidden');
+        
+        const container = document.createElement('section');
+        container.className = 'container mx-auto p-6';
+        container.innerHTML = `
+          <div class="bg-base-100 rounded-xl shadow p-8 text-center">
+            <div class="flex items-center justify-center gap-2 mb-3">
+              <span class="material-icons text-rose-600">block</span>
+              <h2 class="text-2xl font-bold">Access Denied</h2>
+            </div>
+            <p class="text-gray-700">You are not allowed to see this page.</p>
+          </div>`;
+        document.body.appendChild(container);
+      }
+    });
+  </script>
+</body>
+</html>

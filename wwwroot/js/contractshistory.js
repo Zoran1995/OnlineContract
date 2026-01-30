@@ -114,7 +114,9 @@
       if (selectedId && it.id === selectedId) tr.classList.add('active');
 
       const amt = Number(it.amount || 0).toFixed(2);
-      const cells = [ String(it.id ?? ''), String(it.entryDt ?? it.entry_dt ?? it.entryDt ?? ''), String(it.state ?? ''), String(it.deliveredDt ?? ''), amt ];
+      // Add spaces before capital letters in status (e.g. InProgress -> In Progress)
+      const stateText = String(it.state ?? '').replace(/([a-z])([A-Z])/g, '$1 $2');
+      const cells = [ String(it.id ?? ''), String(it.entryDt ?? it.entry_dt ?? it.entryDt ?? ''), stateText, String(it.deliveredDt ?? ''), amt ];
       cells.forEach(text => { const td = document.createElement('td'); td.textContent = text; tr.appendChild(td); });
       tbody.appendChild(tr);
     });

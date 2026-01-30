@@ -77,8 +77,10 @@
       setEmptyState(false);
 
       const nameEl = document.getElementById('fltName');
+      const emailEl = document.getElementById('fltEmail');
       const teamEl = document.getElementById('fltTeam');
       const name = (nameEl?.value || '').trim();
+      const email = (emailEl?.value || '').trim();
       const team = (teamEl?.value || '').trim();
 
       // Read pageSize from the select if it exists
@@ -88,6 +90,7 @@
       const userId = localStorage.getItem('userId') ?? 2;
       const qs = new URLSearchParams();
       qs.set('name', name);
+      if (email) qs.set('email', email);
       qs.set('team', team);
       qs.set('page', String(page));
       qs.set('pageSize', String(pageSize));
@@ -589,10 +592,11 @@
     document.getElementById('btnClear')?.addEventListener('click', (e) => {
       e.preventDefault();
       const n = document.getElementById('fltName'); if (n) n.value = '';
+      const em = document.getElementById('fltEmail'); if (em) em.value = '';
       const t = document.getElementById('fltTeam'); if (t) t.value = '';
       page = 1; loadUsers();
     });
-    ['fltName', 'fltTeam'].forEach(id => {
+    ['fltName', 'fltEmail', 'fltTeam'].forEach(id => {
       const el = document.getElementById(id);
       if (el && !el._boundEnter) {
         el._boundEnter = true;

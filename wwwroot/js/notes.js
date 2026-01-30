@@ -180,8 +180,14 @@
         const editIdEl = document.getElementById('editNoteId');
         const subjEl = document.getElementById('newSubject');
         const commEl = document.getElementById('newComment');
-        const cEl = document.getElementById('newContractId');
-        const pEl = document.getElementById('newProductId');
+        // Contract ID elements
+        const cInput = document.getElementById('newContractIdInput');
+        const cDisplay = document.getElementById('newContractIdDisplay');
+        const cLink = document.getElementById('newContractIdLink');
+        // Product ID elements
+        const pInput = document.getElementById('newProductIdInput');
+        const pDisplay = document.getElementById('newProductIdDisplay');
+        const pLink = document.getElementById('newProductIdLink');
         const titleEl = document.getElementById('noteModalTitle');
         const inputDtEl = document.getElementById('noteInputDt');
         const inputUserEl = document.getElementById('noteInputUser');
@@ -191,9 +197,21 @@
         if (editIdEl) editIdEl.value = String(data.id ?? '');
         if (subjEl) { subjEl.value = data.subject ?? ''; }
         if (commEl) { commEl.value = data.comment ?? ''; }
-        // contract/product should not be editable when opening existing note
-        if (cEl) { cEl.value = data.contractId ?? ''; cEl.disabled = true; }
-        if (pEl) { pEl.value = data.productId ?? ''; pEl.disabled = true; }
+        // contract/product - show as links when viewing/editing
+        if (cInput) cInput.style.display = 'none';
+        if (pInput) pInput.style.display = 'none';
+        if (data.contractId != null) {
+          if (cDisplay) cDisplay.style.display = 'flex';
+          if (cLink) { cLink.href = `/contracts/${data.contractId}`; cLink.textContent = String(data.contractId); }
+        } else {
+          if (cDisplay) cDisplay.style.display = 'none';
+        }
+        if (data.productId != null) {
+          if (pDisplay) pDisplay.style.display = 'flex';
+          if (pLink) { pLink.href = `/products/${data.productId}`; pLink.textContent = String(data.productId); }
+        } else {
+          if (pDisplay) pDisplay.style.display = 'none';
+        }
         if (titleEl) titleEl.textContent = `Edit Note ${data.id ?? ''}`;
 
         // metadata fields (best-effort)
@@ -226,8 +244,15 @@
       document.getElementById('editNoteId').value = '';
       document.getElementById('newSubject').value = '';
       document.getElementById('newComment').value = '';
-      const cIn = document.getElementById('newContractId'); if (cIn) { cIn.value = ''; cIn.disabled = false; }
-      const pIn = document.getElementById('newProductId'); if (pIn) { pIn.value = ''; pIn.disabled = false; }
+      // Show input fields, hide link displays for Add mode
+      const cInput = document.getElementById('newContractIdInput');
+      const cDisplay = document.getElementById('newContractIdDisplay');
+      const pInput = document.getElementById('newProductIdInput');
+      const pDisplay = document.getElementById('newProductIdDisplay');
+      if (cInput) { cInput.value = ''; cInput.style.display = 'block'; }
+      if (cDisplay) cDisplay.style.display = 'none';
+      if (pInput) { pInput.value = ''; pInput.style.display = 'block'; }
+      if (pDisplay) pDisplay.style.display = 'none';
       // Modal does not expose Active/Main controls; keep contract/product editable on Add.
       document.getElementById('noteModalTitle').textContent = 'Add Note';
       const dlg = document.getElementById('addNoteModal');
@@ -249,8 +274,8 @@
       e.preventDefault();
       const subject = document.getElementById('newSubject')?.value || '';
       const comment = document.getElementById('newComment')?.value || '';
-      const contractIdVal = document.getElementById('newContractId')?.value || '';
-      const productIdVal = document.getElementById('newProductId')?.value || '';
+      const contractIdVal = document.getElementById('newContractIdInput')?.value || '';
+      const productIdVal = document.getElementById('newProductIdInput')?.value || '';
       // client-side validation: subject & comment required
       if (!subject.trim() || !comment.trim()) { try{ showToast('warning', 'Both Subject and Comment are required. Please provide values for these fields before saving.'); }catch{}; return; }
       // require at least one of contractId or productId

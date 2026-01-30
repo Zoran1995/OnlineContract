@@ -153,7 +153,9 @@
         { val: r.itemStateText || String(r.itemStateId || ''), attr: null },
         { val: r.inputDt || '', attr: null }
       ];
-      for (const c of cells){ const td = document.createElement('td'); td.textContent = c.val; if (c.attr) td.setAttribute('data-col', c.attr); tr.appendChild(td); }
+      for (const c of cells){ const td = document.createElement('td'); td.textContent = c.val; if (c.attr) td.setAttribute('data-col', c.attr); if (c.attr === 'qty') td.classList.add('text-center'); if (c.attr === 'price') td.classList.add('text-right'); tr.appendChild(td); }
+      // Also align total column (6th cell, index 5)
+      const totalCell = tr.children[5]; if (totalCell) totalCell.classList.add('text-right');
       tbody.appendChild(tr);
     });
   }

@@ -17,6 +17,22 @@ namespace OnlineContract.Controllers
         private readonly AppDbContext _db;
         private readonly IHostEnvironment _env;
 
+        // Typed projection for contract grid rows to avoid dynamic expression issues
+        private class ContractPageRow
+        {
+            public int Id { get; set; }
+            public DateTime EntryDate { get; set; }
+            public Helpers.ContractState ContractState { get; set; }
+            public decimal Amount { get; set; }
+            public decimal AmtMatched { get; set; }
+            public DateTime? DeliveredDt { get; set; }
+            public DateTime? WrittenOffDt { get; set; }
+            public DateTime? RejectedDt { get; set; }
+            public DateTime? CancelledDt { get; set; }
+            public string CustomerFullName { get; set; } = "";
+            public string CustomerCode { get; set; } = "";
+        }
+
         public ContractsController(AppDbContext db, IHostEnvironment env)
         {
             _db = db;
@@ -38,98 +54,132 @@ namespace OnlineContract.Controllers
                 int.TryParse(userIdClaim, out var currentUserId);
                 var isCustomer = roleId == (int)UserRole.Customer;
 
-                var contractsQuery = _db.Contracts.AsNoTracking().Where(c => c.Id > 0 && c.IsActive && !c.IsDeleted && (!isCustomer || ((c.InputUserId ?? 0) == currentUserId)));
+                // Single-join query to avoid duplicate ax_user joins in SQL
+                var baseQuery =
+                    from c in _db.Contracts.AsNoTracking()
+                    where c.Id > 0 && c.IsActive && !c.IsDeleted && (!isCustomer || ((c.InputUserId ?? 0) == currentUserId))
+                    join u0 in _db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug
+                    from u in ug.DefaultIfEmpty()
+                    select new { c, u };
 
-                if (!string.IsNullOrWhiteSpace(state) && Enum.TryParse<ContractState>(state, true, out var st))
+                // Status filter: always by lookup_set_id (never internal contract_state_id)
+                if (!string.IsNullOrWhiteSpace(state))
                 {
-                    contractsQuery = contractsQuery.Where(x => x.ContractState == st);
+                    int? lookupId = null;
+                    if (Enum.TryParse<ContractState>(state, true, out var st))
+                    {
+                        lookupId = (int)st; // enum values map to lookup_set_id
+                    }
+                    else
+                    {
+                        lookupId = await _db.LookupSets.AsNoTracking()
+                            .Where(l => l.SetName == "ContractState" && l.Value == state)
+                            .Select(l => (int?)l.LookupSetId)
+                            .FirstOrDefaultAsync();
+                    }
+                    if (lookupId.HasValue)
+                    {
+                        baseQuery = baseQuery.Where(x => (int)x.c.ContractState == lookupId.Value);
+                    }
                 }
 
+                // Name search (first+last or code), single join reused for both filter and select
                 if (!string.IsNullOrWhiteSpace(name))
                 {
                     var n = name.Trim().ToLower();
-                    contractsQuery =
-                        from c in contractsQuery
-                        join u0 in _db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug3
-                        from u in ug3.DefaultIfEmpty()
-                        where (((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim().ToLower().Contains(n)
-                               || (u.Code ?? "").ToLower().Contains(n))
-                        select c;
+                    baseQuery = baseQuery.Where(x => ((((x.u!.FirstName ?? "") + " " + (x.u!.LastName ?? "")).Trim().ToLower().Contains(n))
+                                                 || ((x.u!.Code ?? "").ToLower().Contains(n))));
                 }
 
+                // Date filters on creation (input_dt aka EntryDate)
                 if (!string.IsNullOrWhiteSpace(fromDate) && DateTime.TryParse(fromDate, out var fd))
                 {
-                    contractsQuery = contractsQuery.Where(x => x.EntryDate >= fd);
+                    baseQuery = baseQuery.Where(x => x.c.EntryDate >= fd);
                 }
                 if (!string.IsNullOrWhiteSpace(toDate) && DateTime.TryParse(toDate, out var td))
                 {
                     var tdEnd = td.Date.AddDays(1).AddTicks(-1);
-                    contractsQuery = contractsQuery.Where(x => x.EntryDate <= tdEnd);
+                    baseQuery = baseQuery.Where(x => x.c.EntryDate <= tdEnd);
                 }
 
-                var totalCount = await contractsQuery.CountAsync();
+                var totalCount = await baseQuery.CountAsync();
 
+                // Sorting
                 var sortSpec = string.IsNullOrWhiteSpace(sortBy) ? null : new SortSpec(sortBy!.Trim(), string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase));
-                var sortMap = new Dictionary<string, System.Linq.Expressions.Expression<Func<Contract, object?>>> {
-                    { "id", c => c.Id },
-                    { "entryDate", c => c.EntryDate },
-                    { "amount", c => c.Amount },
-                    { "contractState", c => c.ContractState }
-                };
 
-                IQueryable<Contract> orderedContracts;
-                if (sortSpec == null)
+                List<ContractPageRow> pageRows;
+                if (sortSpec != null && string.Equals(sortSpec.By, "customerFullName", StringComparison.OrdinalIgnoreCase))
                 {
-                    orderedContracts = contractsQuery.OrderByDescending(c => c.EntryDate).ThenBy(c => c.Id);
-                }
-                else if (string.Equals(sortSpec.By, "customerFullName", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (sortSpec.Desc)
-                    {
-                        orderedContracts = contractsQuery
-                            .OrderByDescending(c => (_db.AxUsers
-                                .Where(u => u.Id == (c.InputUserId ?? 0))
-                                .Select(u => (((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim()))
-                                .FirstOrDefault()) ?? "")
-                            .ThenBy(c => c.Id);
-                    }
-                    else
-                    {
-                        orderedContracts = contractsQuery
-                            .OrderBy(c => (_db.AxUsers
-                                .Where(u => u.Id == (c.InputUserId ?? 0))
-                                .Select(u => (((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim()))
-                                .FirstOrDefault()) ?? "")
-                            .ThenBy(c => c.Id);
-                    }
+                    var qWithName = baseQuery.Select(x => new { x.c, x.u, name = (((x.u!.FirstName ?? "") + " " + (x.u!.LastName ?? "")).Trim()) });
+                    var orderedName = sortSpec.Desc
+                        ? qWithName.OrderByDescending(y => y.name).ThenBy(y => y.c.Id)
+                        : qWithName.OrderBy(y => y.name).ThenBy(y => y.c.Id);
+                    pageRows = await orderedName
+                        .Skip(Math.Max(0, (pageIndex - 1) * size))
+                        .Take(size)
+                        .Select(y => new ContractPageRow
+                        {
+                            Id = y.c.Id,
+                            EntryDate = y.c.EntryDate,
+                            ContractState = y.c.ContractState,
+                            Amount = y.c.Amount,
+                            AmtMatched = y.c.AmtMatched,
+                            DeliveredDt = y.c.DeliveredDt,
+                            WrittenOffDt = y.c.WrittenOffDt,
+                            RejectedDt = y.c.RejectedDt,
+                            CancelledDt = y.c.CancelledDt,
+                            CustomerFullName = y.u == null ? "" : y.name,
+                            CustomerCode = y.u == null ? "" : (y.u.Code ?? "")
+                        })
+                        .ToListAsync();
                 }
                 else
                 {
-                    orderedContracts = contractsQuery.ApplySort(sortSpec, sortMap, c => c.Id);
-                }
-
-                var pageRows = await (
-                    from c in orderedContracts
-                    join u0 in _db.AxUsers.AsNoTracking() on c.InputUserId equals (int?)u0.Id into ug2
-                    from u in ug2.DefaultIfEmpty()
-                    where !isCustomer || ((c.InputUserId ?? 0) == currentUserId)
-                    select new
+                    var orderedOther = baseQuery.AsQueryable();
+                    if (sortSpec == null)
                     {
-                        c.Id,
-                        c.EntryDate,
-                        c.ContractState,
-                        c.Amount,
-                        c.AmtMatched,
-                        c.DeliveredDt,
-                        c.WrittenOffDt,
-                        c.RejectedDt,
-                        c.CancelledDt,
-                        CustomerFullName = u == null ? "" : ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim(),
-                        CustomerCode = u == null ? "" : (u.Code ?? "")
-                    })
-                    .Skip(Math.Max(0, (pageIndex - 1) * size))
-                    .Take(size)
-                    .ToListAsync();
+                        orderedOther = baseQuery.OrderByDescending(x => x.c.EntryDate).ThenBy(x => x.c.Id);
+                    }
+                    else if (string.Equals(sortSpec.By, "id", StringComparison.OrdinalIgnoreCase))
+                    {
+                        orderedOther = sortSpec.Desc ? baseQuery.OrderByDescending(x => x.c.Id) : baseQuery.OrderBy(x => x.c.Id);
+                    }
+                    else if (string.Equals(sortSpec.By, "entryDate", StringComparison.OrdinalIgnoreCase))
+                    {
+                        orderedOther = sortSpec.Desc ? baseQuery.OrderByDescending(x => x.c.EntryDate) : baseQuery.OrderBy(x => x.c.EntryDate);
+                    }
+                    else if (string.Equals(sortSpec.By, "amount", StringComparison.OrdinalIgnoreCase))
+                    {
+                        orderedOther = sortSpec.Desc ? baseQuery.OrderByDescending(x => x.c.Amount) : baseQuery.OrderBy(x => x.c.Amount);
+                    }
+                    else if (string.Equals(sortSpec.By, "contractState", StringComparison.OrdinalIgnoreCase))
+                    {
+                        orderedOther = sortSpec.Desc ? baseQuery.OrderByDescending(x => x.c.ContractState) : baseQuery.OrderBy(x => x.c.ContractState);
+                    }
+                    else
+                    {
+                        orderedOther = baseQuery.OrderByDescending(x => x.c.EntryDate).ThenBy(x => x.c.Id);
+                    }
+
+                    pageRows = await orderedOther
+                        .Skip(Math.Max(0, (pageIndex - 1) * size))
+                        .Take(size)
+                        .Select(x => new ContractPageRow
+                        {
+                            Id = x.c.Id,
+                            EntryDate = x.c.EntryDate,
+                            ContractState = x.c.ContractState,
+                            Amount = x.c.Amount,
+                            AmtMatched = x.c.AmtMatched,
+                            DeliveredDt = x.c.DeliveredDt,
+                            WrittenOffDt = x.c.WrittenOffDt,
+                            RejectedDt = x.c.RejectedDt,
+                            CancelledDt = x.c.CancelledDt,
+                            CustomerFullName = x.u == null ? "" : (((x.u.FirstName ?? "") + " " + (x.u.LastName ?? "")).Trim()),
+                            CustomerCode = x.u == null ? "" : (x.u.Code ?? "")
+                        })
+                        .ToListAsync();
+                }
 
                 static string FmtDt(DateTime? d)
                 {
@@ -142,14 +192,19 @@ namespace OnlineContract.Controllers
                 var items = new List<object>();
                 foreach (var x in pageRows)
                 {
-                    string stateText = x.ContractState.ToString();
+                    // Resolve ContractState from lookup_set; fallback to 'Unknown' if not found
+                    string stateText = "Unknown";
                     try
                     {
-                        stateText = await LookupHelper.GetLookupValueAsync(_db, (int)x.ContractState);
+                        stateText = await _db.LookupSets.AsNoTracking()
+                            .Where(l => l.SetName == "ContractState" && l.LookupSetId == (int)x.ContractState)
+                            .Select(l => l.Value)
+                            .FirstOrDefaultAsync() ?? "Unknown";
                     }
                     catch (System.Exception ex)
                     {
                         System.Diagnostics.Debug.WriteLine($"Failed to resolve contract state lookup for value '{x.ContractState}': {ex}");
+                        stateText = "Unknown";
                     }
 
                     items.Add(new
@@ -220,16 +275,19 @@ namespace OnlineContract.Controllers
             if (row == null)
                 return JsonResultHelper.StableJson(_env, new { message = "Contract not found. The contract may have been removed." }, StatusCodes.Status404NotFound);
 
-            string contractStateText;
+            // Resolve from lookup_set; fallback to 'Unknown' if not found
+            string contractStateText = "Unknown";
             try
             {
-                contractStateText = await LookupHelper.GetLookupValueAsync(_db, (int)row.ContractState);
+                contractStateText = await _db.LookupSets.AsNoTracking()
+                    .Where(l => l.SetName == "ContractState" && l.LookupSetId == (int)row.ContractState)
+                    .Select(l => l.Value)
+                    .FirstOrDefaultAsync() ?? "Unknown";
             }
             catch (Exception ex)
             {
-                // Fallback to the default contract state text and log the failure.
-                contractStateText = row.ContractState.ToString();
                 System.Console.Error.WriteLine($"Failed to get lookup value for contract state '{row.ContractState}': {ex}");
+                contractStateText = "Unknown";
             }
 
             return JsonResultHelper.StableJson(_env, new

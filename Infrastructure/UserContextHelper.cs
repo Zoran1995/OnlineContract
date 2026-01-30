@@ -44,5 +44,18 @@ namespace OnlineContract.Infrastructure
             }
             catch { return false; }
         }
+
+        /// <summary>
+        /// Returns true if the user is an Administrator (roleId = 8).
+        /// </summary>
+        public static bool IsAdministrator(HttpContext http)
+        {
+            try
+            {
+                var rc = http.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type.EndsWith("/role", StringComparison.OrdinalIgnoreCase))?.Value;
+                return int.TryParse(rc, out var roleId) && roleId == 8;
+            }
+            catch { return false; }
+        }
     }
 }

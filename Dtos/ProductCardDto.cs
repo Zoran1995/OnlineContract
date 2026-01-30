@@ -7,4 +7,5 @@ public class ProductCardDto
     public string? PhotoFileName { get; set; }
     public string? MainComment { get; set; }
     public decimal MinAmount { get; set; }
+    public DateTime InputDt { get; set; }
 }

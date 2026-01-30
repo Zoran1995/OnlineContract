@@ -71,24 +71,28 @@
 
     <!-- Filter bar -->
     <section class="mod-filters">
-      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-        <div>
-          <label class="label"><span class="label-text">Name</span></label>
-          <input id="fltName" class="input input-sm input-bordered w-full" type="text" placeholder="Search by name/code" />
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="w-40">
+          <label class="label py-0"><span class="label-text text-xs">Name</span></label>
+          <input id="fltName" class="input input-sm input-bordered w-full" type="text" placeholder="name/code" />
         </div>
-        <div>
-          <label class="label"><span class="label-text">Team</span></label>
+        <div class="w-44">
+          <label class="label py-0"><span class="label-text text-xs">Email</span></label>
+          <input id="fltEmail" class="input input-sm input-bordered w-full" type="text" placeholder="email" />
+        </div>
+        <div class="w-36">
+          <label class="label py-0"><span class="label-text text-xs">Team</span></label>
           <select id="fltTeam" class="select select-sm select-bordered w-full">
             <option value="" selected>All teams</option>
           </select>
         </div>
-        <div class="w-full flex gap-2 justify-end md:col-start-5">
-          <button id="btnSearch" class="btn btn-sm btn-primary"><span class="material-icons mr-2">search</span> Search</button>
-          <button id="btnClear" class="btn btn-sm btn-outline"><span class="material-icons mr-2">clear_all</span> Clear</button>
+        <div class="flex gap-2 items-end ml-auto">
+          <button id="btnSearch" class="btn btn-sm btn-primary"><span class="material-icons mr-1">search</span>Search</button>
+          <button id="btnClear" class="btn btn-sm btn-outline"><span class="material-icons mr-1">clear_all</span>Clear</button>
         </div>
-        <div class="text-sm text-gray-500 col-span-1 md:col-span-5">
-          <span id="emptyState" class="hidden">No data found for selected filters.</span>
-        </div>
+      </div>
+      <div class="text-sm text-gray-500 mt-2">
+        <span id="emptyState" class="hidden">No data found for selected filters.</span>
       </div>
     </section>
 

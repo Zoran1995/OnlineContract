@@ -10,6 +10,7 @@
   let sortDir = 'asc';
 
   const filterTaskId = document.getElementById('filterTaskId');
+  const filterContractId = document.getElementById('filterContractId');
   const filterPriority = document.getElementById('filterPriority');
   const filterStatus = document.getElementById('filterStatus');
   const btnSearch = document.getElementById('btnSearch');
@@ -31,7 +32,8 @@
   const tStatusBtn = document.getElementById('tStatusBtn');
   const tStatusLbl = document.getElementById('tStatusLbl');
   const tEntryDate = document.getElementById('tEntryDate');
-  const tContractId = document.getElementById('tContractId');
+  const tContractIdLink = document.getElementById('tContractIdLink');
+  const tContractIdText = document.getElementById('tContractIdText');
   const tInitiatedBy = document.getElementById('tInitiatedBy');
   const tClose = document.getElementById('tClose');
   const tSave = document.getElementById('tSave');
@@ -47,7 +49,17 @@
   function showLoading(){ document.getElementById('loadingOverlay')?.classList.remove('hidden'); }
   function hideLoading(){ document.getElementById('loadingOverlay')?.classList.add('hidden'); }
 
-  function updateActions(){ btnOpen.disabled = !selectedId; }
+  function updateActions(){
+    const row = getSelectedRow();
+    // Disable Open button if no selection or if task is assigned to system user (id=2)
+    // System tasks (like EOM Report) are assigned to user 2 and cannot be edited by users
+    const isSystemTask = row && (row.assignedToUserId === 2 || row.initiatedByUserId === 2);
+    btnOpen.disabled = !selectedId || isSystemTask;
+  }
+
+  function getSelectedRow() {
+    return (items || []).find(x => x.id === selectedId) || null;
+  }
 
   async function loadLookups(){
     try {
@@ -63,14 +75,24 @@
     } catch {}
   }
 
-  async function search(){
+  async function search(skipValidation = false){
+    // Require at least one filter (unless auto-search from URL params)
+    const idVal = (filterTaskId.value || '').trim();
+    const cVal = (filterContractId?.value || '').trim();
+    const pr = (filterPriority.value || '').trim();
+    const st = (filterStatus.value || '').trim();
+    if (!skipValidation && !idVal && !cVal && !pr && !st) {
+      try { showToast('warning', 'Please enter at least one search criteria.'); } catch {}
+      return;
+    }
     try {
       showLoading();
       selectedId = null; updateActions();
       const params = new URLSearchParams();
-      const idVal = (filterTaskId.value || '').trim(); if (idVal) params.set('taskId', idVal);
-      const pr = (filterPriority.value || '').trim(); if (pr) params.set('priorityId', pr);
-      const st = (filterStatus.value || '').trim(); if (st) params.set('statusId', st);
+      if (idVal) params.set('taskId', idVal);
+      if (cVal) params.set('contractId', cVal);
+      if (pr) params.set('priorityId', pr);
+      if (st) params.set('statusId', st);
       params.set('page', String(page)); params.set('pageSize', String(pageSize));
       if (sortBy){ params.set('sortBy', sortBy); params.set('sortDir', sortDir); }
       const res = await fetch(`${apiBase}?${params.toString()}`, { credentials: 'include', headers: { 'Accept': 'application/json' }});
@@ -126,16 +148,61 @@
       if (tPrioritySel) { const opts = Array.from(tPrioritySel.querySelectorAll('option')); const match = opts.find(o => Number(o.value) === Number(d.priority)); if (match) { tPrioritySel.value = match.value; } }
       if (tStatusLbl) tStatusLbl.textContent = d.statusText || '';
       tEntryDate.value = d.entryDate || '';
-      tContractId.value = (d.contractId == null ? '' : String(d.contractId));
+      // Contract ID link
+      if (d.contractId != null) {
+        tContractIdLink.href = `/contracts/${d.contractId}`;
+        tContractIdLink.textContent = String(d.contractId);
+        tContractIdLink.style.display = 'inline';
+        tContractIdText.style.display = 'none';
+      } else {
+        tContractIdLink.style.display = 'none';
+        tContractIdText.textContent = '';
+        tContractIdText.style.display = 'inline';
+      }
       if (tInitiatedBy) tInitiatedBy.value = (d.initiatedByUserCode == null ? '' : String(d.initiatedByUserCode));
       try { modal.showModal(); } catch(e) { console.error('Modal open error:', e); }
     } catch(err) { console.error('openModal error:', err); try { showToast('error', 'Failed to load task'); } catch {} }
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    // Check if user is privileged before loading data
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    const roleId = parseInt(localStorage.getItem('roleId') || '0', 10);
+    const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
+    if (!isPrivileged) return; // Access Denied is handled in HTML script
+    
     // Grid starts empty until Search is clicked
     updateActions();
     loadLookups();
+
+    // Check for URL query parameters (for auto-search and auto-open from notification links)
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoTaskId = urlParams.get('taskId');
+    const autoOpen = urlParams.get('autoOpen') === '1';
+    
+    if (autoTaskId) {
+      // Set the task ID filter and trigger search (skip validation for auto-search)
+      filterTaskId.value = autoTaskId;
+      page = 1;
+      search(true).then(() => {
+        // After search completes, if autoOpen is set and we have results, open the modal
+        if (autoOpen && items.length > 0) {
+          // Select the first item (should be the one we searched for)
+          selectedId = items[0].id;
+          updateActions();
+          // Highlight the row
+          const tbody = document.querySelector('#grid tbody');
+          const rows = tbody?.querySelectorAll('tr');
+          rows?.forEach(r => r.classList.remove('table-row-selected'));
+          const firstRow = tbody?.querySelector('tr');
+          if (firstRow) firstRow.classList.add('table-row-selected');
+          // Open the modal
+          openModal();
+        }
+      });
+      // Clear URL params to avoid re-triggering on refresh
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
 
     // Paging & page size
     prevPage.addEventListener('click', () => { if (page > 1){ page--; search(); } });
@@ -159,7 +226,14 @@
 
     // Search & Clean
     btnSearch.addEventListener('click', (e) => { e.preventDefault(); page = 1; search(); });
-    btnClean.addEventListener('click', (e) => { e.preventDefault(); filterTaskId.value=''; filterPriority.value=''; filterStatus.value=''; items=[]; selectedId=null; page=1; totalPages=0; totalCount=0; renderRows(); renderPager(); updateActions(); });
+    btnClean.addEventListener('click', (e) => { e.preventDefault(); filterTaskId.value=''; if(filterContractId) filterContractId.value=''; filterPriority.value=''; filterStatus.value=''; items=[]; selectedId=null; page=1; totalPages=0; totalCount=0; renderRows(); renderPager(); updateActions(); });
+
+    // Enter key triggers search on filter inputs
+    [filterTaskId, filterContractId, filterPriority, filterStatus].forEach(el => {
+      el?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); page = 1; search(); }
+      });
+    });
 
     // Open modal
     btnOpen.addEventListener('click', (e) => { e.preventDefault(); openModal(); });
@@ -204,11 +278,13 @@
     tsCancel?.addEventListener('click', (e) => { e.preventDefault(); try { statusModal.close(); } catch {} });
     tsOk?.addEventListener('click', async (e) => {
       e.preventDefault();
+      if (!selectedId){ try { showToast('warning','Please select a task first.'); } catch {} return; }
       try {
         const nextId = Number(tsNext?.value || '0');
         if (!nextId){ try { showToast('warning','Please select next status.'); } catch {} return; }
+        const taskIdToUpdate = selectedId; // preserve before search clears it
         const payload = { nextStatusId: nextId, comment: (tsComment?.value || '').trim() };
-        const res = await fetch(`${apiBase}/${encodeURIComponent(selectedId)}/status`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload) });
+        const res = await fetch(`${apiBase}/${encodeURIComponent(taskIdToUpdate)}/status`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload) });
         if (res.status === 401){ window.location.href = '/login?mode=login'; return; }
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
@@ -216,8 +292,19 @@
         if (tStatusLbl) tStatusLbl.textContent = String(data.newStatusName || '');
         try { showToast('info','Status updated.'); } catch {}
         try { statusModal.close(); } catch {}
-        // Reload grid row details to reflect changes
+        // Reload grid row details to reflect changes, then restore selection
         await search();
+        selectedId = taskIdToUpdate;
+        updateActions();
+        // Re-highlight the row in the grid
+        const rows = tbody?.querySelectorAll('tr');
+        rows?.forEach(r => {
+          r.classList.remove('active');
+          const cells = r.querySelectorAll('td');
+          if (cells.length > 0 && String(cells[0].textContent) === String(taskIdToUpdate)) {
+            r.classList.add('active');
+          }
+        });
       } catch { try { showToast('error','Failed to update status.'); } catch {} }
     });
   });

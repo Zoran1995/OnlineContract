@@ -26,6 +26,9 @@ packages/
 # Publish output
 wwwroot/dist/
 
+# Generated reports
+ReportGeneration/
+
 # Temporary files
 *.tmp
 *.temp

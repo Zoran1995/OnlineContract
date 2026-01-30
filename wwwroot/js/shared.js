@@ -993,14 +993,19 @@ function ensureNotificationUI() {
         }
         // Hide entire dropdown container when not logged in
         if (userDropdown) userDropdown.classList.toggle('hidden', !isLoggedIn);
-        // Button layout and readability
+        // Button layout and readability - fixed sizing for consistency across all pages
         adminLabel.style.display = 'flex';
         adminLabel.style.alignItems = 'center';
-        adminLabel.style.gap = '8px';
+        adminLabel.style.gap = '6px';
         adminLabel.style.whiteSpace = 'nowrap';
         adminLabel.style.textOverflow = 'ellipsis';
         adminLabel.style.overflow = 'hidden';
-        adminLabel.style.maxWidth = '320px';
+        adminLabel.style.maxWidth = '200px';
+        adminLabel.style.height = '32px';
+        adminLabel.style.minHeight = '32px';
+        adminLabel.style.padding = '0 12px';
+        adminLabel.style.fontSize = '0.875rem';
+        adminLabel.style.lineHeight = '1.25rem';
       }
 
       // Show Profile option only for Customers (roleId = 5)
@@ -1114,6 +1119,7 @@ function ensureNotificationUI() {
               <li><a href="/approvalrules" id="ddApprovalRules"><span class="material-icons mr-2">rule</span>Approval Rules</a></li>
               <li><a href="/changestore" id="ddChangeStore"><span class="material-icons mr-2">store</span>Store Details</a></li>
               <li><a href="/users" id="ddUsersTeams"><span class="material-icons mr-2">group</span>Users &amp; Teams</a></li>
+              <li><a href="/processlog" id="ddProcessLog"><span class="material-icons mr-2">history</span>System Process Log</a></li>
               <li><a href="/eventlog" id="ddEventLog"><span class="material-icons mr-2">list</span>All Events</a></li>
             `;
             // Insert wrapper at the far left (as first interactive element)
@@ -1182,9 +1188,12 @@ function ensureNotificationUI() {
             const ddContracts = document.getElementById('ddContracts');
             const ddNotes = document.getElementById('ddNotes');
             const ddProducts = document.getElementById('ddProducts');
+            const ddProcessLog = document.getElementById('ddProcessLog');
             if (ddChangeStore) ddChangeStore.classList.toggle('hidden', !isPrivileged);
             if (ddUsersTeams) ddUsersTeams.classList.toggle('hidden', !isPrivileged);
             if (ddEventLog) ddEventLog.classList.toggle('hidden', !isPrivileged);
+            // System Process Log visible only to managers and administrators (roleId 7 or 8)
+            if (ddProcessLog) ddProcessLog.classList.toggle('hidden', !isPrivileged);
             // Contracts and Notes should be hidden for ordinary Customers (roleId = 5)
             if (ddContracts) ddContracts.classList.toggle('hidden', (!isLoggedIn) || isCustomer);
             if (ddNotes) ddNotes.classList.toggle('hidden', (!isLoggedIn) || isCustomer);
@@ -2853,5 +2862,130 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('DOMContentLoaded', function () {
     try { setupNavbarDropdown('eventlogDropdown'); } catch { }
     try { setupNavbarDropdown('userDropdown', 'adminLabel'); } catch { }
+    // Apply ONLY navbar pastel color and insert KidzStyle logo at far left
+    try {
+      (function applyGlobalNavbarBrand() {
+        try {
+          // Inject a gentle pastel background for the navbar only (no other elements)
+          if (!document.getElementById('oc-navbar-style')) {
+            const style = document.createElement('style');
+            style.id = 'oc-navbar-style';
+            style.textContent = 
+              '.navbar { background-color: #f6f7ff; }\n' +
+              '.kidzstyle-logo { font-weight: 600; margin-right: 8px; }';
+            document.head.appendChild(style);
+          }
+
+          // Idempotently insert a textual KidzStyle logo to the far left, left of the Menu button
+          if (!document.getElementById('kidzstyleLogo')) {
+            const logo = document.createElement('span');
+            logo.id = 'kidzstyleLogo';
+            logo.className = 'kidzstyle-logo';
+            logo.textContent = 'KidzStyle';
+
+            // Cute inline SVG icon (pastel heart) placed to the left of KidzStyle
+            if (!document.getElementById('kidzstyleIcon')) {
+              const icon = document.createElement('span');
+              icon.id = 'kidzstyleIcon';
+              icon.className = 'kidzstyle-icon';
+              icon.setAttribute('aria-hidden', 'true');
+              icon.innerHTML = `
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M12 21s-5.5-3.8-8.5-6.8C1.6 13.3 1 11.7 1 10c0-2.8 2.2-5 5-5 1.7 0 3.2.9 4 2.2C11.8 5.9 13.3 5 15 5c2.8 0 5 2.2 5 5 0 1.7-.6 3.3-2.5 4.2C17.5 17.2 12 21 12 21z" fill="#f5a6c9" stroke="#f5a6c9" stroke-width="0"/>
+                </svg>`;
+              // Small style for icon
+              if (!document.getElementById('oc-navbar-icon-style')) {
+                const iconStyle = document.createElement('style');
+                iconStyle.id = 'oc-navbar-icon-style';
+                iconStyle.textContent = '.kidzstyle-icon{display:inline-flex;align-items:center;margin-right:6px} .kidzstyle-logo{display:inline-flex;align-items:center}';
+                document.head.appendChild(iconStyle);
+              }
+              // Insert icon before logo once the navbar and Menu are available
+              const attachIcon = () => {
+                const menuWrapper = document.getElementById('eventlogDropdown');
+                const navbar = document.querySelector('.navbar');
+                if (menuWrapper && menuWrapper.parentNode) {
+                  menuWrapper.parentNode.insertBefore(icon, menuWrapper);
+                  menuWrapper.parentNode.insertBefore(logo, menuWrapper);
+                  return true;
+                }
+                if (navbar) {
+                  if (navbar.firstChild) {
+                    navbar.insertBefore(icon, navbar.firstChild);
+                    navbar.insertBefore(logo, icon.nextSibling);
+                  } else {
+                    navbar.appendChild(icon);
+                    navbar.appendChild(logo);
+                  }
+                  return true;
+                }
+                return false;
+              };
+              if (!attachIcon()) {
+                let triesI = 0;
+                const ti = setInterval(() => {
+                  triesI++;
+                  if (attachIcon() || triesI > 40) clearInterval(ti);
+                }, 150);
+              }
+            }
+
+            const insertLogo = () => {
+              const navbar = document.querySelector('.navbar');
+              if (!navbar) return false;
+              const menuWrapper = document.getElementById('eventlogDropdown');
+              if (menuWrapper && menuWrapper.parentNode) {
+                // If icon exists, ensure logo follows it, both before Menu
+                const icon = document.getElementById('kidzstyleIcon');
+                if (icon) {
+                  menuWrapper.parentNode.insertBefore(icon, menuWrapper);
+                  menuWrapper.parentNode.insertBefore(logo, menuWrapper);
+                } else {
+                  menuWrapper.parentNode.insertBefore(logo, menuWrapper);
+                }
+                return true;
+              }
+              // Fallback: prepend to navbar; keep icon before logo if present
+              const icon = document.getElementById('kidzstyleIcon');
+              if (icon) {
+                if (navbar.firstChild) {
+                  navbar.insertBefore(icon, navbar.firstChild);
+                  navbar.insertBefore(logo, icon.nextSibling);
+                } else {
+                  navbar.appendChild(icon);
+                  navbar.appendChild(logo);
+                }
+              } else {
+                if (navbar.firstChild) navbar.insertBefore(logo, navbar.firstChild); else navbar.appendChild(logo);
+              }
+              return true;
+            };
+
+            // Try immediately; if Menu wrapper isn’t ready yet, poll briefly
+            if (!insertLogo()) {
+              let tries = 0;
+              const t = setInterval(() => {
+                tries++;
+                if (insertLogo() || tries > 40) clearInterval(t);
+              }, 150);
+            }
+          }
+          // Remove any accidental right-side KidzStyle/KidsStyle button; keep only the far-left logo
+          (function removeRightSideBrandButton() {
+            try {
+              const rightArea = document.querySelector('.navbar .flex-none');
+              if (!rightArea) return;
+              const candidates = rightArea.querySelectorAll('a, button, span');
+              candidates.forEach(el => {
+                const txt = (el.textContent || '').trim();
+                if (txt === 'KidzStyle' || txt === 'KidsStyle') {
+                  el.remove();
+                }
+              });
+            } catch {}
+          })();
+        } catch { }
+      })();
+    } catch { }
   });
 })();

@@ -2,17 +2,282 @@
 <html lang="en" data-theme="pastel">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KidzStyle · Collections</title>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="icon" href="/resources/icons/tshirt.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="/css/home.css" />
   <link href="/dist/output.css" rel="stylesheet">
   <link rel="stylesheet" href="/css/theme-pastel.css" />
+  <link rel="stylesheet" href="/css/home.css" />
+  <style>
+    * { font-family: 'Poppins', sans-serif; }
+    
+    body {
+      background: linear-gradient(135deg, #fef3f8 0%, #f0f7ff 50%, #f5fff0 100%);
+      min-height: 100vh;
+    }
+    
+    /* Filter panel */
+    .filter-panel {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(16px);
+      border: 2px solid rgba(122, 98, 255, 0.15);
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(122, 98, 255, 0.1);
+    }
+    
+    .filter-select {
+      background: white;
+      border: 2px solid #e8e2ff;
+      border-radius: 10px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    .filter-select:focus {
+      border-color: #7a62ff;
+      box-shadow: 0 0 0 4px rgba(122, 98, 255, 0.15);
+    }
+    
+    /* Price slider */
+    .price-slider {
+      -webkit-appearance: none;
+      height: 8px;
+      background: linear-gradient(90deg, #e8e2ff 0%, #7a62ff 100%);
+      border-radius: 4px;
+    }
+    .price-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, #7a62ff 0%, #e879f9 100%);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(122, 98, 255, 0.4);
+      transition: transform 0.15s ease;
+    }
+    .price-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+    
+    /* Product card */
+    .product-card {
+      background: white;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 2px solid rgba(122, 98, 255, 0.08);
+    }
+    .product-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 20px 50px rgba(122, 98, 255, 0.2);
+      border-color: rgba(122, 98, 255, 0.2);
+    }
+    .product-card .img-container {
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .product-card img {
+      transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .product-card:hover img {
+      transform: scale(1.08);
+    }
+    .product-card .img-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(122, 98, 255, 0.1);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .product-card:hover .img-overlay {
+      opacity: 1;
+    }
+    .product-card .img-overlay span {
+      background: white;
+      padding: 10px 20px;
+      border-radius: 50px;
+      font-weight: 600;
+      color: #7a62ff;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    
+    /* Cart button */
+    .btn-cart {
+      background: linear-gradient(135deg, #7a62ff 0%, #a855f7 100%);
+      border: none;
+      color: white;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 16px rgba(122, 98, 255, 0.3);
+    }
+    .btn-cart:hover {
+      transform: scale(1.1) rotate(-5deg);
+      box-shadow: 0 8px 24px rgba(122, 98, 255, 0.4);
+    }
+    
+    /* Filter buttons */
+    .btn-filter {
+      padding: 10px 24px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+    .btn-filter-primary {
+      background: linear-gradient(135deg, #7a62ff 0%, #a855f7 100%);
+      border: none;
+      color: white;
+      box-shadow: 0 4px 16px rgba(122, 98, 255, 0.3);
+    }
+    .btn-filter-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(122, 98, 255, 0.4);
+    }
+    .btn-filter-outline {
+      background: white;
+      border: 2px solid #e8e2ff;
+      color: #7a62ff;
+    }
+    .btn-filter-outline:hover {
+      background: #f8f6ff;
+      border-color: #7a62ff;
+    }
+    
+    /* Gradient heading */
+    .gradient-heading {
+      background: linear-gradient(135deg, #7a62ff 0%, #e879f9 50%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+    
+    /* Pagination */
+    .pagination-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      margin-top: 40px;
+      padding: 20px;
+    }
+    .btn-page {
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-weight: 600;
+      border: 2px solid #e8e2ff;
+      background: white;
+      color: #7a62ff;
+      transition: all 0.2s ease;
+    }
+    .btn-page:hover:not(:disabled) {
+      background: #7a62ff;
+      color: white;
+      border-color: #7a62ff;
+    }
+    .btn-page:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .page-info {
+      padding: 12px 24px;
+      font-weight: 700;
+      color: #6f6f6f;
+      background: white;
+      border-radius: 10px;
+      border: 2px solid #e8e2ff;
+    }
+    
+    /* Image modal */
+    .image-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .image-modal.active {
+      display: flex;
+    }
+    .image-modal img {
+      max-width: 90%;
+      max-height: 85vh;
+      object-fit: contain;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+    .image-modal .close-btn {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 14px 40px;
+      background: white;
+      color: #7a62ff;
+      border: none;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+      transition: all 0.2s ease;
+    }
+    .image-modal .close-btn:hover {
+      background: #7a62ff;
+      color: white;
+      transform: translateX(-50%) scale(1.05);
+    }
+    
+    /* Empty/loading states */
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+    }
+    .empty-state .material-icons {
+      font-size: 80px;
+      color: #e8e2ff;
+      margin-bottom: 20px;
+    }
+    .loading-spinner {
+      display: flex;
+      justify-content: center;
+      padding: 80px;
+    }
+    
+    /* Results badge */
+    .results-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #e8e2ff 0%, #dff1ff 100%);
+      padding: 10px 20px;
+      border-radius: 50px;
+      font-weight: 600;
+      color: #6a54f2;
+      border: 2px solid rgba(122, 98, 255, 0.2);
+    }
+  </style>
 </head>
 <body class="bg-base-200 text-base-content">
 
-  <!-- Navbar -->
+  <!-- Navbar - identical to other pages -->
   <div class="navbar bg-base-100 shadow sticky top-0 z-50">
     <div class="flex-1">
       <a href="/home" class="btn btn-ghost normal-case text-xl">
@@ -31,132 +296,374 @@
     <div class="flex-none items-center gap-3">
       <a id="navSignIn" href="/login" class="btn btn-outline"><span class="material-icons mr-2">person_add</span> Sign In</a>
       <a id="navLogIn" href="/login" class="btn btn-primary"><span class="material-icons mr-2">login</span> Log In</a>
-      <button id="navLogOut" class="btn btn-outline hidden"><span class="material-icons mr-2">exit_to_app</span> Log Out</button>
     </div>
   </div>
 
-  <main class="container mx-auto p-6">
-    <!-- Filters Panel moved from Home -->
-    <section class="pastel-card spacing-relaxed mb-8 fade-up">
-      <h1 class="text-3xl font-extrabold mb-2 pastel-heading">Collections</h1>
-      <p class="text-gray-700 mb-4">Browse all our collections and refine your search with filters.</p>
-      <div class="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
+  <!-- Image Modal -->
+  <div id="imageModal" class="image-modal">
+    <img id="modalImage" src="" alt="Product Image" />
+    <button class="close-btn" onclick="closeImageModal()">
+      <span class="material-icons">close</span> Cancel
+    </button>
+  </div>
+
+  <main class="container mx-auto px-4 py-10 max-w-7xl">
+    <!-- Header -->
+    <div class="text-center mb-10">
+      <h1 class="text-5xl md:text-6xl font-extrabold mb-4 gradient-heading">Our Collections</h1>
+      <p class="text-gray-600 text-lg max-w-2xl mx-auto leading-relaxed">
+        Discover beautiful, comfortable clothing for your little ones. 
+        <span class="font-semibold text-purple-600">Filter by size, color, and price</span> to find the perfect fit.
+      </p>
+    </div>
+
+    <!-- Filters Panel -->
+    <section class="filter-panel p-8 mb-10">
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-5 items-end">
         <div>
-          <label class="label"><span class="label-text">Category</span></label>
-          <select class="select select-bordered w-full pastel-select">
-            <option>Baby &amp; Toddler</option>
-            <option>Kids</option>
-            <option>Teens</option>
-            <option>Accessories</option>
+          <label class="block text-sm font-bold text-gray-700 mb-2">
+            <span class="material-icons text-base align-middle mr-1 text-purple-500">straighten</span>Size
+          </label>
+          <select id="filterSize" class="filter-select select w-full">
+            <option value="">All Sizes</option>
           </select>
         </div>
         <div>
-          <label class="label"><span class="label-text">Size</span></label>
-          <select class="select select-bordered w-full pastel-select">
-            <option>0–24M</option>
-            <option>2T–4T</option>
-            <option>5–8</option>
-            <option>9–12</option>
-            <option>13–16</option>
+          <label class="block text-sm font-bold text-gray-700 mb-2">
+            <span class="material-icons text-base align-middle mr-1 text-purple-500">palette</span>Color
+          </label>
+          <select id="filterColor" class="filter-select select w-full">
+            <option value="">All Colors</option>
+          </select>
+        </div>
+        <div class="col-span-2 md:col-span-1">
+          <label class="block text-sm font-bold text-gray-700 mb-2">
+            <span class="material-icons text-base align-middle mr-1 text-purple-500">payments</span>Max Price: <span id="priceValue" class="text-purple-600">0</span> RSD
+          </label>
+          <input type="range" id="filterPrice" class="price-slider w-full" min="0" max="10000" value="10000" step="100" />
+        </div>
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2">
+            <span class="material-icons text-base align-middle mr-1 text-purple-500">sort</span>Sort By
+          </label>
+          <select id="filterSort" class="filter-select select w-full">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="price_asc">Price: Low → High</option>
+            <option value="price_desc">Price: High → Low</option>
           </select>
         </div>
         <div>
-          <label class="label"><span class="label-text">Fabric</span></label>
-          <select class="select select-bordered w-full pastel-select">
-            <option>Cotton</option>
-            <option>Organic Cotton</option>
-            <option>Poly-Cotton</option>
-            <option>Fleece</option>
+          <label class="block text-sm font-bold text-gray-700 mb-2">
+            <span class="material-icons text-base align-middle mr-1 text-purple-500">view_module</span>Per Page
+          </label>
+          <select id="filterPerPage" class="filter-select select w-full">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
           </select>
         </div>
-        <div>
-          <label class="label"><span class="label-text">Color</span></label>
-          <select class="select select-bordered w-full pastel-select">
-            <option>Neutrals</option>
-            <option>Pastels</option>
-            <option>Brights</option>
-            <option>Patterns</option>
-          </select>
-        </div>
-        <div>
-          <label class="label"><span class="label-text">Amount</span></label>
-          <input type="range" min="5" max="100" value="20" class="range range-primary" />
-          <div class="text-xs text-gray-600 mt-1">Set your budget</div>
-        </div>
-        <div>
-          <label class="label"><span class="label-text">Sort</span></label>
-          <select class="select select-bordered w-full pastel-select">
-            <option>Amount (Low → High)</option>
-            <option>Popularity</option>
-            <option>Newest</option>
-          </select>
+        <div class="col-span-2 flex gap-3 justify-end">
+          <button id="btnApplyFilters" class="btn-filter btn-filter-primary">
+            <span class="material-icons text-sm align-middle mr-1">filter_list</span>Apply
+          </button>
+          <button id="btnClearFilters" class="btn-filter btn-filter-outline">
+            <span class="material-icons text-sm align-middle mr-1">clear_all</span>Clear
+          </button>
         </div>
       </div>
     </section>
 
-    <!-- Product Grid placeholder (can be wired later) -->
-    <section class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div class="pastel-card card-hover fade-up fade-up-delay-1">
-        <div class="img-zoom"><img src="/resources/photos/HomePage.jpg" alt="Kids Clothing — New Arrivals" class="w-full aspect-video object-cover" loading="lazy" /></div>
-        <div class="p-5">
-          <div class="flex items-center gap-2 mb-2">
-            <h3 class="text-xl font-bold">New Arrivals</h3>
-            <span class="badge badge-pastel-sky">Kids</span>
-            <span class="badge badge-pastel-mint">New</span>
-          </div>
-          <div class="text-sm text-gray-700 mb-2">Sizes: 2T–14 · Fabrics: Cotton, Organic</div>
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-lg font-semibold">From $9.99</span>
-            <div class="flex gap-2">
-              <button type="button" class="btn btn-primary btn-sm btn-add-to-cart btn-sheen" aria-disabled="true">Add to Cart</button>
-              
-            </div>
-          </div>
-        </div>
+    <!-- Results count -->
+    <div class="flex justify-between items-center mb-8">
+      <div id="resultsCount" class="results-badge">
+        <span class="material-icons text-lg">inventory_2</span>
+        <span>Loading products...</span>
       </div>
-      <div class="pastel-card card-hover fade-up fade-up-delay-2">
-        <div class="img-zoom"><img src="/resources/photos/Item1.jpg" alt="Baby & Toddler" class="w-full aspect-video object-cover" loading="lazy" /></div>
-        <div class="p-5">
-          <div class="flex items-center gap-2 mb-2">
-            <h3 class="text-xl font-bold">Baby & Toddler</h3>
-            <span class="badge badge-pastel-peach">Soft</span>
-            <span class="badge badge-pastel-lilac">Essential</span>
-          </div>
-          <div class="text-sm text-gray-700 mb-2">Sizes: 0–24M · Gentle on skin</div>
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-lg font-semibold">From $6.99</span>
-            <div class="flex gap-2">
-              <button type="button" class="btn btn-primary btn-sm btn-add-to-cart btn-sheen" aria-disabled="true">Add to Cart</button>
-              
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="pastel-card card-hover fade-up fade-up-delay-3">
-        <div class="img-zoom"><img src="/resources/photos/Item2.jpg" alt="Kids & Teens" class="w-full aspect-video object-cover" loading="lazy" /></div>
-        <div class="p-5">
-          <div class="flex items-center gap-2 mb-2">
-            <h3 class="text-xl font-bold">Kids & Teens</h3>
-            <span class="badge badge-pastel-pink">Trendy</span>
-          </div>
-          <div class="text-sm text-gray-700 mb-2">Sizes: 4–16 · Durable fabrics</div>
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-lg font-semibold">From $12.99</span>
-            <div class="flex gap-2">
-              <button type="button" class="btn btn-primary btn-sm btn-add-to-cart btn-sheen" aria-disabled="true">Add to Cart</button>
-              
-            </div>
-          </div>
-        </div>
+    </div>
+
+    <!-- Product Grid -->
+    <section id="productGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+      <div class="loading-spinner col-span-full">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
       </div>
     </section>
-      <!-- Product Grid (cards load from /api/products/cards) -->
-      <section id="productGrid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6"></section>
+
+    <!-- Pagination -->
+    <div id="paginationContainer" class="pagination-container hidden">
+      <button id="btnPrevPage" class="btn-page">
+        <span class="material-icons align-middle mr-1">chevron_left</span>Previous
+      </button>
+      <span id="pageInfo" class="page-info">Page 1 of 1</span>
+      <button id="btnNextPage" class="btn-page">
+        Next<span class="material-icons align-middle ml-1">chevron_right</span>
+      </button>
+    </div>
   </main>
 
-  <!-- Notification UI injected by /js/shared.js -->
   <script src="/js/shared.js"></script>
-    <script src="/js/variantModal.js"></script>
-  <script src="/js/collections.js"></script>
+  <script src="/js/variantModal.js"></script>
+  <script>
+    (function() {
+      'use strict';
+
+      const grid = document.getElementById('productGrid');
+      const filterSize = document.getElementById('filterSize');
+      const filterColor = document.getElementById('filterColor');
+      const filterPrice = document.getElementById('filterPrice');
+      const filterSort = document.getElementById('filterSort');
+      const filterPerPage = document.getElementById('filterPerPage');
+      const priceValue = document.getElementById('priceValue');
+      const resultsCount = document.getElementById('resultsCount');
+      const btnApply = document.getElementById('btnApplyFilters');
+      const btnClear = document.getElementById('btnClearFilters');
+      const paginationContainer = document.getElementById('paginationContainer');
+      const btnPrevPage = document.getElementById('btnPrevPage');
+      const btnNextPage = document.getElementById('btnNextPage');
+      const pageInfo = document.getElementById('pageInfo');
+      const imageModal = document.getElementById('imageModal');
+      const modalImage = document.getElementById('modalImage');
+
+      let maxPriceLimit = 10000;
+      let allProducts = [];
+      let currentPage = 1;
+      let isInitialized = false;
+
+      const PLACEHOLDER_IMAGE = '/resources/images/no-image.svg';
+
+      // Image modal functions
+      window.openImageModal = function(src) {
+        modalImage.src = src;
+        imageModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      };
+
+      window.closeImageModal = function() {
+        imageModal.classList.remove('active');
+        document.body.style.overflow = '';
+      };
+
+      // Close modal on click outside or Escape
+      imageModal.addEventListener('click', function(e) {
+        if (e.target === imageModal) closeImageModal();
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeImageModal();
+      });
+
+      // Load filter options
+      async function loadFilterOptions() {
+        try {
+          const res = await fetch('/api/products/filter-options');
+          if (!res.ok) return;
+          const data = await res.json();
+
+          filterSize.innerHTML = '<option value="">All Sizes</option>';
+          (data.sizes || []).forEach(s => {
+            filterSize.innerHTML += `<option value="${s}">${s}</option>`;
+          });
+
+          filterColor.innerHTML = '<option value="">All Colors</option>';
+          (data.colors || []).forEach(c => {
+            filterColor.innerHTML += `<option value="${c}">${c}</option>`;
+          });
+
+          const minP = Math.floor(data.minPrice || 0);
+          const maxP = Math.ceil(data.maxPrice || 10000);
+          maxPriceLimit = maxP;
+          filterPrice.min = minP;
+          filterPrice.max = maxP;
+          filterPrice.value = maxP;
+          priceValue.textContent = maxP.toLocaleString();
+        } catch (e) {
+          console.error('Failed to load filter options:', e);
+        }
+      }
+
+      filterPrice.addEventListener('input', function() {
+        priceValue.textContent = Number(this.value).toLocaleString();
+      });
+
+      // Load products
+      async function loadProducts() {
+        grid.innerHTML = '<div class="loading-spinner col-span-full"><span class="loading loading-spinner loading-lg text-primary"></span></div>';
+        paginationContainer.classList.add('hidden');
+
+        try {
+          const params = new URLSearchParams();
+          if (filterSize.value) params.set('size', filterSize.value);
+          if (filterColor.value) params.set('color', filterColor.value);
+          if (Number(filterPrice.value) < maxPriceLimit) params.set('maxPrice', filterPrice.value);
+          if (filterSort.value) params.set('sortBy', filterSort.value);
+
+          const url = '/api/products/cards' + (params.toString() ? '?' + params.toString() : '');
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Failed to load products');
+
+          allProducts = await res.json();
+          currentPage = 1;
+          renderCurrentPage();
+        } catch (e) {
+          console.error('Failed to load products:', e);
+          grid.innerHTML = `
+            <div class="empty-state col-span-full">
+              <span class="material-icons">error_outline</span>
+              <h3 class="text-2xl font-bold mb-2">Oops! Something went wrong</h3>
+              <p class="text-gray-500">Please try again later.</p>
+            </div>
+          `;
+          resultsCount.innerHTML = '<span class="material-icons text-lg">inventory_2</span><span>Error loading products</span>';
+          paginationContainer.classList.add('hidden');
+        }
+      }
+
+      // Render current page
+      function renderCurrentPage() {
+        const perPage = Number(filterPerPage.value);
+        const totalItems = allProducts.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+        
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        const startIdx = (currentPage - 1) * perPage;
+        const endIdx = Math.min(startIdx + perPage, totalItems);
+        const pageItems = allProducts.slice(startIdx, endIdx);
+
+        // Update results count with total filtered
+        resultsCount.innerHTML = `<span class="material-icons text-lg">inventory_2</span><span>${totalItems} product${totalItems !== 1 ? 's' : ''} found</span>`;
+
+        renderProducts(pageItems);
+        updatePagination(totalPages);
+      }
+
+      // Render products
+      function renderProducts(items) {
+        grid.innerHTML = '';
+
+        if (!items || items.length === 0) {
+          grid.innerHTML = `
+            <div class="empty-state col-span-full">
+              <span class="material-icons">inventory_2</span>
+              <h3 class="text-2xl font-bold mb-2">No products found</h3>
+              <p class="text-gray-500">Try adjusting your filters to see more items.</p>
+            </div>
+          `;
+          return;
+        }
+
+        items.forEach(item => {
+          const card = document.createElement('div');
+          card.className = 'product-card';
+
+          const imgSrc = item.photoFileName
+            ? `/product-images/${encodeURIComponent(item.photoFileName)}`
+            : PLACEHOLDER_IMAGE;
+
+          const price = Number(item.minAmount || 0).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const productName = item.productName || 'Product';
+          const escapedName = productName.replace(/"/g, '&quot;');
+
+          card.innerHTML = `
+            <div class="img-container" onclick="openImageModal('${imgSrc}')">
+              <img src="${imgSrc}" alt="${escapedName}" 
+                   class="w-full aspect-square object-cover" loading="lazy" 
+                   onerror="this.onerror=null; this.src='${PLACEHOLDER_IMAGE}';" />
+              <div class="img-overlay">
+                <span><span class="material-icons align-middle">zoom_in</span> View Image</span>
+              </div>
+            </div>
+            <div class="p-6">
+              <h3 class="text-xl font-bold text-gray-800 mb-2 line-clamp-2">${productName}</h3>
+              <p class="text-sm text-gray-500 mb-4 line-clamp-2 min-h-[40px]">${item.mainComment || 'Quality kids clothing'}</p>
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Starting from</span>
+                  <span class="text-2xl font-extrabold text-purple-600 block">${price} <span class="text-base font-bold">RSD</span></span>
+                </div>
+                <button class="btn-cart btn-add-to-cart" 
+                        data-product-id="${item.productId}" 
+                        data-product-name="${escapedName}"
+                        data-photo-file="${item.photoFileName || ''}">
+                  <span class="material-icons">shopping_cart</span>
+                </button>
+              </div>
+            </div>
+          `;
+
+          grid.appendChild(card);
+        });
+      }
+
+      // Update pagination
+      function updatePagination(totalPages) {
+        if (totalPages <= 1) {
+          paginationContainer.classList.add('hidden');
+          return;
+        }
+
+        paginationContainer.classList.remove('hidden');
+        pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+
+        btnPrevPage.disabled = currentPage <= 1;
+        btnNextPage.disabled = currentPage >= totalPages;
+      }
+
+      // Event listeners
+      btnApply.addEventListener('click', loadProducts);
+
+      btnClear.addEventListener('click', function() {
+        filterSize.value = '';
+        filterColor.value = '';
+        filterPrice.value = maxPriceLimit;
+        priceValue.textContent = maxPriceLimit.toLocaleString();
+        filterSort.value = 'newest';
+        filterPerPage.value = '20';
+        loadProducts();
+      });
+
+      btnPrevPage.addEventListener('click', function() {
+        if (currentPage > 1) {
+          currentPage--;
+          renderCurrentPage();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+
+      btnNextPage.addEventListener('click', function() {
+        const perPage = Number(filterPerPage.value);
+        const totalPages = Math.ceil(allProducts.length / perPage);
+        if (currentPage < totalPages) {
+          currentPage++;
+          renderCurrentPage();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+
+      filterPerPage.addEventListener('change', function() {
+        currentPage = 1;
+        renderCurrentPage();
+      });
+
+      [filterSize, filterColor, filterSort].forEach(el => {
+        el.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') loadProducts();
+        });
+      });
+
+      // Initialize
+      function init() {
+        if (isInitialized) return;
+        isInitialized = true;
+        loadFilterOptions().then(loadProducts);
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init, { once: true });
+      } else {
+        init();
+      }
+    })();
+  </script>
 </body>
 </html>

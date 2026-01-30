@@ -15,12 +15,35 @@ public class ProductQueryService
     public ProductQueryService(AppDbContext db) { _db = db; }
 
     /// <summary>
-    /// Returns cards for active, non-deleted products with first variant photo, main note, and min price.
+    /// Returns cards for active, non-deleted products with filtering/sorting support.
     /// </summary>
-    public async Task<List<ProductCardDto>> GetProductCardsAsync(CancellationToken ct = default)
+    public async Task<List<ProductCardDto>> GetProductCardsAsync(
+        string? size = null,
+        string? color = null,
+        decimal? minPrice = null,
+        decimal? maxPrice = null,
+        string? sortBy = null,
+        CancellationToken ct = default)
     {
         var baseProducts = _db.Products.AsNoTracking()
             .Where(p => p.Id > 0 && p.IsActive && !p.IsDeleted);
+
+        // Build variant filter
+        var variantQuery = _db.ProductVariants.AsNoTracking()
+            .Where(v => v.IsActive && !v.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(size))
+            variantQuery = variantQuery.Where(v => v.Size == size);
+
+        if (!string.IsNullOrWhiteSpace(color))
+            variantQuery = variantQuery.Where(v => v.Color == color);
+
+        // If size or color filter is applied, only include products that have matching variants
+        if (!string.IsNullOrWhiteSpace(size) || !string.IsNullOrWhiteSpace(color))
+        {
+            var matchingProductIds = variantQuery.Select(v => v.ProductId).Distinct();
+            baseProducts = baseProducts.Where(p => matchingProductIds.Contains(p.Id));
+        }
 
         var cards = await (
             from p in baseProducts
@@ -47,11 +70,60 @@ public class ProductQueryService
                 ProductName = p.Name ?? string.Empty,
                 PhotoFileName = firstPhoto,
                 MainComment = mainNote,
-                MinAmount = minAmount
+                MinAmount = minAmount,
+                InputDt = p.InputDt
             }
         ).ToListAsync(ct);
 
+        // Apply price filter in memory (after aggregation)
+        if (minPrice.HasValue)
+            cards = cards.Where(c => c.MinAmount >= minPrice.Value).ToList();
+        if (maxPrice.HasValue)
+            cards = cards.Where(c => c.MinAmount <= maxPrice.Value).ToList();
+
+        // Apply sorting
+        cards = sortBy?.ToLowerInvariant() switch
+        {
+            "price_asc" => cards.OrderBy(c => c.MinAmount).ToList(),
+            "price_desc" => cards.OrderByDescending(c => c.MinAmount).ToList(),
+            "newest" => cards.OrderByDescending(c => c.InputDt).ToList(),
+            "oldest" => cards.OrderBy(c => c.InputDt).ToList(),
+            _ => cards.OrderByDescending(c => c.InputDt).ToList() // default: newest first
+        };
+
         return cards;
+    }
+
+    /// <summary>
+    /// Returns all distinct sizes and colors across all active products for filter dropdowns.
+    /// </summary>
+    public async Task<(string[] Sizes, string[] Colors, decimal MinPrice, decimal MaxPrice)> GetFilterOptionsAsync(CancellationToken ct = default)
+    {
+        var activeVariants = _db.ProductVariants.AsNoTracking()
+            .Where(v => v.IsActive && !v.IsDeleted);
+
+        var sizes = await activeVariants
+            .Where(v => !string.IsNullOrWhiteSpace(v.Size))
+            .Select(v => v.Size!)
+            .Distinct()
+            .OrderBy(s => s)
+            .ToArrayAsync(ct);
+
+        var colors = await activeVariants
+            .Where(v => !string.IsNullOrWhiteSpace(v.Color))
+            .Select(v => v.Color!)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToArrayAsync(ct);
+
+        var prices = await activeVariants
+            .Select(v => v.Amount)
+            .ToListAsync(ct);
+
+        var minPrice = prices.Count > 0 ? prices.Min() : 0m;
+        var maxPrice = prices.Count > 0 ? prices.Max() : 10000m;
+
+        return (sizes, colors, minPrice, maxPrice);
     }
 
     /// <summary>

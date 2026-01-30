@@ -61,27 +61,29 @@
 
     <!-- Filters -->
     <div id="tasksFilters" class="mod-filters">
-      <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
-        <div>
-          <label class="label"><span class="label-text">Task ID</span></label>
-          <input id="filterTaskId" type="number" class="input input-sm input-bordered w-full" placeholder="e.g., 123" />
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="w-28">
+          <label class="label py-0"><span class="label-text text-xs">Task ID</span></label>
+          <input id="filterTaskId" type="number" class="input input-sm input-bordered w-full" placeholder="123" />
         </div>
-        <div>
-          <label class="label"><span class="label-text">Priority</span></label>
+        <div class="w-28">
+          <label class="label py-0"><span class="label-text text-xs">Contract ID</span></label>
+          <input id="filterContractId" type="number" class="input input-sm input-bordered w-full" placeholder="456" />
+        </div>
+        <div class="w-40">
+          <label class="label py-0"><span class="label-text text-xs">Priority</span></label>
           <select id="filterPriority" class="select select-sm select-bordered w-full"></select>
         </div>
-        <div>
-          <label class="label"><span class="label-text">Status</span></label>
+        <div class="w-40">
+          <label class="label py-0"><span class="label-text text-xs">Status</span></label>
           <select id="filterStatus" class="select select-sm select-bordered w-full"></select>
         </div>
-        <div class="w-full flex items-end gap-2 justify-end md:col-start-5">
+        <div class="flex gap-2 items-end ml-auto">
           <button id="btnSearch" class="btn btn-sm btn-primary">
-            <span class="material-icons mr-2">search</span>
-            <span>Search</span>
+            <span class="material-icons mr-1">search</span>Search
           </button>
           <button id="btnClean" class="btn btn-sm btn-outline">
-            <span class="material-icons mr-2">clear_all</span>
-            <span>Clean</span>
+            <span class="material-icons mr-1">clear_all</span>Clear
           </button>
         </div>
       </div>
@@ -147,14 +149,14 @@
       </div>
       <div class="grid grid-cols-2 gap-3 mb-3">
         <div class="form-control"><label class="label"><span class="label-text">Entry Date</span></label><input id="tEntryDate" type="text" class="input input-bordered" disabled /></div>
-        <div class="form-control"><label class="label"><span class="label-text">Contract ID</span></label><input id="tContractId" type="text" class="input input-bordered" disabled /></div>
+        <div class="form-control"><label class="label"><span class="label-text">Contract ID</span></label><div id="tContractIdWrap" class="input input-bordered flex items-center bg-base-200"><a id="tContractIdLink" href="#" target="_blank" class="link link-primary hidden"></a><span id="tContractIdText">—</span></div></div>
       </div>
       <div class="grid grid-cols-1 gap-3 mb-3">
         <div class="form-control"><label class="label"><span class="label-text">Initiated By (User Code)</span></label><input id="tInitiatedBy" type="text" class="input input-bordered" disabled /></div>
       </div>
       <div class="modal-action">
-        <button id="tSave" type="button" class="btn btn-primary">Save</button>
         <button id="tClose" type="button" class="btn btn-outline">Close</button>
+        <button id="tSave" type="button" class="btn btn-primary">Save</button>
       </div>
     </form>
   </dialog>
@@ -183,13 +185,19 @@
       const isPrivileged = isLoggedIn && (roleId === 7 || roleId === 8);
       if (!isPrivileged) {
         const main = document.querySelector('main');
-        if (main) main.innerHTML = `
-          <div class="access-denied-container">
-            <div class="access-denied">
-              <h2><span class="material-icons">block</span> Access Denied</h2>
-              <p>You are not allowed to see this page.</p>
+        if (main) main.classList.add('hidden');
+        
+        const container = document.createElement('section');
+        container.className = 'container mx-auto p-6';
+        container.innerHTML = `
+          <div class="bg-base-100 rounded-xl shadow p-8 text-center">
+            <div class="flex items-center justify-center gap-2 mb-3">
+              <span class="material-icons text-rose-600">block</span>
+              <h2 class="text-2xl font-bold">Access Denied</h2>
             </div>
+            <p class="text-gray-700">You are not allowed to see this page.</p>
           </div>`;
+        document.body.appendChild(container);
       }
     });
   </script>

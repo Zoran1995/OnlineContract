@@ -5,10 +5,26 @@
   <title>KidzStyle · Home</title>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="icon" href="/resources/icons/tshirt.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/css/home.css" />
   <link rel="stylesheet" href="/css/theme-pastel.css" />
   <link href="/dist/output.css" rel="stylesheet">
+  <style>
+    * { font-family: 'Poppins', sans-serif; }
+    body { background: linear-gradient(135deg, #fef3f8 0%, #f0f7ff 50%, #f5fff0 100%); }
+    .gradient-heading { background: linear-gradient(135deg, #7a62ff 0%, #e879f9 50%, #38bdf8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .pastel-card { border: 2px solid rgba(122, 98, 255, 0.15); border-radius: 20px; overflow: hidden; transition: all 0.3s ease; }
+    .pastel-card:hover { transform: translateY(-5px); box-shadow: 0 15px 40px rgba(122, 98, 255, 0.15); border-color: rgba(122, 98, 255, 0.3); }
+    .btn-primary { background: linear-gradient(135deg, #7a62ff 0%, #9f7aea 100%); border: none; border-radius: 12px !important; font-weight: 600; }
+    .btn-primary:hover { background: linear-gradient(135deg, #6b4ce6 0%, #8b5cf6 100%); transform: scale(1.02); }
+    .trust-bar { background: linear-gradient(135deg, #f0e6ff 0%, #e6f2ff 50%, #e6fff2 100%); border-radius: 16px; padding: 1.5rem; border: 2px solid rgba(122, 98, 255, 0.1); }
+    .faq-item { background: linear-gradient(135deg, #faf7ff 0%, #f7faff 100%); border-radius: 12px; padding: 1.25rem; border: 1px solid rgba(122, 98, 255, 0.1); }
+    .feature-chip { background: white; border: 2px solid rgba(122, 98, 255, 0.2); box-shadow: 0 4px 15px rgba(122, 98, 255, 0.1); font-weight: 600; }
+    footer { background: linear-gradient(135deg, #faf7ff 0%, #f7faff 100%) !important; border: 2px solid rgba(122, 98, 255, 0.1); }
+    footer a { font-weight: 500; color: #7a62ff; }
+    footer a:hover { color: #6b4ce6; }
+  </style>
 </head>
 <body class="bg-base-200 text-base-content">
 
@@ -48,7 +64,7 @@
           </div>
           <!-- Feature chips -->
           <div class="feature-chips">
-            <span class="feature-chip"><span class="material-icons">local_shipping</span>Free Shipping 40€+</span>
+            <span class="feature-chip"><span class="material-icons">local_shipping</span>Free Shipping 4000 RSD+</span>
             <span class="feature-chip"><span class="material-icons">verified</span>Quality Guaranteed</span>
             <span class="feature-chip"><span class="material-icons">child_care</span>Safe Materials</span>
           </div>
@@ -179,7 +195,58 @@
       </div>
       <div class="bg-base-100 rounded-xl shadow p-4 text-center">
         <h4 class="font-bold mb-2">Customer Reviews</h4>
-        <span class="badge badge-info">4.8 ★★★★★</span>
+        <span id="avgRatingBadge" class="badge badge-info">Loading...</span>
+      </div>
+    </section>
+
+    <!-- Customer Reviews Section -->
+    <section id="reviewsSection" class="pastel-card spacing-relaxed mb-8 fade-up">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-2xl font-bold gradient-heading">Customer Reviews</h3>
+        <div id="reviewSummary" class="flex items-center gap-2">
+          <span id="avgStars" class="text-2xl text-yellow-500">★★★★★</span>
+          <span id="avgRatingText" class="text-lg font-semibold text-purple-600">0.0</span>
+          <span id="totalReviewsText" class="text-gray-500">(0 reviews)</span>
+        </div>
+      </div>
+
+      <!-- Review Form -->
+      <div id="reviewFormCard" class="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 mb-6 border-2 border-purple-100">
+        <h4 class="font-bold text-lg mb-4 text-purple-700">Leave a Review</h4>
+        <form id="reviewForm">
+          <div class="mb-4">
+            <label class="block font-semibold mb-2 text-gray-700">Your Rating</label>
+            <div id="starRating" class="flex gap-1 text-3xl cursor-pointer select-none">
+              <span data-value="1" class="star" style="color: #d1d5db;">☆</span>
+              <span data-value="2" class="star" style="color: #d1d5db;">☆</span>
+              <span data-value="3" class="star" style="color: #d1d5db;">☆</span>
+              <span data-value="4" class="star" style="color: #d1d5db;">☆</span>
+              <span data-value="5" class="star" style="color: #d1d5db;">☆</span>
+            </div>
+            <input type="hidden" id="ratingValue" name="mark" value="0">
+          </div>
+          <div class="mb-4">
+            <label for="reviewComment" class="block font-semibold mb-2 text-gray-700">Comment (optional)</label>
+            <textarea id="reviewComment" name="comment" rows="3" maxlength="1000" 
+              class="textarea textarea-bordered w-full bg-white" 
+              placeholder="Share your experience..."></textarea>
+          </div>
+          <button type="submit" id="submitReviewBtn" class="btn btn-primary" disabled>
+            <span class="material-icons mr-2">send</span> Submit Review
+          </button>
+        </form>
+      </div>
+
+      <!-- Reviews List -->
+      <div id="reviewsList" class="space-y-4">
+        <!-- Reviews will be loaded here -->
+      </div>
+
+      <!-- Load More Button -->
+      <div id="loadMoreContainer" class="text-center mt-6 hidden">
+        <button id="loadMoreBtn" class="btn btn-outline btn-primary">
+          <span class="material-icons mr-2">expand_more</span> Load More Reviews
+        </button>
       </div>
     </section>
 
@@ -187,8 +254,8 @@
     <footer class="bg-base-100 rounded-xl shadow p-6 text-sm">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex gap-4">
-          <a href="#" class="link link-hover">Terms &amp; Conditions</a>
-          <a href="#" class="link link-hover">Privacy Policy</a>
+          <a href="/terms" class="link link-hover">Terms &amp; Conditions</a>
+          <a href="/privacy" class="link link-hover">Privacy Policy</a>
           <a href="/about" class="link link-hover">Contact Us</a>
         </div>
         <div class="flex items-center gap-2 text-gray-600 hidden">
@@ -238,6 +305,192 @@
         } catch {}
       }
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindLogout); else bindLogout();
+    })();
+  </script>
+  <script>
+    // Reviews functionality
+    (function() {
+      let currentPage = 1;
+      const pageSize = 5;
+      let selectedRating = 0;
+      let allReviewsLoaded = false;
+
+      // Star rating click handler
+      function setupStarRating() {
+        const stars = document.querySelectorAll('#starRating .star');
+        const ratingInput = document.getElementById('ratingValue');
+        const submitBtn = document.getElementById('submitReviewBtn');
+
+        stars.forEach(star => {
+          star.addEventListener('click', () => {
+            selectedRating = parseInt(star.dataset.value);
+            ratingInput.value = selectedRating;
+            updateStarDisplay(selectedRating);
+            submitBtn.disabled = selectedRating === 0;
+          });
+
+          star.addEventListener('mouseenter', () => {
+            const hoverValue = parseInt(star.dataset.value);
+            stars.forEach(s => {
+              const val = parseInt(s.dataset.value);
+              if (val <= hoverValue) {
+                s.textContent = '★';
+                s.style.color = '#facc15'; // yellow-400
+              } else {
+                s.textContent = '☆';
+                s.style.color = '#d1d5db'; // gray-300
+              }
+            });
+          });
+        });
+
+        document.getElementById('starRating').addEventListener('mouseleave', () => {
+          updateStarDisplay(selectedRating);
+        });
+      }
+
+      function updateStarDisplay(rating) {
+        const stars = document.querySelectorAll('#starRating .star');
+        stars.forEach(s => {
+          const val = parseInt(s.dataset.value);
+          if (val <= rating) {
+            s.textContent = '★';
+            s.style.color = '#facc15'; // yellow-400
+          } else {
+            s.textContent = '☆';
+            s.style.color = '#d1d5db'; // gray-300
+          }
+        });
+      }
+
+      function renderStars(rating) {
+        let stars = '';
+        for (let i = 1; i <= 5; i++) {
+          stars += i <= rating ? '★' : '☆';
+        }
+        return stars;
+      }
+
+      function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      }
+
+      async function loadReviews(append = false) {
+        try {
+          const res = await fetch(`/api/reviews?page=${currentPage}&pageSize=${pageSize}`);
+          const data = await res.json();
+
+          // Update summary
+          document.getElementById('avgRatingText').textContent = data.averageRating.toFixed(1);
+          document.getElementById('totalReviewsText').textContent = `(${data.totalReviews} reviews)`;
+          document.getElementById('avgStars').textContent = renderStars(Math.round(data.averageRating));
+          document.getElementById('avgRatingBadge').textContent = `${data.averageRating.toFixed(1)} ${renderStars(Math.round(data.averageRating))}`;
+
+          const container = document.getElementById('reviewsList');
+          if (!append) container.innerHTML = '';
+
+          if (data.items.length === 0 && !append) {
+            container.innerHTML = '<p class="text-center text-gray-500 py-8">No reviews yet. Be the first to leave a review!</p>';
+          } else {
+            data.items.forEach(review => {
+              const card = document.createElement('div');
+              card.className = 'bg-white rounded-lg p-4 border-2 border-purple-100 shadow-sm hover:shadow-md transition-shadow';
+              card.innerHTML = `
+                <div class="flex items-start justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-blue-400 flex items-center justify-center text-white font-bold">
+                      ${review.userCode.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p class="font-semibold text-gray-800">${review.userCode}</p>
+                      <p class="text-xs text-gray-500">${formatDate(review.inputDt)}</p>
+                    </div>
+                  </div>
+                  <div class="text-yellow-500 text-lg">${renderStars(review.mark)}</div>
+                </div>
+                ${review.comment ? `<p class="mt-3 text-gray-700">${review.comment}</p>` : ''}
+              `;
+              container.appendChild(card);
+            });
+          }
+
+          // Show/hide load more button
+          const loadMoreContainer = document.getElementById('loadMoreContainer');
+          if (currentPage < data.totalPages) {
+            loadMoreContainer.classList.remove('hidden');
+            allReviewsLoaded = false;
+          } else {
+            loadMoreContainer.classList.add('hidden');
+            allReviewsLoaded = true;
+          }
+        } catch (err) {
+          console.error('Failed to load reviews:', err);
+        }
+      }
+
+      async function submitReview(e) {
+        e.preventDefault();
+        const comment = document.getElementById('reviewComment').value.trim();
+        const mark = parseInt(document.getElementById('ratingValue').value);
+
+        if (mark < 1 || mark > 5) {
+          alert('Please select a rating (1-5 stars)');
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/reviews', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ comment, mark })
+          });
+
+          const data = await res.json();
+          if (data.success) {
+            // Reset form
+            document.getElementById('reviewComment').value = '';
+            selectedRating = 0;
+            document.getElementById('ratingValue').value = '0';
+            updateStarDisplay(0);
+            document.getElementById('submitReviewBtn').disabled = true;
+
+            // Reload reviews from first page
+            currentPage = 1;
+            await loadReviews(false);
+
+            // Show success message
+            if (typeof showNotification === 'function') {
+              showNotification('Review submitted successfully!', 'success');
+            }
+          } else {
+            alert(data.message || 'Failed to submit review');
+          }
+        } catch (err) {
+          console.error('Failed to submit review:', err);
+          alert('Failed to submit review. Please try again.');
+        }
+      }
+
+      function init() {
+        setupStarRating();
+        loadReviews();
+
+        document.getElementById('reviewForm').addEventListener('submit', submitReview);
+
+        document.getElementById('loadMoreBtn').addEventListener('click', () => {
+          if (!allReviewsLoaded) {
+            currentPage++;
+            loadReviews(true);
+          }
+        });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
     })();
   </script>
   <script src="/js/shared.js"></script>

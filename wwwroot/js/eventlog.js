@@ -103,9 +103,9 @@ exportBtn.addEventListener('click', async () => {
       return;
     }
 
-    const userId = localStorage.getItem('userId') || 2;
+    // userId=0 means "all users" - show all event logs without user filter
     const params = new URLSearchParams({
-      userId,
+      userId: 0,
       type: typeFilter.value || '',
       from: fromDate.value || '',
       to: toDate.value || ''
@@ -155,9 +155,9 @@ async function loadLogs() {
     showLoading();
     tableBody.innerHTML = "";
 
-    const userId = localStorage.getItem('userId') || 2;
+    // userId=0 means "all users" - show all event logs without user filter
     const params = new URLSearchParams({
-      userId,
+      userId: 0,
       type: typeFilter.value,
       from: fromDate.value,
       to: toDate.value,
